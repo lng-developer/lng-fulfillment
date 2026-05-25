@@ -1,0 +1,82 @@
+import "@/integrations/yunexpress-oms/register";
+
+export {
+  CarrierIntegrationError,
+  createCarrierError,
+  mapCarrierErrorToAppError,
+} from "./errors";
+export {
+  getCarrierAdapter,
+  hasCarrierAdapter,
+  isKnownCarrierCode,
+  listKnownCarrierCodes,
+  listRegisteredCarrierCodes,
+  normalizeCarrierCode,
+  registerCarrierAdapter,
+} from "./registry";
+export { preflightCarrierShipmentCreation } from "./preflight";
+export {
+  createCarrierAccount,
+  disableCarrierCredential,
+  getCarrierAccountSummary,
+  getCarrierCredentialSummary,
+  getDefaultCarrierAccount,
+  getManagedCarrierAccount,
+  getCarrierCredentialRuntimeStatus,
+  listCarrierAccounts,
+  listManagedCarrierAccounts,
+  resolveCarrierCredentials,
+  resolveCarrierRuntimeCredentials,
+  saveCarrierCredential,
+  updateCarrierAccount,
+  validateCarrierAccountCreateInput,
+  validateCarrierAccountUpdateInput,
+  validateCarrierCredentialSaveInput,
+} from "./service";
+export {
+  CARRIER_CODES,
+  CARRIER_ERROR_REASONS,
+  CARRIER_TRACKING_STATUSES,
+} from "./types";
+export type {
+  CarrierAccountCreateInput,
+  CarrierAccountManagementSummary,
+  CarrierAccountSummary,
+  CarrierAccountUpdateInput,
+  CarrierCredentialSaveInput,
+  CarrierCredentialRuntimeStatus,
+  CarrierCredentialSummary,
+  ResolvedCarrierCredentials,
+  YunExpressOmsCredentialPayload,
+} from "./service";
+export type {
+  CancelCarrierShipmentInput,
+  CancelCarrierShipmentResult,
+  CarrierAdapter,
+  CarrierAdapterContext,
+  CarrierCode,
+  CarrierCredentialSource,
+  CarrierError,
+  CarrierErrorReason,
+  CarrierRuntimeCredentialPayload,
+  CarrierRuntimeCredentials,
+  CarrierSafeMetadata,
+  CarrierServerMetadata,
+  CarrierShipmentMappingPreview,
+  CarrierShipmentPreflightResult,
+  CarrierNormalizedTrackingStatus,
+  CarrierTrackingEvent,
+  CreateCarrierShipmentInput,
+  CreateCarrierShipmentItemInput,
+  CreateCarrierShipmentResult,
+  EstimateCarrierRateInput,
+  EstimateCarrierRateItemInput,
+  EstimateCarrierRateResult,
+  GetCarrierLabelInput,
+  GetCarrierLabelResult,
+  GetCarrierTrackingInput,
+  GetCarrierTrackingResult,
+  NormalizedCarrierAddress,
+  UpdateCarrierWeightInput,
+  UpdateCarrierWeightResult,
+} from "./types";

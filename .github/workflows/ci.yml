@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: ci
+      APP_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fulfillment_v2_ci
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fulfillment_v2_ci
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fulfillment_v2_ci
+      SESSION_SECRET: ci_dummy_session_secret_do_not_use_in_prod
+      TENANT_API_KEY_PEPPER: ci_dummy_pepper_do_not_use_in_prod
+      YUN_OMS_LIVE_ENABLED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prisma validate
+        run: npm run prisma:validate
+
+      - name: Prisma generate
+        run: npm run prisma:generate
+
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate

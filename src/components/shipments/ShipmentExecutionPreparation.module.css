@@ -1,0 +1,708 @@
+.preflight {
+  border-top: 1px solid #edf0f5;
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.header,
+.blockHeader {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.kicker {
+  color: #5d6673;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.header h4,
+.blockHeader h5,
+.previewBlock h5,
+.fullWidthBlock h5 {
+  color: #17202a;
+  margin: 0;
+}
+
+.header h4 {
+  font-size: 16px;
+}
+
+.blockHeader h5 {
+  font-size: 15px;
+}
+
+.blockHeader p {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.sectionBlock {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.controls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) auto;
+}
+
+.field,
+.quantityField {
+  display: grid;
+  gap: 6px;
+}
+
+.field span,
+.quantityField span,
+.checkboxField span {
+  color: #4c5664;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quantityField small {
+  color: #697586;
+  font-size: 12px;
+}
+
+.input,
+.select,
+.quantityField input {
+  background: #ffffff;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  color: #17202a;
+  font: inherit;
+  min-height: 40px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.input:focus,
+.select:focus,
+.quantityField input:focus,
+.secondaryButton:focus,
+.primaryButton:focus,
+.executeButton:focus,
+.shipmentRow:focus {
+  outline: 3px solid #9cc8ff;
+  outline-offset: 2px;
+}
+
+.secondaryButton,
+.primaryButton,
+.executeButton {
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.secondaryButton {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  color: #17202a;
+}
+
+.primaryButton,
+.executeButton {
+  background: #17466f;
+  border: 1px solid #17466f;
+  color: #ffffff;
+}
+
+.executeButton {
+  justify-self: start;
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.executeButton:disabled {
+  background: #eef1f5;
+  border-color: #d6dce5;
+  color: #8792a1;
+  cursor: not-allowed;
+}
+
+.empty,
+.notice,
+.inlineWarning {
+  color: #5d6673;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.notice {
+  background: #f5f8fc;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.inlineWarning {
+  color: #74510b;
+}
+
+.error {
+  background: #fff4f4;
+  border: 1px solid #f0c2c2;
+  border-radius: 8px;
+  color: #9f1d1d;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.itemSelectionList,
+.shipmentList,
+.detailStack {
+  display: grid;
+  gap: 10px;
+}
+
+.itemSelectionRow {
+  align-items: center;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(120px, 180px);
+  padding: 10px;
+}
+
+.shipmentRow {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  color: #253142;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(110px, auto) minmax(120px, auto) minmax(120px, auto) minmax(96px, auto);
+  padding: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.shipmentRow div {
+  display: grid;
+  gap: 3px;
+}
+
+.shipmentRow strong {
+  color: #17202a;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.shipmentRow span {
+  color: #5d6673;
+  font-size: 12px;
+}
+
+.selectedShipmentRow {
+  background: #eef6ff;
+  border-color: #9cc8ff;
+}
+
+.previewGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.previewBlock,
+.fullWidthBlock,
+.confirmation {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.summaryValue {
+  color: #17202a;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fullWidthBlock {
+  grid-column: 1 / -1;
+}
+
+.resultPanel {
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.resultNeutral {
+  background: #ffffff;
+}
+
+.resultSuccess {
+  background: #f3fbf6;
+  border-color: #b7e2c7;
+}
+
+.resultWarning {
+  background: #fffaf0;
+  border-color: #efd49b;
+}
+
+.resultDanger {
+  background: #fff7f7;
+  border-color: #efb7b7;
+}
+
+.resultHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.resultHeader h5 {
+  color: #17202a;
+  margin: 0;
+}
+
+.resultHeader p {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.resultBadge {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  border-radius: 999px;
+  color: #253142;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.resultGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.resultItem {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.resultItem span {
+  color: #5d6673;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.resultItem strong {
+  color: #17202a;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.resultItem p,
+.failureMessage {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.failureMessage {
+  background: #ffffff;
+  border: 1px solid #efb7b7;
+  border-radius: 8px;
+  color: #9f1d1d;
+  padding: 10px 12px;
+}
+
+.trackingPanel {
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.trackingHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.trackingHeader h5 {
+  color: #17202a;
+  margin: 0;
+}
+
+.trackingHeader p {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.trackingGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.trackingItem {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.trackingItem span {
+  color: #5d6673;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.trackingItem strong {
+  color: #17202a;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.labelState {
+  align-items: center;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.trackingActionPanel {
+  align-items: center;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.trackingActionPanel div {
+  display: grid;
+  gap: 4px;
+}
+
+.trackingActionPanel strong {
+  color: #17202a;
+  font-size: 14px;
+}
+
+.trackingActionPanel span {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.labelState div {
+  display: grid;
+  gap: 4px;
+}
+
+.labelState strong {
+  color: #17202a;
+  font-size: 14px;
+}
+
+.labelState span {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.labelLink {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  border-radius: 8px;
+  color: #17466f;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 36px;
+  padding: 0 12px;
+  text-decoration: none;
+  align-items: center;
+}
+
+.labelLink:focus {
+  outline: 3px solid #9cc8ff;
+  outline-offset: 2px;
+}
+
+.disabledAction {
+  background: #eef1f5;
+  border: 1px solid #d6dce5;
+  border-radius: 8px;
+  color: #697586;
+  cursor: not-allowed;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  justify-self: start;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.definitionList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.definitionList div {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.definitionList dt,
+.parcelRow span {
+  color: #5d6673;
+  font-size: 13px;
+}
+
+.definitionList dd {
+  color: #17202a;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+  text-align: right;
+}
+
+.parcelList,
+.warningList,
+.timeline {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.parcelRow {
+  align-items: center;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(160px, 1fr) repeat(3, auto);
+  padding: 10px;
+}
+
+.parcelRow div {
+  display: grid;
+  gap: 3px;
+}
+
+.parcelRow strong {
+  color: #17202a;
+  font-size: 14px;
+}
+
+.warningList {
+  color: #70510f;
+  font-size: 13px;
+  list-style-position: inside;
+}
+
+.timeline {
+  list-style: none;
+}
+
+.timeline li {
+  border-left: 3px solid #c7dff8;
+  display: grid;
+  gap: 4px;
+  padding-left: 10px;
+}
+
+.timelineEntryHeader {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.timelineEntryHeader time,
+.timelineEntry span {
+  color: #5d6673;
+  font-size: 13px;
+}
+
+.timelineEntry p {
+  color: #17202a;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.confirmation {
+  background: #fff8ec;
+  border-color: #f0d49c;
+}
+
+.dangerText {
+  color: #8a4c00;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.checkboxField {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.statusBadge,
+.carrierBadge,
+.readinessBadge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.statusBadge {
+  background: #e8f1fb;
+  border: 1px solid #c7dff8;
+  color: #17466f;
+}
+
+.carrierBadge {
+  background: #f1f4f8;
+  border: 1px solid #d9dee7;
+  color: #253142;
+}
+
+.readinessBadge {
+  background: #eef6ff;
+  border: 1px solid #c7dff8;
+  color: #17466f;
+}
+
+.statusDRAFT {
+  background: #eef1f5;
+  border-color: #d6dce5;
+  color: #4c5664;
+}
+
+.statusCREATING,
+.statusTRACKING_PENDING {
+  background: #fff8e8;
+  border-color: #efd49b;
+  color: #74510b;
+}
+
+.statusCREATED,
+.statusLABEL_READY,
+.statusIN_TRANSIT,
+.statusDELIVERED {
+  background: #e7f6ee;
+  border-color: #b7e2c7;
+  color: #17633a;
+}
+
+.statusFAILED_CREATE,
+.statusFAILED_LABEL,
+.statusEXCEPTION,
+.statusCANCELLED {
+  background: #fff1f1;
+  border-color: #efb7b7;
+  color: #9f1d1d;
+}
+
+@media (max-width: 760px) {
+  .header,
+  .blockHeader,
+  .controls,
+  .itemSelectionRow,
+  .shipmentRow {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .header,
+  .blockHeader {
+    flex-direction: column;
+  }
+
+  .previewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .trackingHeader,
+  .resultHeader,
+  .labelState,
+  .trackingActionPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .resultGrid,
+  .trackingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .parcelRow {
+    grid-template-columns: 1fr;
+  }
+}

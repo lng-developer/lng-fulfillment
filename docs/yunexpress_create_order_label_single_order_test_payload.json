@@ -1,0 +1,46 @@
+[
+  {
+    "CustomerOrderNumber": "YUN-TEST-0123456789",
+    "ShippingMethodCode": "VN-YTYCPREC",
+    "TrackingNumber": null,
+    "TransactionNumber": null,
+    "SizeUnits": "cm",
+    "Length": 20,
+    "Width": 15,
+    "Height": 5,
+    "PackageCount": 1,
+    "Weight": 0.1,
+    "ApplicationType": 4,
+    "ReturnOption": 0,
+    "TariffPrepay": 0,
+    "InsuranceOption": 0,
+    "SourceCode": "API",
+    "Receiver": {
+      "CountryCode": "US",
+      "FirstName": "Rachel",
+      "LastName": "Cloud",
+      "Company": "",
+      "Street": "1701 Example Street",
+      "City": "OCEANO",
+      "State": "CA",
+      "Zip": "93445",
+      "Phone": "1234567890",
+      "Email": "test@example.com"
+    },
+    "Parcels": [
+      {
+        "EName": "baseball cap",
+        "CName": "帽子",
+        "HSCode": null,
+        "Quantity": 1,
+        "SKU": "CAP001",
+        "UnitPrice": 10,
+        "UnitWeight": 0.1,
+        "Remark": "baseball cap",
+        "CurrencyCode": "USD",
+        "InvoicePart": "cotton",
+        "InvoiceUsage": "wear"
+      }
+    ]
+  }
+]

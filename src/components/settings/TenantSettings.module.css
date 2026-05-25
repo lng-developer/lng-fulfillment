@@ -1,0 +1,550 @@
+.settingsSection {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+  width: 100%;
+}
+
+.sectionHeader,
+.panelHeader,
+.apiKeyMain,
+.auditLogMain,
+.paginationRow,
+.confirmRow {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.kicker {
+  color: #5d6673;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.title,
+.panelHeader h3 {
+  color: #17202a;
+  margin: 0;
+}
+
+.title {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.panelHeader h3 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.definitionList {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.definitionItem {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.definitionItem dt,
+.apiKeyMeta,
+.auditLogMeta,
+.apiKeyRow span,
+.auditLogRow span,
+.memberRow span,
+.managedMemberRow span,
+.helpText,
+.emptyState,
+.notice {
+  color: #5d6673;
+  font-size: 13px;
+}
+
+.definitionItem dd {
+  color: #17202a;
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.memberList,
+.managedMemberList,
+.auditLogList,
+.carrierAccountList,
+.apiKeyList,
+.loadingList {
+  display: grid;
+  gap: 10px;
+}
+
+.memberRow,
+.managedMemberRow,
+.auditLogRow,
+.carrierAccountRow,
+.apiKeyRow {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.memberRow {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.memberRow div,
+.apiKeyMain div,
+.auditLogMain div {
+  display: grid;
+  gap: 3px;
+}
+
+.memberRow strong,
+.managedMemberRow strong,
+.auditLogMain strong,
+.apiKeyMain strong {
+  color: #17202a;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.memberIdentity {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.memberIdentity div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.memberControls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto;
+}
+
+.carrierAccountControls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(160px, 1fr) minmax(130px, 180px) auto auto;
+}
+
+.carrierAccountActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.memberMeta {
+  color: #5d6673;
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  line-height: 1.4;
+}
+
+.memberMeta strong {
+  color: #4c5664;
+}
+
+.memberBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.helpText {
+  line-height: 1.45;
+  margin: 0;
+}
+
+.notice {
+  background: #f6f8fb;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  line-height: 1.5;
+  padding: 12px;
+}
+
+.createForm {
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.credentialForm {
+  background: #f8fafc;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.formRow {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
+}
+
+.credentialGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span,
+.scopeGroup legend {
+  color: #4c5664;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.input {
+  background: #ffffff;
+  border: 1px solid #cfd6e2;
+  border-radius: 8px;
+  color: #17202a;
+  font: inherit;
+  min-height: 42px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.input:focus,
+.primaryButton:focus,
+.secondaryButton:focus,
+.dangerButton:focus,
+.inlineButton:focus {
+  outline: 3px solid #9cc8ff;
+  outline-offset: 2px;
+}
+
+.scopeGroup {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.scopeOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.checkboxField {
+  align-items: center;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  color: #253142;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.inlineButton {
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.primaryButton {
+  background: #17202a;
+  border: 1px solid #17202a;
+  color: #ffffff;
+  justify-self: start;
+}
+
+.secondaryButton,
+.inlineButton {
+  background: #ffffff;
+  border: 1px solid #c8d0dc;
+  color: #17202a;
+}
+
+.dangerButton {
+  background: #9f1d1d;
+  border: 1px solid #9f1d1d;
+  color: #ffffff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  background: #f2f5f8;
+  border-color: #d9dee7;
+  color: #8792a1;
+  cursor: not-allowed;
+}
+
+.secretReveal {
+  background: #fff8e8;
+  border: 1px solid #efd49b;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.secretReveal strong {
+  color: #17202a;
+}
+
+.secretReveal p,
+.secretActions span {
+  color: #5d6673;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.secretReveal code {
+  background: #ffffff;
+  border: 1px solid #e6c879;
+  border-radius: 8px;
+  color: #17202a;
+  display: block;
+  font-size: 13px;
+  overflow-x: auto;
+  padding: 10px;
+  white-space: nowrap;
+}
+
+.secretActions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.apiKeyMeta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  line-height: 1.4;
+}
+
+.auditFilters {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.auditLogMeta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  line-height: 1.4;
+}
+
+.apiKeyMeta strong,
+.auditLogMeta strong {
+  color: #4c5664;
+}
+
+.metadataList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.metadataItem {
+  background: #f6f8fb;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  display: inline-grid;
+  gap: 3px;
+  max-width: 100%;
+  padding: 8px 10px;
+}
+
+.metadataItem dt {
+  color: #4c5664;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.metadataItem dd {
+  color: #17202a;
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.paginationRow {
+  color: #5d6673;
+  font-size: 13px;
+}
+
+.badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.success {
+  background: #e7f6ee;
+  border: 1px solid #b7e2c7;
+  color: #17633a;
+}
+
+.danger {
+  background: #fff1f1;
+  border: 1px solid #efb7b7;
+  color: #9f1d1d;
+}
+
+.neutral {
+  background: #eef1f5;
+  border: 1px solid #d6dce5;
+  color: #4c5664;
+}
+
+.errorState,
+.successState,
+.emptyState {
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.errorState {
+  background: #fff4f4;
+  border: 1px solid #f0c2c2;
+  color: #9f1d1d;
+}
+
+.successState {
+  background: #e7f6ee;
+  border: 1px solid #b7e2c7;
+  color: #17633a;
+}
+
+.emptyState {
+  background: #f6f8fb;
+  border: 1px solid #d9dee7;
+  color: #5d6673;
+}
+
+.inlineButton {
+  margin-left: 10px;
+  min-height: 32px;
+}
+
+.loadingLine {
+  animation: pulse 1.2s ease-in-out infinite;
+  background: linear-gradient(90deg, #edf0f5, #f8fafc, #edf0f5);
+  border-radius: 8px;
+  height: 42px;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.65;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.65;
+  }
+}
+
+@media (max-width: 820px) {
+  .sectionHeader,
+  .panelHeader,
+  .apiKeyMain,
+  .auditLogMain,
+  .paginationRow,
+  .confirmRow,
+  .secretActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .grid,
+  .definitionList,
+  .formRow,
+  .credentialGrid,
+  .apiKeyMeta,
+  .auditFilters,
+  .auditLogMeta,
+  .memberControls,
+  .carrierAccountControls,
+  .memberIdentity,
+  .memberMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .memberRow {
+    grid-template-columns: 1fr;
+  }
+
+  .memberBadges {
+    justify-content: start;
+  }
+}

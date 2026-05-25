@@ -1,0 +1,385 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum TenantStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum TenantType {
+  INTERNAL
+  CLIENT
+  PARTNER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AuditActorType {
+  USER
+  API_KEY
+  SYSTEM
+}
+
+enum OrderStatus {
+  RECEIVED
+  READY_TO_SHIP
+  CANCELLED
+  ON_HOLD
+}
+
+enum ShipmentStatus {
+  DRAFT
+  CREATING
+  CREATED
+  LABEL_READY
+  TRACKING_PENDING
+  IN_TRANSIT
+  DELIVERED
+  FAILED_CREATE
+  FAILED_LABEL
+  EXCEPTION
+  CANCELLED
+}
+
+enum CarrierAccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CarrierCredentialStatus {
+  ACTIVE
+  DISABLED
+  ROTATED
+}
+
+enum CarrierCredentialType {
+  YUNEXPRESS_OMS
+  API_KEY
+  BASIC_AUTH
+  OAUTH
+  OTHER
+}
+
+model User {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  name         String?
+  passwordHash String
+  status       UserStatus         @default(ACTIVE)
+  memberships  TenantMembership[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Tenant {
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  type               TenantType          @default(CLIENT)
+  status             TenantStatus        @default(ACTIVE)
+  memberships        TenantMembership[]
+  apiKeys            TenantApiKey[]
+  auditLogs          AuditLog[]
+  orders             Order[]
+  shipments          Shipment[]
+  carrierAccounts    CarrierAccount[]
+  carrierCredentials CarrierCredential[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model TenantMembership {
+  id           String           @id @default(cuid())
+  tenantId     String
+  userId       String
+  role         TenantRole
+  status       MembershipStatus @default(ACTIVE)
+  invitedEmail String?
+  invitedAt    DateTime?
+  acceptedAt   DateTime?
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([role, status])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model TenantApiKey {
+  id         String       @id @default(cuid())
+  tenantId   String
+  name       String
+  keyPrefix  String
+  keyHash    String       @unique
+  scopes     Json
+  status     ApiKeyStatus @default(ACTIVE)
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model AuditLog {
+  id           String         @id @default(cuid())
+  tenantId     String?
+  actorUserId  String?
+  actorType    AuditActorType
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json?
+  tenant       Tenant?        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  actorUser    User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([resourceType, resourceId])
+}
+
+model Order {
+  id                    String               @id @default(cuid())
+  tenantId              String
+  externalOrderId       String
+  orderNumber           String?
+  source                String?
+  sourceAccount         String?
+  shopName              String?
+  marketplace           String?
+  externalStatus        String?
+  purchaseAt            DateTime?
+  paidAt                DateTime?
+  status                OrderStatus          @default(RECEIVED)
+  recipientName         String?
+  recipientPhone        String?
+  recipientEmail        String?
+  recipientAddress      Json?
+  destinationCountry    String?
+  destinationState      String?
+  destinationCity       String?
+  destinationPostalCode String?
+  shippingService       String?
+  shippingType          String?
+  currency              String?
+  orderTotal            Decimal?
+  metadata              Json?
+  rawPayload            Json
+  receivedAt            DateTime             @default(now())
+  tenant                Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items                 OrderItem[]
+  statusHistory         OrderStatusHistory[]
+  shipments             Shipment[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([tenantId, externalOrderId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, receivedAt])
+  @@index([tenantId, shopName])
+  @@index([tenantId, marketplace])
+  @@index([tenantId, purchaseAt])
+  @@index([tenantId, destinationCountry])
+}
+
+model OrderItem {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  orderId            String
+  externalItemId     String?
+  sku                String?
+  name               String?
+  title              String?
+  quantity           Int
+  asin               String?
+  listingId          String?
+  productType        String?
+  variant            String?
+  unitPrice          Decimal?
+  currency           String?
+  weight             Decimal?
+  declaredValue      Decimal?
+  customizationUrl   String?
+  customizationData  Json?
+  snapshotImageUrl   String?
+  fulfillmentFile    Json?
+  listingSnapshot    Json?
+  costCenterSnapshot Json?
+  productionStatus   String?
+  scaleStatus        String?
+  qcNote             String?
+  metadata           Json?
+  rawPayload         Json?
+  order              Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipmentItems      ShipmentItem[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, sku])
+  @@index([tenantId, asin])
+  @@index([tenantId, listingId])
+}
+
+model OrderStatusHistory {
+  id        String         @id @default(cuid())
+  tenantId  String
+  orderId   String
+  status    OrderStatus
+  note      String?
+  actorType AuditActorType
+  actorId   String?
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@index([tenantId, orderId, createdAt])
+}
+
+model Shipment {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  orderId           String
+  carrierCode       String?
+  carrierAccountId  String?
+  carrierShipmentId String?
+  trackingNumber    String?
+  status            ShipmentStatus          @default(DRAFT)
+  labelUrl          String?
+  metadata          Json?
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order             Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  items             ShipmentItem[]
+  statusHistory     ShipmentStatusHistory[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model ShipmentItem {
+  id          String    @id @default(cuid())
+  tenantId    String
+  shipmentId  String
+  orderItemId String
+  quantity    Int
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([shipmentId, orderItemId])
+  @@index([tenantId, shipmentId])
+  @@index([tenantId, orderItemId])
+}
+
+model ShipmentStatusHistory {
+  id         String         @id @default(cuid())
+  tenantId   String
+  shipmentId String
+  status     ShipmentStatus
+  note       String?
+  actorType  AuditActorType
+  actorId    String?
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+
+  @@index([tenantId, shipmentId, createdAt])
+}
+
+model CarrierAccount {
+  id          String               @id @default(cuid())
+  tenantId    String
+  carrierCode String
+  displayName String
+  status      CarrierAccountStatus @default(ACTIVE)
+  isDefault   Boolean              @default(false)
+  createdBy   String?
+  updatedBy   String?
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credentials CarrierCredential[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([tenantId, carrierCode])
+  @@index([tenantId, carrierCode, isDefault])
+  @@index([tenantId, status])
+}
+
+model CarrierCredential {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  carrierAccountId  String
+  credentialType    CarrierCredentialType
+  secretRef         String?
+  encryptedPayload  Json?
+  keyPrefix         String?
+  status            CarrierCredentialStatus @default(ACTIVE)
+  encryptionVersion String?
+  keyVersion        String?
+  lastValidatedAt   DateTime?
+  rotatedAt         DateTime?
+  expiresAt         DateTime?
+  createdBy         String?
+  updatedBy         String?
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  carrierAccount    CarrierAccount          @relation(fields: [carrierAccountId], references: [id], onDelete: Cascade)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([tenantId, carrierAccountId])
+  @@index([tenantId, status])
+  @@index([tenantId, credentialType])
+}
