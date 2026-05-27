@@ -77,6 +77,21 @@ async function main() {
       select: { id: true, email: true },
     });
 
+    if (seedUser.email === "admin@example.com") {
+      await prisma.platformAdmin.upsert({
+        where: { userId: user.id },
+        create: {
+          userId: user.id,
+          role: "PLATFORM_ADMIN",
+          status: "ACTIVE",
+        },
+        update: {
+          role: "PLATFORM_ADMIN",
+          status: "ACTIVE",
+        },
+      });
+    }
+
     await prisma.tenantMembership.upsert({
       where: {
         tenantId_userId: {
@@ -108,6 +123,7 @@ async function main() {
     JSON.stringify({
       tenantSlug: "internal-test",
       seededUsers,
+      platformAdminEmail: "admin@example.com",
       tenantApiKeyCreated: false,
     }),
   );

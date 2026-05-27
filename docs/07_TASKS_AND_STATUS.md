@@ -2,17 +2,17 @@
 
 ## Current Task
 
-None
+V2-121 - Platform Audit Log Backend Multi-Action Pagination
 
 ## Last Completed Task
 
-V2-103 — Shipment Tracking UI Action
+V2-120 - Platform Admin Audit Log Runtime Regression
 
 ## Next Recommended Task
 
-`V2-104 — Manual Tracking Result Review`
+`V2-122 - Platform Audit Log Query Performance Review`
 
-Reason: Tracking sync UI action is ready for review; the next step is reviewing any user/operator-triggered manual tracking result before broader carrier operations.
+Reason: Backend multi-action pagination is now implemented and in review; next useful follow-up is query performance/index review for larger audit volumes.
 
 ## Task Board
 
@@ -74,6 +74,20 @@ Status legend:
 | V2-101 | YunExpress Tracking Adapter | Done | Đã implement internal YunExpress `getTracking` adapter, status/event normalization và mocked no-live checks; chưa thêm public sync endpoint; đã được xác nhận hoàn tất. |
 | V2-102 | Shipment Tracking Sync API | Done | Đã thêm tenant-scoped `POST /api/shipments/:shipmentId/tracking`, service sync status/tracking/history và safe audit metadata bằng mocked/no-live adapter checks; đã được xác nhận hoàn tất. |
 | V2-103 | Shipment Tracking UI Action | Done | Đã thêm manual `Sync tracking` action trong shipment detail, explicit-click only, safe result/error summaries và VIEWER read-only UX; đã được xác nhận hoàn tất. |
+| V2-110 | Platform Admin Layer | Done | Added separate PlatformAdmin model, platform admin guard, `/api/platform/*` APIs, and `/platform` UI for cross-tenant SaaS administration; code/build verification passed, DB migration not yet applied. |
+| V2-110B | Apply Platform Admin Migration And Smoke Test | Done | User confirmed success. Migration applied to approved local/test DB, seed rerun, platform API/UI smoke tests passed; non-platform UI denial was fixed from 500 to 404. |
+| V2-111 | Platform Admin Tenant Creation UX Hardening | Done | User confirmed success. Hardened create tenant form validation, owner password guidance, safe mutation errors, double-submit prevention, success navigation, and duplicate slug conflict handling. |
+| V2-112 | Platform Admin Authorization Matrix | Done | Audited and smoke-tested platform authorization boundaries. `PLATFORM_ADMIN` is allowed; tenant roles are denied safely; this led into V2-113 support read-only policy. |
+| V2-113 | Platform Support Read-Only Policy | Done | User confirmed success. `PLATFORM_SUPPORT` has read-only platform access; platform mutations remain restricted to `PLATFORM_ADMIN`. |
+| V2-114 | Platform Admin Tenant Detail UX Hardening | Done | User confirmed success. Hardened tenant detail summary, profile edit validation/confirmation, member add/update validation/confirmation, support read-only UX, and safe mutation error handling. |
+| V2-115 | Platform Admin Browser Regression Automation | Done | User confirmed success. Added local/test Playwright browser regression for Platform Admin, Platform Support read-only, tenant-role denial, unauth redirect, safe DB precheck, and temp support cleanup. |
+| V2-116 | Platform Admin Browser Regression CI Hardening | Done | CI/CD follow-up deferred by user. Browser regression remains local/manual via `npm run test:platform`; it is not PR/push CI blocking. |
+| V2-116B | Run Manual Platform Browser Workflow With Approved CI Secrets | Skipped | Deferred until staging/production automation needs resume; do not run GitHub Actions workflow now. |
+| V2-117 | Platform Admin Audit Coverage | Done | User confirmed success. Platform mutation audit events verified and hardened; read platform actions remain non-audited by default; runtime smoke pass with cleanup verified. |
+| V2-118 | Platform Admin Audit Denied Access Telemetry | Done | User confirmed success. Added low-noise denied telemetry for authenticated non-platform API denial and PLATFORM_SUPPORT mutation denial; unauthenticated/successful reads/support reads remain non-audited. |
+| V2-119 | Platform Admin Audit Log Filtering UX Hardening | Done | User confirmed success. Hardened platform audit log filters, action presets, action readability, safe metadata truncation, and URL deep-linking without changing API contract. |
+| V2-120 | Platform Admin Audit Log Runtime Regression | Done | User confirmed success. Added and ran browser regression for platform audit filters, denied telemetry highlighting, support read-only access, tenant denial, metadata safety, and cleanup verification. |
+| V2-121 | Platform Audit Log Backend Multi-Action Pagination | In Review | Added backend `actions=` multi-action filter with repository count/find pagination, updated grouped presets to one paginated API request, and extended platform browser regression. |
 
 ## Work Log
 
@@ -1548,6 +1562,549 @@ Status legend:
 - `npm run prisma:validate` pass.
 - `npm run prisma:generate` pass sau khi stop stale Next process.
 
+
+### V2-110 - Platform Admin Layer
+
+- Added separate `PlatformAdmin` model.
+- Added PlatformAdmin roles `PLATFORM_ADMIN` and `PLATFORM_SUPPORT`.
+- Separated Platform Admin from tenant `OWNER`/`ADMIN`.
+- Seed local/test assigns `admin@example.com` as `PLATFORM_ADMIN`.
+- Added server guard `requirePlatformAdmin()`.
+- Added `GET/POST /api/platform/tenants`.
+- Added `GET/PATCH /api/platform/tenants/:tenantId`.
+- Added `GET/POST /api/platform/tenants/:tenantId/members`.
+- Added `PATCH /api/platform/tenants/:tenantId/members/:membershipId`.
+- Added `GET /api/platform/audit-logs`.
+- Added UI `/platform`.
+- Added UI `/platform/tenants`.
+- Added UI `/platform/tenants/:tenantId`.
+- Added UI `/platform/audit-logs`.
+- Platform admin can view/search tenants.
+- Platform admin can create tenant + first owner.
+- Platform admin can update tenant name/type/status.
+- Platform admin can view/add/edit tenant members.
+- Platform admin can view cross-tenant audit logs.
+- Did not add impersonation.
+- Did not call live carrier APIs.
+- `npm run prisma:generate` pass.
+- `npm run prisma:validate` pass.
+- `npm run typecheck` pass.
+- `npm run lint` pass.
+- `npm run build` pass.
+- `/platform/tenants` returns 307 when not logged in, matching protected route behavior.
+
+### V2-110B - Apply Platform Admin Migration And Smoke Test
+
+- User confirmed V2-110B successful.
+- `APP_ENV` is `local`.
+- `DATABASE_URL` points to approved Supabase pooler host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- `DIRECT_URL` points to approved Supabase pooler host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- `npx prisma migrate deploy` applied migration `20260525120000_v2_platform_admin`.
+- `npx prisma migrate status --schema prisma/schema.prisma` confirmed database schema is up to date.
+- Initial `migrate status` without explicit schema returned a generic schema engine error; retry with explicit schema passed.
+- `npm run prisma:seed` pass.
+- `admin@example.com` has `PLATFORM_ADMIN`.
+- `admin@example.com` remains `OWNER` in `internal-test`.
+- `tenant-admin@example.com` remains `ADMIN`.
+- `operator@example.com` remains `OPERATOR`.
+- `viewer@example.com` remains `VIEWER`.
+- Unauthenticated `GET /api/platform/tenants` returned `401`.
+- Admin `GET /api/platform/tenants` returned `200`.
+- Admin `GET /api/platform/audit-logs` returned `200`.
+- Admin tenant detail/members APIs returned `200`.
+- Temp tenant create/detail/patch/members returned `200`.
+- Temp tenant/user cleanup verified `0` remaining.
+- Unauthenticated `/platform/tenants` returned `307 /login`.
+- Admin `/platform` returned `307 /platform/tenants`.
+- Admin `/platform/tenants` returned `200`.
+- Admin `/platform/tenants/:tenantId` returned `200`.
+- Admin `/platform/audit-logs` returned `200`.
+- Logout returned `200`.
+- `operator@example.com` login returned `200`.
+- Operator `GET /api/platform/tenants` returned `403`.
+- Operator `/platform/tenants` initially returned `500`; fixed to safe `404` denial behavior.
+- No external APIs were called.
+- No YunExpress APIs were called.
+- No carrier live operations were called.
+- No real/sandbox shipments were created.
+- No secrets, cookies, session tokens, password hashes, full DB URLs, API keys, carrier credentials, `passwordHash`, `tokenHash`, or `keyHash` were printed.
+- `npm run prisma:validate` pass.
+- `npm run prisma:generate` pass.
+- `npx prisma migrate deploy` pass.
+- `npx prisma migrate status --schema prisma/schema.prisma` pass.
+- `npm run prisma:seed` pass.
+- `npm run lint` pass.
+- `npm run typecheck` pass.
+- `npm run build` pass.
+- Final `npm run prisma:validate` pass.
+- Final `npm run prisma:generate` pass.
+
+### V2-111 - Platform Admin Tenant Creation UX Hardening
+
+- User confirmed V2-111 successful.
+- Đã harden Platform Admin create tenant UX.
+- Đã thêm client validation.
+- Đã thêm inline errors.
+- Đã thêm first-invalid-field focus.
+- Đã thêm slug helper/preview.
+- Đã thêm status select.
+- Đã thêm owner behavior explanation.
+- Đã thêm pending state.
+- Đã thêm double-submit guard.
+- Đã clear password sau success/failure.
+- Success now refreshes and navigates to created tenant detail.
+- Đã thêm safe mapping cho owner-password-required.
+- Đã thêm safe mapping cho validation.
+- Đã thêm safe mapping cho conflict/duplicate slug.
+- Đã thêm safe mapping cho auth/permission.
+- Đã thêm safe mapping cho generic errors.
+- Fixed duplicate slug path trả safe `409 CONFLICT` thay vì `500`.
+- Admin login trả `200`.
+- Missing owner password trả `400 VALIDATION_ERROR`.
+- Temp tenant create trả `200`.
+- Duplicate slug trả `409 CONFLICT`.
+- `/platform/tenants` trả `200`.
+- `/platform/tenants/:tenantId` trả `200`.
+- `/platform/audit-logs` trả `200`.
+- Operator platform API trả `403`.
+- Cleanup verified `0` temp tenants/users remaining.
+- Không chạy migrations.
+- Không gọi external APIs.
+- Không gọi YunExpress APIs.
+- Không gọi carrier live operations.
+- Không tạo shipment.
+- Không in secrets, cookies, session tokens, password hashes, full DB URLs, API keys, carrier credentials, `passwordHash`, `tokenHash` hoặc `keyHash`.
+- `npm run lint` pass.
+- `npm run typecheck` pass.
+- `npm run build` pass.
+
+### V2-112 - Platform Admin Authorization Matrix
+
+- Audited platform API route handlers and confirmed each `/api/platform/*` handler calls the platform guard.
+- Audited platform UI layout and confirmed authenticated non-platform denial uses safe `404` behavior instead of unsafe `500`.
+- Confirmed platform admin guard is separate from tenant `OWNER`/`ADMIN` membership checks.
+- Documented expected platform authorization matrix in `docs/06_SECURITY_AND_TENANCY.md`.
+- Documented `PLATFORM_SUPPORT` as currently unsupported and denied by design.
+- Safe DB target summary: `APP_ENV=local`, approved Supabase pooler host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Unauthenticated `GET /api/platform/tenants` returned `401`.
+- Unauthenticated `/platform/tenants` returned `307` redirect to `/login`.
+- `PLATFORM_ADMIN` `GET /api/platform/tenants` returned `200`.
+- `PLATFORM_ADMIN` `GET /api/platform/audit-logs` returned `200`.
+- `PLATFORM_ADMIN` tenant detail and members APIs returned `200`.
+- `PLATFORM_ADMIN` temp tenant create/detail/patch/members/member create/member patch returned `200`.
+- `PLATFORM_ADMIN` `/platform` returned `307` redirect to `/platform/tenants`.
+- `PLATFORM_ADMIN` `/platform/tenants`, `/platform/tenants/:tenantId`, and `/platform/audit-logs` returned `200`.
+- Tenant `ADMIN` only, `OPERATOR`, `VIEWER`, and temp tenant `OWNER` only users received `403` from platform API.
+- Tenant `ADMIN` only, `OPERATOR`, `VIEWER`, and temp tenant `OWNER` only users received safe `404` platform UI denial.
+- Temp `PLATFORM_SUPPORT` user received `403` from platform read and mutation APIs.
+- Temp `PLATFORM_SUPPORT` user received safe `404` platform UI denial.
+- Temp tenant and temp users cleanup verified `0` remaining.
+- No migrations were run.
+- No external APIs were called.
+- No YunExpress APIs were called.
+- No carrier live operations were called.
+- No real or sandbox shipments were created.
+- No secrets, cookies, session tokens, password hashes, full DB URLs, API keys, carrier credentials, `passwordHash`, `tokenHash`, or `keyHash` were printed.
+- `npm run lint` pass with pre-existing `Topbar.tsx` unused-variable warnings.
+- `npm run typecheck` pass.
+- `npm run build` pass with the same pre-existing `Topbar.tsx` unused-variable warnings.
+
+### V2-113 - Platform Support Read-Only Policy
+
+- User confirmed V2-113 successful.
+- `PLATFORM_SUPPORT` hiện được phép read-only trên Platform Console.
+- `PLATFORM_SUPPORT` được phép `GET /api/platform/tenants`.
+- `PLATFORM_SUPPORT` được phép `GET /api/platform/audit-logs`.
+- `PLATFORM_SUPPORT` được phép `GET /api/platform/tenants/:tenantId`.
+- `PLATFORM_SUPPORT` được phép `GET /api/platform/tenants/:tenantId/members`.
+- `PLATFORM_SUPPORT` truy cập được `/platform/tenants`.
+- `PLATFORM_SUPPORT` truy cập được tenant detail.
+- `PLATFORM_SUPPORT` truy cập được audit logs.
+- `PLATFORM_SUPPORT` bị deny create tenant.
+- `PLATFORM_SUPPORT` bị deny update tenant.
+- `PLATFORM_SUPPORT` bị deny add/update members.
+- UI support không còn thấy mutation controls như Create tenant, edit tenant profile, add/save member.
+- `PLATFORM_ADMIN` vẫn giữ toàn quyền như trước.
+- Tenant roles vẫn không vào được platform console/API.
+- Runtime smoke pass.
+- Temp support/tenant test data cleanup verified `0` remaining.
+- Không chạy migration.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không gọi carrier live operations.
+- Không tạo shipment thật/sandbox.
+- Không in secrets, cookies, session tokens, full DB URL, password/API key/credential/hash.
+- `npm run lint` pass với warning cũ ở `src/components/layout/Topbar.tsx`.
+- `npm run typecheck` pass.
+- `npm run build` pass với warning cũ ở `Topbar.tsx`.
+
+### V2-114 - Platform Admin Tenant Detail UX Hardening
+
+- User confirmed V2-114 successful.
+- Đã harden tenant summary display.
+- Tenant detail hiển thị name, slug, type, status, createdAt, updatedAt.
+- Tenant detail hiển thị member count, owner count, order count, shipment count, carrier count.
+- Đã thêm tenant detail skeleton.
+- Đã thêm members empty state.
+- Đã thêm safe retry/error behavior.
+- Đã thêm inline validation.
+- Đã thêm first-invalid-field focus.
+- Đã thêm pending states.
+- Đã thêm double-submit guards.
+- `PLATFORM_SUPPORT` read-only note được hiển thị.
+- `PLATFORM_SUPPORT` không thấy tenant/member mutation controls.
+- Server-side mutation denial cho `PLATFORM_SUPPORT` vẫn giữ nguyên.
+- `PLATFORM_ADMIN` tenant profile edit validate name/type/status.
+- `PLATFORM_ADMIN` phải confirm trước khi set tenant status `DISABLED`.
+- Member add validate email/name/password/role/status.
+- Member add clears password after success/failure.
+- Member role/status update yêu cầu confirmation.
+- Duplicate platform member create map an toàn sang `409 CONFLICT`.
+- Không chạy migrations.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipment.
+- Không in/lưu secrets, cookies, session tokens, full DB URLs, passwords, hashes.
+- `npm run lint` pass với existing `Topbar.tsx` unused-variable warnings.
+- `npm run typecheck` pass.
+- `npm run build` pass với same existing warnings.
+
+### V2-115 - Platform Admin Browser Regression Automation
+
+- User confirmed V2-115 successful.
+- Đã thêm Playwright dev dependency.
+- Đã thêm `npm run test:platform`.
+- Đã thêm `playwright.platform.config.ts`.
+- Đã thêm `tests/platform/*`.
+- Browser tests cover unauth redirect.
+- Browser tests cover Platform Admin controls.
+- Browser tests cover Platform Support read-only UI.
+- Browser tests cover support mutation API `403`.
+- Browser tests cover tenant operator API `403`.
+- Browser tests cover operator/viewer safe `404` UI denial.
+- Đã thêm safe DB precheck, chỉ print host/database/schema.
+- Đã thêm temporary Platform Support test user setup and teardown.
+- Added page auth helper để platform page denial dùng safe redirect/notFound thay vì AppError stack output.
+- `npm run lint` pass với existing `Topbar.tsx` unused-variable warnings.
+- `npm run typecheck` pass.
+- `npm run build` pass với same existing warnings.
+- `npm run test:platform` pass: `5` passed, `0` failed.
+- Cleanup verified `remainingPlatformSupportBrowserTestUsers: 0`.
+- Không chạy migrations.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipments.
+- Không in full DB URLs, passwords, cookies, session tokens, hashes, API keys hoặc credentials.
+- Không hardcode test passwords; browser tests đọc từ `DEV_ADMIN_PASSWORD` / `DEV_TEST_PASSWORD`.
+- Added dependency `@playwright/test@1.60.0`.
+- Chưa thêm `test:platform` vào CI blocking.
+
+### V2-116 - Platform Admin Browser Regression CI Hardening
+
+- Audited current `.github/workflows/ci.yml`.
+- Confirmed core CI runs on pull request and push to `main`.
+- Confirmed core CI uses dummy DB URLs and must not run `test:platform`.
+- Confirmed current CI does not install Playwright browser binaries.
+- Chose Option B: add a separate manual/non-blocking workflow.
+- Did not add `test:platform` to pull request or push CI.
+- Added `.github/workflows/platform-browser-regression.yml`.
+- Workflow uses `workflow_dispatch` only.
+- Workflow requires confirmation input `APPROVED_TEST_DB`.
+- Workflow uses GitHub secrets by name for approved test DB and test passwords.
+- Workflow does not print full DB URLs, passwords, cookies, session tokens, hashes, API keys, or credentials.
+- Workflow does not run migrations.
+- Workflow installs Playwright Chromium for GitHub runner.
+- Updated `playwright.platform.config.ts` so local defaults to system Chrome while CI can use installed Chromium without a fixed Chrome channel.
+- Hardened browser test temp support user to use a unique email per run.
+- Added browser test state file under ignored `test-results`.
+- Teardown deletes temp support users by generated email and browser-test prefix.
+- Updated `README.md` and `docs/09_DEPLOYMENT_AND_ENV.md` with manual workflow policy, required secrets, no-production warning, dummy-DB warning, and non-blocking status.
+- Local safe DB target: approved Supabase pooler host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Local `npm run test:platform` pass: `5` passed, `0` failed.
+- Cleanup verified `remainingPlatformSupportBrowserTestUsers: 0`.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, or carrier credentials.
+- `npm run lint` pass with existing `Topbar.tsx` unused-variable warnings.
+- `npm run typecheck` pass.
+- `npm run build` pass with same existing warnings.
+- User deferred further CI/CD continuation for now.
+- V2-116B manual platform browser workflow run is deferred.
+- Browser regression remains local/manual via `npm run test:platform`.
+- GitHub Actions workflow does not need to run now.
+- `test:platform` remains non-blocking for PR/push.
+- No workflow changes were made in this status update.
+- No build/tests were run because this is docs/status-only.
+
+### V2-117 - Platform Admin Audit Coverage
+
+- User confirmed V2-117 successful.
+- Đã harden Platform Admin audit coverage cho mutation actions.
+- Đã thêm/xác nhận `PLATFORM_TENANT_CREATED`.
+- Đã thêm/xác nhận `PLATFORM_TENANT_UPDATED`.
+- Đã thêm/xác nhận `PLATFORM_TENANT_MEMBER_ADDED`.
+- Đã thêm/xác nhận `PLATFORM_TENANT_MEMBER_UPDATED`.
+- Đã đổi member audit event từ `PLATFORM_MEMBER_*` sang `PLATFORM_TENANT_MEMBER_*`.
+- Đã loại `ownerEmail` khỏi audit metadata create tenant.
+- Audit metadata chỉ còn safe fields: `targetTenantId`, `targetTenantSlug`, `targetMembershipId`, `targetUserId`, role/status transition, `actorPlatformRole`, `result`.
+- Đã document policy: platform reads không audit mặc định.
+- Denied-access telemetry defer sang task sau.
+- Runtime verification dùng approved DB host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Đã tạo temp tenant, update tenant, add member, update member.
+- Verify đủ 4 audit logs.
+- Verify platform read actions không tạo thêm mutation audit logs.
+- Verify metadata không chứa sensitive-looking fields.
+- Cleanup pass: `remainingTenants=0`, `remainingUsers=0`, `remainingAuditLogs=0`.
+- Không chạy migration.
+- Không đổi CI/CD.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipment.
+- Không in secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys hoặc carrier credentials.
+- `npm run typecheck` pass.
+- `npm run lint` pass với 3 warning cũ ở `Topbar.tsx`.
+- `npm run build` pass với cùng warning cũ.
+- Audited platform service mutation audit coverage.
+- Confirmed platform read actions stay non-audited by default to avoid noisy audit logs.
+- Confirmed route handlers remain thin and delegate platform mutations to services.
+- Confirmed platform audit log listing sanitizes metadata before API/UI response.
+- Confirmed `SafeMetadataViewer` still applies recursive UI redaction.
+- Hardened tenant create audit metadata to remove owner email and use safe target fields.
+- Hardened tenant update audit metadata to use target tenant and transition fields.
+- Renamed member add audit event to `PLATFORM_TENANT_MEMBER_ADDED`.
+- Renamed member update audit event to `PLATFORM_TENANT_MEMBER_UPDATED`.
+- Member audit metadata now uses `targetTenantId`, `targetMembershipId`, `targetUserId`, role/status transitions, `actorPlatformRole`, and `result`.
+- Added platform audit policy notes to `docs/06_SECURITY_AND_TENANCY.md`.
+- Runtime smoke used approved local/test DB only.
+- Runtime smoke created a temporary tenant.
+- Runtime smoke verified `PLATFORM_TENANT_CREATED`.
+- Runtime smoke verified `PLATFORM_TENANT_UPDATED`.
+- Runtime smoke added a temporary tenant member.
+- Runtime smoke verified `PLATFORM_TENANT_MEMBER_ADDED`.
+- Runtime smoke updated the temporary tenant member.
+- Runtime smoke verified `PLATFORM_TENANT_MEMBER_UPDATED`.
+- Runtime smoke verified platform read actions did not create extra mutation audit logs.
+- Runtime smoke verified audit metadata did not contain sensitive-looking fields.
+- Runtime cleanup verified `remainingTenants=0`, `remainingUsers=0`, `remainingAuditLogs=0`.
+- Did not run migrations.
+- Did not change CI/CD.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, or carrier credentials.
+- `npm run typecheck` pass.
+- `npm run lint` pass with existing `Topbar.tsx` unused-variable warnings.
+- `npm run build` pass with same existing warnings.
+
+### V2-118 - Platform Admin Audit Denied Access Telemetry
+
+- User confirmed V2-118 successful.
+- Đã implement `PLATFORM_ACCESS_DENIED` cho authenticated non-platform users hitting Platform APIs.
+- Đã implement `PLATFORM_MUTATION_DENIED` cho `PLATFORM_SUPPORT` mutation attempts.
+- Không audit unauthenticated platform access.
+- Không audit successful platform reads.
+- Không audit normal support read-only access.
+- Không audit safe platform UI `404` denial by default.
+- Telemetry dùng existing rate-limit helper.
+- Telemetry writes at most once per denied helper path.
+- Telemetry failures được swallow để request behavior không đổi.
+- Metadata chỉ gồm safe fields: `routeGroup`, `method`, `reasonCode`, `actorPlatformRole`, `result`.
+- Runtime smoke dùng approved DB host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Unauth platform API trả `401`, no telemetry.
+- Operator platform API trả `403`, exactly one `PLATFORM_ACCESS_DENIED`.
+- Viewer platform UI safe `404`, no API denied telemetry.
+- Support mutation trả `403`, exactly one `PLATFORM_MUTATION_DENIED`.
+- Support read trả `200`, no denied telemetry.
+- Admin read trả `200`, no denied telemetry.
+- Cleanup pass: `remainingSupportUsers=0`, `remainingAuditLogs=0`.
+- Không chạy migrations.
+- Không đổi CI/CD.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipments.
+- Không in secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, carrier credentials.
+- `npm run typecheck` pass.
+- `npm run lint` pass với existing 3 `Topbar.tsx` warnings.
+- `npm run build` pass với same warnings.
+- Defined denied telemetry policy for Platform Admin access.
+- Authenticated non-platform users attempting Platform APIs now write `PLATFORM_ACCESS_DENIED`.
+- `PLATFORM_SUPPORT` mutation attempts now write `PLATFORM_MUTATION_DENIED`.
+- Unauthenticated platform access is not audited by default.
+- Successful platform reads are not audited.
+- Normal `PLATFORM_SUPPORT` read-only access is not audited.
+- Safe platform UI denial pages remain safe `404` and are not audited by default.
+- Denied telemetry is rate-limit aware and skips logging when the telemetry key is over limit.
+- Denied telemetry is recorded once per denied helper path.
+- Telemetry failure is swallowed and never changes request behavior.
+- Added safe metadata fields only: `routeGroup`, `method`, `reasonCode`, `actorPlatformRole`, and `result`.
+- Did not log request bodies, query secrets, headers, cookies, Authorization, session tokens, emails, raw errors, DB URLs, hashes, API keys, carrier credentials, raw payloads, or raw responses.
+- Kept route handlers thin; platform API route handlers only pass `Request` and route group into shared guard helpers.
+- Added policy documentation to `docs/06_SECURITY_AND_TENANCY.md`.
+- Runtime smoke used approved local/test DB only.
+- Runtime smoke safe DB target: host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Runtime smoke verified unauthenticated platform API returns `401` and writes no denied telemetry.
+- Runtime smoke verified tenant `OPERATOR` platform API denial returns `403` and writes exactly one `PLATFORM_ACCESS_DENIED`.
+- Runtime smoke verified tenant `VIEWER` platform UI denial returns safe `404` and writes no API denied telemetry.
+- Runtime smoke verified `PLATFORM_SUPPORT` mutation denial returns `403` and writes exactly one `PLATFORM_MUTATION_DENIED`.
+- Runtime smoke verified `PLATFORM_SUPPORT` platform read returns `200` and writes no denied telemetry.
+- Runtime smoke verified `PLATFORM_ADMIN` platform read returns `200` and writes no denied telemetry.
+- Runtime smoke verified denied telemetry metadata contains no sensitive-looking fields.
+- Runtime cleanup verified `remainingSupportUsers=0`, `remainingAuditLogs=0`.
+- Did not run migrations.
+- Did not change CI/CD.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, or carrier credentials.
+- `npm run typecheck` pass.
+- `npm run lint` pass with existing 3 `Topbar.tsx` unused-variable warnings.
+- `npm run build` pass with the same existing warnings.
+
+### V2-119 - Platform Admin Audit Log Filtering UX Hardening
+
+- User confirmed V2-119 successful.
+- Đã harden `/platform/audit-logs` UX.
+- Đã thêm quick presets: All, Mutations, Denied Access.
+- Đã thêm filters: action, actor type, resource type, tenant ID, from/to date.
+- Filters sync vào URL search params để deep-link được.
+- Đã thêm action pills.
+- Đã thêm friendly labels/descriptions.
+- Đã highlight denied telemetry.
+- Metadata vẫn đi qua `SafeMetadataViewer`.
+- Không render raw JSON.
+- `SafeMetadataViewer` hiện truncate string dài.
+- `SafeMetadataViewer` giới hạn object/array entries để tránh UI phình hoặc leak dữ liệu dài không cần thiết.
+- Không đổi API contract.
+- Không chạy migration.
+- Không đổi CI/CD.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipment.
+- `npm run lint` pass với 3 warning cũ ở `Topbar.tsx`.
+- `npm run build` pass với cùng 3 warning cũ.
+- `npm run typecheck` pass sau khi build regenerate `.next/types`.
+- Lần typecheck đầu fail do `.next/types` stale/missing trước build, không phải lỗi code.
+- Current task set to `V2-119 - Platform Admin Audit Log Filtering UX Hardening`.
+- Hardened `/platform/audit-logs` filter UX.
+- Added quick presets: All, Mutations, Denied Access.
+- Added exact action filter for platform mutation and denied telemetry events.
+- Added actor type, resource type, tenant ID, from date, and to date filters using existing API query support.
+- Added URL search params for deep-linkable audit filters.
+- Added clear filters action.
+- Added friendly action labels and descriptions.
+- Added visual action pills for mutation and denied access events.
+- Added denied access highlight for `PLATFORM_ACCESS_DENIED` and `PLATFORM_MUTATION_DENIED`.
+- Kept metadata rendering behind `SafeMetadataViewer`.
+- Hardened `SafeMetadataViewer` with string truncation and bounded object/array rendering.
+- Did not render raw metadata with `JSON.stringify`.
+- Did not change API contract.
+- Did not run migrations.
+- Did not change CI/CD.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, carrier credentials, raw payloads, or raw responses.
+- `npm run lint` pass with existing 3 `Topbar.tsx` warnings.
+- Initial `npm run typecheck` failed because `.next/types` references were stale/missing before build.
+- `npm run build` pass with existing 3 `Topbar.tsx` warnings and regenerated `.next/types`.
+- Final `npm run typecheck` pass.
+
+### V2-120 - Platform Admin Audit Log Runtime Regression
+
+- User confirmed V2-120 successful.
+- Đã thêm runtime/browser regression coverage cho `/platform/audit-logs`.
+- Test setup tạo temporary safe audit rows với prefix `PLATFORM-AUDIT-RUNTIME-*`.
+- Đã cover mutation preset.
+- Đã cover denied preset.
+- Đã cover exact action filter.
+- Đã cover resource type filter.
+- Đã cover tenant ID filter.
+- Đã cover date range filter.
+- Đã cover URL params.
+- Đã cover clear filters.
+- Đã cover metadata safety.
+- Đã cover support read-only access.
+- Đã cover tenant-user denial.
+- Đã update audit date filter request values để `to` includes full selected day.
+- Test login helper hiện authenticate qua `POST /api/auth/login` request context.
+- Tránh credentials trong URL form-submit fallback.
+- Safe DB target là `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Targeted audit-log browser test pass.
+- Full `npm run test:platform` trên isolated `PLATFORM_TEST_PORT=3013` pass: `7 passed`, `0 failed`.
+- Cleanup verified: `remainingAuditLogs=0`, `remainingSupportUsers=0`.
+- Không chạy migrations.
+- Không đổi CI/CD.
+- Không gọi external APIs.
+- Không gọi YunExpress/carrier APIs.
+- Không tạo shipments.
+- Không in secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, credentials, raw payloads hoặc raw responses.
+- `npm run typecheck` pass.
+- `npm run lint` pass với existing 3 `Topbar.tsx` warnings.
+- `npm run build` pass với same existing warnings.
+- Current task set to `V2-120 - Platform Admin Audit Log Runtime Regression`.
+- Added browser regression coverage for `/platform/audit-logs` filters.
+- Extended platform browser test setup with temporary audit marker `PLATFORM-AUDIT-RUNTIME-*`.
+- Created temporary safe audit rows for platform mutation events.
+- Created temporary safe audit rows for denied telemetry events.
+- Verified safe DB target before browser runtime: host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Verified `PLATFORM_ADMIN` can view tenants, tenant detail, and audit logs.
+- Verified `PLATFORM_SUPPORT` can view audit logs read-only.
+- Verified tenant `VIEWER` cannot view platform audit logs and receives safe `404`.
+- Verified unauthenticated platform page redirect behavior remains safe.
+- Verified quick preset `Mutations` shows mutation audit events.
+- Verified quick preset `Denied Access` shows denied telemetry events.
+- Verified exact action filter for `PLATFORM_TENANT_CREATED`.
+- Verified resource type, tenant ID, and from/to date filters for audit logs.
+- Verified URL search params update for deep-linkable filters.
+- Verified clear filters resets `/platform/audit-logs`.
+- Verified metadata remains behind `SafeMetadataViewer`.
+- Verified metadata display does not expose sensitive-looking text patterns covered by platform browser tests.
+- Updated browser login helper to authenticate through `POST /api/auth/login` request context so credentials are never submitted into the login URL.
+- Adjusted runtime selector strategy to use stable tenant ID and visible audit rows.
+- Ran targeted audit-log browser test on isolated test port `3012`: pass.
+- Ran full `npm run test:platform` on isolated test port `3013`: `7 passed`, `0 failed`.
+- Cleanup verified: `remainingAuditLogs=0`, `remainingSupportUsers=0`.
+- Did not run migrations.
+- Did not change CI/CD.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, carrier credentials, raw payloads, raw responses, or Authorization values.
+- `npm run typecheck` pass.
+- `npm run lint` pass with existing 3 `Topbar.tsx` warnings.
+- `npm run build` pass with same existing 3 `Topbar.tsx` warnings.
+
+### V2-121 - Platform Audit Log Backend Multi-Action Pagination
+
+- Current task set to `V2-121 - Platform Audit Log Backend Multi-Action Pagination`.
+- Added backend `actions=` query support for platform audit logs.
+- Kept existing exact `action=` filter contract; exact `action` takes precedence when both `action` and `actions` are present.
+- Added allowlist validation for grouped platform audit actions.
+- Invalid multi-action values return safe `400 VALIDATION_ERROR`.
+- Repository now applies `action: { in: actions }` for multi-action list/count queries.
+- Count query uses the same multi-action filter as list query for correct pagination totals.
+- Updated platform API client to serialize array query values as comma-separated `actions`.
+- Updated `/platform/audit-logs` Mutations and Denied Access presets to call one backend paginated query.
+- Removed client-side multi-request merge/sort behavior from grouped presets.
+- Updated UI copy to state grouped presets use backend multi-action pagination.
+- Extended browser regression with direct API coverage for `actions=...`.
+- Verified exact `action=PLATFORM_TENANT_CREATED` still works.
+- Verified invalid `actions` query returns `400`.
+- Hardened platform browser teardown to cleanup denied telemetry rows created by support/operator API tests.
+- Runtime/browser regression used approved local/test DB only.
+- Runtime/browser safe DB target: host `aws-1-ap-northeast-1.pooler.supabase.com`, database `postgres`, schema `public`.
+- Full `npm run test:platform` on isolated `PLATFORM_TEST_PORT=3016` pass: `8 passed`, `0 failed`.
+- Cleanup verified: `remainingAuditLogs=0`, `remainingSupportUsers=0`.
+- Did not run migrations.
+- Did not change CI/CD.
+- Did not call external APIs.
+- Did not call YunExpress/carrier APIs.
+- Did not create shipments.
+- Did not print secrets, cookies, session tokens, full DB URLs, passwords, hashes, API keys, carrier credentials, raw payloads, raw responses, or Authorization values.
+- `npm run typecheck` pass.
+- `npm run lint` pass with existing 3 `Topbar.tsx` warnings.
+- `npm run build` pass with same existing 3 `Topbar.tsx` warnings.
+
 ## Known Issues
 
 - Chưa có test runner chuyên biệt ngoài lint/typecheck/build.
@@ -1568,6 +2125,14 @@ Status legend:
 
 ## Known Issues/P2
 
+- Repo vẫn có Platform Admin files đang untracked từ V2-110/V2-110B; không revert.
+- `Topbar.tsx` vẫn còn 3 warning cũ.
+- Manual GitHub workflow chưa được chạy với approved CI test secrets.
+- `test:platform` vẫn non-blocking cho PR/push.
+- CI/CD hardening sẽ quay lại sau khi cần staging/production automation.
+- Platform audit log backend multi-action pagination is implemented; large-volume query performance/indexing is not load-tested yet.
+- `test:platform` can reuse stale local dev servers on the default port; use an isolated `PLATFORM_TEST_PORT` when validating local browser regressions.
+- `prisma migrate status` without explicit schema once returned a generic schema engine error; use `npx prisma migrate status --schema prisma/schema.prisma` as the stable path.
 - Real tracking sync result vẫn cần user/operator manual review.
 - V2-099 UI behavior được verify qua dashboard render, API runtime smoke tests và source safety checks; chưa có dedicated browser automation framework.
 - SecretRef UI deferred as future work.

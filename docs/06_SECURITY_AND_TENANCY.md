@@ -83,6 +83,29 @@ V2-080 test/dev role seed:
 - Seed không được in plaintext password, `passwordHash`, session token hoặc secrets.
 - Seed phải idempotent và chỉ upsert deterministic test records theo email/tenant slug.
 
+## Platform Admin Authorization Matrix
+
+Platform admin access is separate from tenant membership roles. Tenant `OWNER` or
+`ADMIN` does not grant access to `/api/platform/*` or `/platform/*`.
+
+| Actor | Platform APIs | Platform pages | Notes |
+| --- | --- | --- | --- |
+| Unauthenticated user | `401 UNAUTHORIZED` | Redirect to `/login` | No session context is available. |
+| Tenant OWNER only | `403 FORBIDDEN` | Safe denial, currently `404` | Tenant ownership is tenant-scoped only. |
+| Tenant ADMIN only | `403 FORBIDDEN` | Safe denial, currently `404` | Tenant admin is tenant-scoped only. |
+| Tenant OPERATOR | `403 FORBIDDEN` | Safe denial, currently `404` | No platform access. |
+| Tenant VIEWER | `403 FORBIDDEN` | Safe denial, currently `404` | No platform access. |
+| `PLATFORM_ADMIN` active | Allowed | Allowed | Cross-tenant platform administration; mutations also require same-origin and rate-limit checks. |
+| `PLATFORM_SUPPORT` active | Read-only `GET` allowed; mutations return `403 FORBIDDEN` | Read-only pages allowed | Support may inspect tenants, tenant members, and platform audit logs; it cannot create or update tenants or members. |
+
+Implementation requirements:
+
+- Platform APIs must call `requirePlatformAdmin()` through the platform route guard.
+- Platform UI routes must use the platform layout guard and never return unsafe `500` for non-platform users.
+- Platform mutations must require active `PLATFORM_ADMIN`, and must also apply same-origin validation and dashboard mutation rate limits.
+- Cross-tenant platform actions must avoid exposing secrets, credentials, DB URLs, raw session tokens, password hashes, API key hashes, carrier payloads, or authorization headers.
+- `PLATFORM_SUPPORT` is read-only. It must not receive mutation controls in UI and must receive `403 FORBIDDEN` from every platform mutation API.
+
 ## Tenant Member Management Rules
 
 - V2-061 member management APIs chỉ làm việc trên default ACTIVE tenant resolve từ session.
@@ -219,6 +242,24 @@ Phải audit các nhóm hành động:
 - Platform admin cross-tenant access phải ghi rõ actor, tenant target, action và reason nếu available.
 - V2-012 ghi audit log cho `API_KEY_CREATED` và `API_KEY_REVOKED`.
 - Audit metadata cho API key chỉ chứa key id, key name, `keyPrefix` và scopes.
+- V2-117 platform audit policy: platform mutation actions must be audited; normal platform reads are not audited by default to avoid noisy audit logs.
+- Required platform mutation audit events:
+  - `PLATFORM_TENANT_CREATED`
+  - `PLATFORM_TENANT_UPDATED`
+  - `PLATFORM_TENANT_MEMBER_ADDED`
+  - `PLATFORM_TENANT_MEMBER_UPDATED`
+- Platform audit metadata must use safe identifiers and transition fields only, such as `targetTenantId`, `targetTenantSlug`, `targetMembershipId`, `targetUserId`, `previousStatus`, `nextStatus`, `previousRole`, `nextRole`, `actorPlatformRole`, and `result`.
+- Platform audit metadata must not include owner/member passwords, full request bodies, full user/tenant objects, email addresses unless explicitly required for an approved investigation workflow, raw payloads, DB URLs, tokens, hashes, API keys, carrier credentials, cookies, or Authorization headers.
+- V2-118 denied platform access telemetry policy:
+  - Authenticated non-platform users attempting Platform APIs are audited with `PLATFORM_ACCESS_DENIED`.
+  - `PLATFORM_SUPPORT` mutation attempts are audited with `PLATFORM_MUTATION_DENIED`.
+  - Unauthenticated platform access is not audited by default.
+  - Successful platform reads are not audited.
+  - Normal `PLATFORM_SUPPORT` read-only access is not audited.
+  - Safe UI denial pages are not audited by default; API denial telemetry is the current investigation signal.
+  - Denied telemetry must be low-noise, rate-limit aware, and recorded at most once per denied request path.
+- Denied telemetry metadata must use safe fields only: `routeGroup`, `method`, `reasonCode`, `actorPlatformRole` if available, and `result`.
+- Denied telemetry metadata must not include request body, query secrets, headers, cookies, Authorization, session token, email, raw errors, DB URLs, API keys, hashes, carrier credentials, raw payloads, or raw responses.
 
 Audit log không được chứa plaintext secrets.
 

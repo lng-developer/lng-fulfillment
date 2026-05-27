@@ -9,6 +9,11 @@ import {
   type SafeUser,
   type TenantMembershipSummary,
 } from "@/modules/identity";
+import {
+  requirePlatformAccessContext,
+  requirePlatformAdminContext,
+  type PlatformAdminContext,
+} from "@/modules/platform";
 import { AppError } from "@/shared/errors";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 
@@ -82,6 +87,16 @@ export async function requireTenantAccess(
     user: context.user,
     tenant: membership,
   };
+}
+
+export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+  const user = await requireUser();
+  return requirePlatformAdminContext(user);
+}
+
+export async function requirePlatformAccess(): Promise<PlatformAdminContext> {
+  const user = await requireUser();
+  return requirePlatformAccessContext(user);
 }
 
 export async function getDefaultTenantForUser(

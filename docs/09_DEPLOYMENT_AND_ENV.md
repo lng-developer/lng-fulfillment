@@ -195,6 +195,23 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 - CI must not run `npm audit fix` automatically.
 - If future audit findings appear, do not force-fix automatically; create a dependency review task and record the risk/fix decision.
 
+### Platform Browser Regression
+
+- `npm run test:platform` runs the Platform Admin browser regression suite with Playwright.
+- This command is local/test-only and is not CI-blocking by default.
+- Required env: `APP_ENV=local` or `APP_ENV=test`, approved local/test `DATABASE_URL`, approved local/test `DIRECT_URL` if configured, `DEV_ADMIN_PASSWORD`, and `DEV_TEST_PASSWORD`.
+- Browser regression precheck prints only safe DB target fields: host, database, and schema.
+- Do not run platform browser regression against production DBs or production secrets.
+- Do not print passwords, cookies, session tokens, full DB URLs, password hashes, token hashes, API keys, or carrier credentials from browser regression output.
+- The suite may create temporary platform support test data and must clean it up after the run.
+- The suite must not call carrier APIs, YunExpress APIs, external APIs, or create real/sandbox shipments.
+- V2-116 adds a separate manual-only GitHub Actions workflow named `Platform Browser Regression`.
+- The platform browser workflow uses `workflow_dispatch` only; it does not run on pull request or push by default and is not a blocking CI gate.
+- The platform browser workflow requires the confirmation input `APPROVED_TEST_DB`.
+- Required GitHub secrets for the manual workflow are `PLATFORM_TEST_DATABASE_URL`, `PLATFORM_TEST_DIRECT_URL`, `PLATFORM_TEST_DEV_ADMIN_PASSWORD`, `PLATFORM_TEST_DEV_TEST_PASSWORD`, `PLATFORM_TEST_SESSION_SECRET`, and `PLATFORM_TEST_TENANT_API_KEY_PEPPER`.
+- The workflow must use an approved isolated local/test database with seeded users; it must not use the dummy CI database URLs from the core CI workflow.
+- Do not promote `npm run test:platform` to blocking CI until an isolated CI DB strategy and browser runtime have been proven stable.
+
 ### Dependency Audit Policy
 
 - V2-095 resolved the known moderate `postcss <8.5.10` finding by adding an npm `overrides` entry for patched same-major `postcss`.

@@ -23,11 +23,11 @@ export function Topbar() {
         </span>
       </Link>
 
-      <TenantBadge
+      {/* <TenantBadge
         className="hidden max-w-[44vw] justify-self-center sm:inline-flex"
         name={tenantName}
         slug={tenantSlug}
-      />
+      /> */}
 
       <div className="flex items-center gap-2">
         <RoleBadge role={role} />

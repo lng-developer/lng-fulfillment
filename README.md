@@ -49,11 +49,28 @@ npm run dev
 npm run lint
 npm run typecheck
 npm run build
+npm run test:platform
 npm run prisma:validate
 npm run prisma:generate
 ```
 
 Không chạy migrations production nếu chưa có explicit approval.
+
+## Platform Browser Regression
+
+`npm run test:platform` runs the Platform Admin browser regression suite with Playwright. It is a local/test-only command and is not CI-blocking by default.
+
+Required env:
+
+- `APP_ENV=local` or `APP_ENV=test`
+- `DATABASE_URL` pointing only to an approved local/test DB
+- `DIRECT_URL` if configured, also pointing only to an approved local/test DB
+- `DEV_ADMIN_PASSWORD`
+- `DEV_TEST_PASSWORD`
+
+The test command prints only safe DB target fields: host, database, and schema. It must not be run against production, must not print secrets, and must not call carrier or external APIs.
+
+The optional GitHub Actions workflow `Platform Browser Regression` is manual-only (`workflow_dispatch`) and non-blocking for PR/push CI. It requires approved test DB secrets and the confirmation input `APPROVED_TEST_DB`; do not point it at production or dummy CI database URLs.
 
 ## Cảnh báo về MVP
 
