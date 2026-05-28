@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     const response = ok({
       user: result.user,
       tenants: result.tenants,
+      platformAdmin: result.platformAdmin,
     });
 
     response.cookies.set(

@@ -1,9 +1,10 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useId, useState } from "react";
 import { login } from "@/lib/api/auth";
+import { getPostLoginRedirect } from "@/lib/auth-redirect";
 
 const GENERIC_LOGIN_ERROR =
   "We could not sign you in. Check your email and password, then try again.";
@@ -15,6 +16,7 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
   const errorId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -36,8 +38,8 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
     setIsPending(true);
 
     try {
-      await login(normalizedEmail, password);
-      router.replace("/orders");
+      const authContext = await login(normalizedEmail, password);
+      router.replace(getPostLoginRedirect(authContext));
       router.refresh();
     } catch {
       setError(GENERIC_LOGIN_ERROR);
@@ -76,17 +78,32 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
         <label className="text-xs font-semibold text-[var(--text-primary)]" htmlFor={passwordId}>
           Password
         </label>
-        <input
-          autoComplete="current-password"
-          className="h-10 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
-          disabled={isPending}
-          id={passwordId}
-          name="password"
-          onChange={(event) => setPassword(event.target.value)}
-          required
-          type="password"
-          value={password}
-        />
+        <div className="relative">
+          <input
+            autoComplete="current-password"
+            className="h-10 w-full rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 pr-10 text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
+            disabled={isPending}
+            id={passwordId}
+            name="password"
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            type={showPassword ? "text" : "password"}
+            value={password}
+          />
+          <button
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-xs text-[var(--text-muted)] hover:bg-[var(--bg-surface2)] hover:text-[var(--brand)] disabled:cursor-not-allowed"
+            disabled={isPending}
+            onClick={() => setShowPassword((value) => !value)}
+            type="button"
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" aria-hidden />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden />
+            )}
+          </button>
+        </div>
       </div>
 
       {sessionExpired && !error ? (

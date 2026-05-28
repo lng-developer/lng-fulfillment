@@ -25,6 +25,27 @@ export async function findUserById(userId: string) {
   });
 }
 
+export async function findUserWithPasswordById(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      passwordHash: true,
+      status: true,
+    },
+  });
+}
+
+export async function updateUserPasswordHash(userId: string, passwordHash: string) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+    select: { id: true },
+  });
+}
+
 export async function createSession(
   userId: string,
   tokenHash: string,
@@ -120,6 +141,16 @@ export async function getUserTenantMemberships(userId: string) {
     },
     orderBy: {
       createdAt: "asc",
+    },
+  });
+}
+
+export async function getUserPlatformAdmin(userId: string) {
+  return prisma.platformAdmin.findUnique({
+    where: { userId },
+    select: {
+      role: true,
+      status: true,
     },
   });
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import type { Role } from "@/lib/rbac";
@@ -29,6 +30,12 @@ export default async function DashboardLayout({
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Your account does not have an active tenant membership.
           </p>
+          <Link
+            className="mt-5 inline-flex h-9 items-center justify-center rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-4 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
+            href="/login"
+          >
+            Back to login
+          </Link>
         </section>
       </main>
     );

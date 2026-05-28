@@ -19,16 +19,19 @@ export {
   type TenantApiKeyRecord,
   type TenantApiKeyScope,
   type TenantApiKeyVerificationResult,
+  type TenantMemberCreateInput,
   type TenantMemberRecord,
   type TenantMemberUpdateInput,
 } from "./types";
 
 export {
+  createTenantMember,
   createTenantApiKey,
   listTenantMembers,
   listTenantApiKeys,
   revokeTenantApiKey,
   updateTenantMember,
+  validateTenantMemberCreateInput,
   validateTenantMemberUpdateInput,
   validateTenantApiKeyCreateInput,
   verifyTenantApiKeyForRequest,

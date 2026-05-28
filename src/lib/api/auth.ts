@@ -3,6 +3,10 @@ import { apiFetch, type ApiSuccessEnvelope, unwrapData } from "./base";
 
 export interface MeResponse {
   user: { id: string; email: string; name?: string };
+  platformAdmin: {
+    role: "PLATFORM_ADMIN" | "PLATFORM_SUPPORT";
+    status: "ACTIVE" | "DISABLED";
+  } | null;
   tenantMemberships: {
     tenantId: string;
     tenantName: string;
@@ -14,6 +18,10 @@ export interface MeResponse {
 
 type AuthContextResponse = {
   user: { id: string; email: string; name?: string | null };
+  platformAdmin: {
+    role: "PLATFORM_ADMIN" | "PLATFORM_SUPPORT";
+    status: "ACTIVE" | "DISABLED";
+  } | null;
   tenants: {
     tenantId: string;
     tenantName: string;
@@ -24,10 +32,12 @@ type AuthContextResponse = {
 };
 
 export async function login(email: string, password: string) {
-  return apiFetch<ApiSuccessEnvelope<unknown>>("/api/auth/login", {
+  const response = await apiFetch<ApiSuccessEnvelope<AuthContextResponse>>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+
+  return unwrapData(response);
 }
 
 export async function logout() {
@@ -47,6 +57,7 @@ export async function getMe(): Promise<MeResponse> {
       email: data.user.email,
       name: data.user.name ?? undefined,
     },
+    platformAdmin: data.platformAdmin,
     tenantMemberships: data.tenants.map((tenant) => ({
       tenantId: tenant.tenantId,
       tenantName: tenant.tenantName,
@@ -55,4 +66,17 @@ export async function getMe(): Promise<MeResponse> {
       status: tenant.membershipStatus,
     })),
   };
+}
+
+export async function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  return apiFetch<ApiSuccessEnvelope<{ changed: true }>>(
+    "/api/auth/change-password",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
 }

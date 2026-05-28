@@ -22,9 +22,15 @@ type AuthMembership = {
   status: string;
 };
 
+type AuthPlatformAdmin = {
+  role: "PLATFORM_ADMIN" | "PLATFORM_SUPPORT";
+  status: "ACTIVE" | "DISABLED";
+};
+
 interface AuthContextValue {
   user: AuthUser | null;
   membership: AuthMembership | null;
+  platformAdmin: AuthPlatformAdmin | null;
   isLoading: boolean;
   refetch: () => Promise<void>;
 }
@@ -43,6 +49,7 @@ export function AuthProvider({
   const [user, setUser] = useState<AuthUser | null>(initialUser);
   const [membership, setMembership] =
     useState<AuthMembership | null>(initialMembership);
+  const [platformAdmin, setPlatformAdmin] = useState<AuthPlatformAdmin | null>(null);
   const [isLoading, setIsLoading] = useState(!initialUser || !initialMembership);
 
   const refetch = useCallback(async () => {
@@ -55,6 +62,7 @@ export function AuthProvider({
         null;
 
       setUser(result.user);
+      setPlatformAdmin(result.platformAdmin);
       setMembership(
         activeMembership
           ? {
@@ -69,6 +77,7 @@ export function AuthProvider({
     } catch {
       setUser(null);
       setMembership(null);
+      setPlatformAdmin(null);
     } finally {
       setIsLoading(false);
     }
@@ -81,8 +90,8 @@ export function AuthProvider({
   }, [initialMembership, initialUser, refetch]);
 
   const value = useMemo(
-    () => ({ user, membership, isLoading, refetch }),
-    [isLoading, membership, refetch, user],
+    () => ({ user, membership, platformAdmin, isLoading, refetch }),
+    [isLoading, membership, platformAdmin, refetch, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

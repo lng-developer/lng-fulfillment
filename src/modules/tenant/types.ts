@@ -59,6 +59,14 @@ export type TenantMemberRecord = {
   updatedAt: Date;
 };
 
+export type TenantMemberCreateInput = {
+  email: string;
+  name?: string;
+  password?: string;
+  role: Exclude<TenantRole, "OWNER">;
+  membershipStatus: Extract<MembershipStatus, "ACTIVE" | "DISABLED">;
+};
+
 export type TenantMemberUpdateInput = {
   role?: TenantRole;
   membershipStatus?: Extract<MembershipStatus, "ACTIVE" | "DISABLED">;

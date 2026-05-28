@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/shared/auth/context";
+import { getPostLoginRedirect } from "@/lib/auth-redirect";
+import { getCurrentUserWithTenants } from "@/shared/auth/context";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = {
@@ -12,11 +13,11 @@ export default async function LoginPage({
 }: {
   searchParams?: Promise<{ reason?: string }>;
 }) {
-  const user = await getCurrentUser();
+  const context = await getCurrentUserWithTenants();
   const params = await searchParams;
 
-  if (user) {
-    redirect("/orders");
+  if (context) {
+    redirect(getPostLoginRedirect(context));
   }
 
   return (

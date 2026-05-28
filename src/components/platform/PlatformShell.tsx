@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { PlatformAdminRole } from "@/types/platform";
+import { PlatformUserMenu } from "./PlatformUserMenu";
 
 const navItems = [
   { href: "/platform/tenants", label: "Tenants", icon: Building2 },
@@ -27,14 +28,7 @@ export function PlatformShell({
           </span>
           <span className="text-sm font-semibold">Platform Admin</span>
         </Link>
-        <div className="text-right">
-          <p className="text-xs font-semibold text-[var(--text-primary)]">
-            {user.name ?? "Platform Admin"}
-          </p>
-          <p className="text-[10px] text-[var(--text-muted)]">
-            {role} · {user.email}
-          </p>
-        </div>
+        <PlatformUserMenu role={role} user={user} />
       </header>
       <div className="flex min-h-[calc(100vh-52px)]">
         <aside className="hidden w-[210px] border-r border-[var(--border)] bg-[var(--bg-surface)] px-2 py-3 md:block">

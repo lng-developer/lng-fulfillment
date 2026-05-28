@@ -1,6 +1,7 @@
 import { AppError } from "@/shared/errors";
 import {
   generateSessionToken,
+  hashPassword,
   hashSessionToken,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -12,8 +13,11 @@ import {
   deleteSessionByTokenHash,
   findSessionContextByTokenHash,
   findUserByEmail,
+  findUserWithPasswordById,
+  getUserPlatformAdmin,
   getUserTenantMemberships,
   updateSessionLastUsed,
+  updateUserPasswordHash,
 } from "./repository";
 import type {
   AuthResponseData,
@@ -28,6 +32,11 @@ const SESSION_LAST_USED_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 type LoginInput = {
   email: string;
   password: string;
+};
+
+type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
 };
 
 export function validateLoginInput(input: unknown): LoginInput {
@@ -69,6 +78,39 @@ export function validateLoginInput(input: unknown): LoginInput {
   };
 }
 
+export function validateChangePasswordInput(input: unknown): ChangePasswordInput {
+  if (typeof input !== "object" || input === null) {
+    throw new AppError("VALIDATION_ERROR", "Request body must be an object.", 400);
+  }
+
+  const body = input as Record<string, unknown>;
+  const currentPassword = body.currentPassword;
+  const newPassword = body.newPassword;
+
+  if (typeof currentPassword !== "string" || currentPassword.length === 0) {
+    throw new AppError("VALIDATION_ERROR", "currentPassword is required.", 400);
+  }
+
+  if (typeof newPassword !== "string" || newPassword.length === 0) {
+    throw new AppError("VALIDATION_ERROR", "newPassword is required.", 400);
+  }
+
+  if (
+    currentPassword.length < MIN_PASSWORD_LENGTH ||
+    currentPassword.length > MAX_PASSWORD_LENGTH ||
+    newPassword.length < MIN_PASSWORD_LENGTH ||
+    newPassword.length > MAX_PASSWORD_LENGTH
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `Password length must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters.`,
+      400,
+    );
+  }
+
+  return { currentPassword, newPassword };
+}
+
 export async function loginWithEmailPassword(
   email: string,
   password: string,
@@ -99,6 +141,38 @@ export async function loginWithEmailPassword(
     expiresAt,
     ...(await buildAuthResponseData(toSafeUser(user))),
   };
+}
+
+export async function changePassword(
+  userId: string,
+  input: ChangePasswordInput,
+): Promise<void> {
+  const user = await findUserWithPasswordById(userId);
+  if (!user || user.status !== "ACTIVE") {
+    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
+  }
+
+  const currentMatches = await verifyPassword(
+    input.currentPassword,
+    user.passwordHash,
+  );
+  if (!currentMatches) {
+    throw new AppError("FORBIDDEN", "Current password is incorrect.", 403);
+  }
+
+  const newMatchesCurrent = await verifyPassword(
+    input.newPassword,
+    user.passwordHash,
+  );
+  if (newMatchesCurrent) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "New password must be different from current password.",
+      400,
+    );
+  }
+
+  await updateUserPasswordHash(userId, await hashPassword(input.newPassword));
 }
 
 export async function getCurrentSession(
@@ -139,6 +213,7 @@ export async function getCurrentSession(
         membershipStatus: membership.status,
       }),
     ),
+    platformAdmin: await getUserPlatformAdmin(session.user.id),
   };
 }
 
@@ -188,6 +263,7 @@ async function buildAuthResponseData(user: SafeUser): Promise<AuthResponseData> 
   return {
     user,
     tenants: await getTenantMembershipsForUser(user.id),
+    platformAdmin: await getUserPlatformAdmin(user.id),
   };
 }
 

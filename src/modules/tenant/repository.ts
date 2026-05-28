@@ -150,6 +150,64 @@ export async function countActiveOwnerMemberships(tenantId: string) {
   });
 }
 
+export async function countTenantMemberships(tenantId: string) {
+  return prisma.tenantMembership.count({
+    where: { tenantId },
+  });
+}
+
+export async function createTenantMemberRecord(input: {
+  tenantId: string;
+  email: string;
+  name: string | null;
+  passwordHash?: string;
+  role: Exclude<TenantRole, "OWNER">;
+  status: Extract<MembershipStatus, "ACTIVE" | "DISABLED">;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const existingUser = await tx.user.findUnique({
+      where: { email: input.email },
+      select: { id: true },
+    });
+
+    if (!existingUser && !input.passwordHash) {
+      return { member: null, reason: "PASSWORD_REQUIRED" as const };
+    }
+
+    const memberCount = await tx.tenantMembership.count({
+      where: { tenantId: input.tenantId },
+    });
+    if (memberCount >= 10) {
+      return { member: null, reason: "TENANT_MEMBER_LIMIT_REACHED" as const };
+    }
+
+    const user =
+      existingUser ??
+      (await tx.user.create({
+        data: {
+          email: input.email,
+          name: input.name,
+          passwordHash: input.passwordHash as string,
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      }));
+
+    const member = await tx.tenantMembership.create({
+      data: {
+        tenantId: input.tenantId,
+        userId: user.id,
+        role: input.role,
+        status: input.status,
+        acceptedAt: input.status === "ACTIVE" ? new Date() : null,
+      },
+      select: tenantMemberSafeSelect,
+    });
+
+    return { member, reason: null };
+  });
+}
+
 export async function updateTenantMemberRecord(input: {
   tenantId: string;
   membershipId: string;

@@ -1,16 +1,18 @@
 "use client";
 
-import { LogOut, Settings, User } from "lucide-react";
+import { KeyRound, LogOut, Settings, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { logout as logoutRequest } from "@/lib/api/auth";
 import { useAuth } from "@/lib/auth-context";
 import { toastError } from "@/lib/toast";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 
 export function UserMenu() {
   const router = useRouter();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const userEmail = user?.email ?? "user@example.com";
   const userName = user?.name ?? "User";
@@ -64,6 +66,17 @@ export function UserMenu() {
             Settings
           </a>
           <button
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)]"
+            onClick={() => {
+              setOpen(false);
+              setChangePasswordOpen(true);
+            }}
+            type="button"
+          >
+            <KeyRound className="h-4 w-4" aria-hidden />
+            Change password
+          </button>
+          <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isPending}
             onClick={logout}
@@ -77,6 +90,10 @@ export function UserMenu() {
             {isPending ? "Signing out..." : "Logout"}
           </button>
         </div>
+      ) : null}
+
+      {changePasswordOpen ? (
+        <ChangePasswordDialog onClose={() => setChangePasswordOpen(false)} />
       ) : null}
     </div>
   );

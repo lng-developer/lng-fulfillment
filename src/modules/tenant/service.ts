@@ -1,15 +1,21 @@
 import type { MembershipStatus, Prisma, TenantRole } from "@prisma/client";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { recordUserAuditLog } from "@/modules/audit";
 import { AppError } from "@/shared/errors";
 import {
   generateTenantApiKey,
   getTenantApiKeyPrefix,
+  hashPassword,
   hashTenantApiKey,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
   verifyTenantApiKey as verifyTenantApiKeyHash,
 } from "@/shared/security";
 import {
   createTenantApiKeyRecord,
+  createTenantMemberRecord,
   countActiveOwnerMemberships,
+  countTenantMemberships,
   findTenantApiKeyByHash,
   findTenantMemberRecord,
   findTenantMembershipForUser,
@@ -24,6 +30,7 @@ import {
   TENANT_API_KEY_SCOPES,
   TENANT_MEMBER_MANAGE_ROLES,
   type TenantMemberRecord,
+  type TenantMemberCreateInput,
   type TenantMemberUpdateInput,
   type TenantApiKeyCreateInput,
   type TenantApiKeyCreateResult,
@@ -34,7 +41,11 @@ import {
 
 const MIN_API_KEY_NAME_LENGTH = 1;
 const MAX_API_KEY_NAME_LENGTH = 80;
+const MAX_MEMBER_NAME_LENGTH = 120;
+const MAX_MEMBER_EMAIL_LENGTH = 254;
+const TENANT_MEMBER_LIMIT = 10;
 const UPDATEABLE_MEMBERSHIP_STATUSES = ["ACTIVE", "DISABLED"] as const;
+const TENANT_MEMBER_CREATE_ROLES = ["ADMIN", "OPERATOR", "VIEWER"] as const;
 
 export function validateTenantApiKeyCreateInput(
   input: unknown,
@@ -189,6 +200,27 @@ export function validateTenantMemberUpdateInput(
   return update;
 }
 
+export function validateTenantMemberCreateInput(
+  input: unknown,
+): TenantMemberCreateInput {
+  if (typeof input !== "object" || input === null) {
+    throw new AppError("VALIDATION_ERROR", "Request body must be an object.", 400);
+  }
+
+  const body = input as Record<string, unknown>;
+  const password = validateOptionalPassword(body.password, "password");
+
+  return {
+    email: validateEmail(body.email, "email"),
+    name: validateOptionalMemberName(body.name),
+    ...(password ? { password } : {}),
+    role: validateTenantMemberCreateRole(body.role),
+    membershipStatus: validateMembershipStatus(
+      body.membershipStatus ?? body.status ?? "ACTIVE",
+    ),
+  };
+}
+
 export async function listTenantMembers(
   tenantId: string,
   actorUserId: string,
@@ -196,6 +228,81 @@ export async function listTenantMembers(
   await assertCanManageTenantMembers(tenantId, actorUserId);
 
   return (await listTenantMemberRecords(tenantId)).map(toTenantMemberRecord);
+}
+
+export async function createTenantMember(
+  tenantId: string,
+  input: TenantMemberCreateInput,
+  actorUserId: string,
+): Promise<TenantMemberRecord> {
+  await assertCanCreateTenantMembers(tenantId, actorUserId);
+
+  if ((await countTenantMemberships(tenantId)) >= TENANT_MEMBER_LIMIT) {
+    throw new AppError(
+      "CONFLICT",
+      `Tenant member limit of ${TENANT_MEMBER_LIMIT} accounts reached.`,
+      409,
+    );
+  }
+
+  const passwordHash = input.password
+    ? await hashPassword(input.password)
+    : undefined;
+  const result = await createTenantMemberRecord({
+    tenantId,
+    email: input.email,
+    name: input.name ?? null,
+    passwordHash,
+    role: input.role,
+    status: input.membershipStatus,
+  }).catch((error: unknown) => {
+    if (isUniqueConstraintError(error)) {
+      throw new AppError(
+        "CONFLICT",
+        "User membership already exists for this tenant.",
+        409,
+      );
+    }
+
+    throw error;
+  });
+
+  if (!result.member) {
+    if (result.reason === "PASSWORD_REQUIRED") {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "password is required when email does not belong to an existing user.",
+        400,
+      );
+    }
+
+    if (result.reason === "TENANT_MEMBER_LIMIT_REACHED") {
+      throw new AppError(
+        "CONFLICT",
+        `Tenant member limit of ${TENANT_MEMBER_LIMIT} accounts reached.`,
+        409,
+      );
+    }
+
+    throw new AppError("INTERNAL_ERROR", "Member could not be created.", 500);
+  }
+
+  await recordUserAuditLog({
+    tenantId,
+    actorUserId,
+    action: "MEMBER_CREATED",
+    resourceType: "TenantMembership",
+    resourceId: result.member.id,
+    metadata: {
+      membershipId: result.member.id,
+      targetUserId: result.member.userId,
+      nextRole: result.member.role,
+      nextStatus: result.member.status,
+      result: "created",
+    },
+  });
+
+  return toTenantMemberRecord(result.member);
 }
 
 export async function updateTenantMember(
@@ -314,6 +421,21 @@ async function assertCanManageTenantMembers(
   }
 }
 
+async function assertCanCreateTenantMembers(
+  tenantId: string,
+  actorUserId: string,
+) {
+  const membership = await findTenantMembershipForUser(tenantId, actorUserId);
+
+  if (!membership || membership.status !== "ACTIVE") {
+    throw new AppError("FORBIDDEN", "Tenant access denied.", 403);
+  }
+
+  if (membership.role !== "OWNER") {
+    throw new AppError("FORBIDDEN", "Only tenant owners can create members.", 403);
+  }
+}
+
 async function assertOwnerUpdateIsSafe(input: {
   tenantId: string;
   actorUserId: string;
@@ -400,6 +522,89 @@ function validateExpiresAt(value: unknown) {
   return expiresAt;
 }
 
+function validateEmail(value: unknown, label: string) {
+  if (typeof value !== "string") {
+    throw new AppError("VALIDATION_ERROR", `${label} is required.`, 400);
+  }
+
+  const email = value.trim().toLowerCase();
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    email.length > MAX_MEMBER_EMAIL_LENGTH
+  ) {
+    throw new AppError("VALIDATION_ERROR", `${label} must be valid.`, 400);
+  }
+
+  return email;
+}
+
+function validateOptionalMemberName(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    throw new AppError("VALIDATION_ERROR", "name must be a string.", 400);
+  }
+
+  const name = value.trim();
+  if (name.length > MAX_MEMBER_NAME_LENGTH) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `name must be ${MAX_MEMBER_NAME_LENGTH} characters or less.`,
+      400,
+    );
+  }
+
+  return name || undefined;
+}
+
+function validateOptionalPassword(value: unknown, label: string) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") {
+    throw new AppError("VALIDATION_ERROR", `${label} must be a string.`, 400);
+  }
+
+  if (value.length < MIN_PASSWORD_LENGTH || value.length > MAX_PASSWORD_LENGTH) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `${label} length must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters.`,
+      400,
+    );
+  }
+
+  return value;
+}
+
+function validateTenantMemberCreateRole(
+  value: unknown,
+): TenantMemberCreateInput["role"] {
+  if (typeof value !== "string") {
+    return "VIEWER";
+  }
+
+  if (
+    TENANT_MEMBER_CREATE_ROLES.includes(
+      value as TenantMemberCreateInput["role"],
+    )
+  ) {
+    return value as TenantMemberCreateInput["role"];
+  }
+
+  throw new AppError(
+    "VALIDATION_ERROR",
+    "role must be ADMIN, OPERATOR, or VIEWER.",
+    400,
+  );
+}
+
+function validateMembershipStatus(
+  value: unknown,
+): TenantMemberCreateInput["membershipStatus"] {
+  if (isUpdateableMembershipStatus(value)) {
+    return value;
+  }
+
+  throw new AppError("VALIDATION_ERROR", "membershipStatus is invalid.", 400);
+}
+
 function isTenantApiKeyScope(value: unknown): value is TenantApiKeyScope {
   return (
     typeof value === "string" &&
@@ -422,6 +627,16 @@ function isUpdateableMembershipStatus(
     UPDATEABLE_MEMBERSHIP_STATUSES.includes(
       value as (typeof UPDATEABLE_MEMBERSHIP_STATUSES)[number],
     )
+  );
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    (error instanceof PrismaClientKnownRequestError && error.code === "P2002") ||
+    (typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002")
   );
 }
 

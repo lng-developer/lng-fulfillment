@@ -20,10 +20,12 @@ export {
 } from "@/shared/auth";
 
 export {
+  changePassword,
   loginWithEmailPassword,
   getCurrentSession,
   getTenantMembershipsForUser,
   logout,
+  validateChangePasswordInput,
   validateLoginInput,
 } from "./service";
 

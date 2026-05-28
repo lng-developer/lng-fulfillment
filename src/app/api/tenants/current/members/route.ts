@@ -1,7 +1,18 @@
 import { ok, error as errorResponse } from "@/shared/api-response";
 import { getCurrentUserWithTenants } from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
-import { listTenantMembers } from "@/modules/tenant";
+import {
+  createTenantMember,
+  listTenantMembers,
+  validateTenantMemberCreateInput,
+} from "@/modules/tenant";
+import {
+  RATE_LIMIT_POLICIES,
+  assertSameOriginRequest,
+  buildRateLimitKey,
+  getClientIp,
+  rateLimitOrThrow,
+} from "@/shared/security";
 
 export async function GET() {
   try {
@@ -12,6 +23,33 @@ export async function GET() {
     );
 
     return ok({ members });
+  } catch (error) {
+    return handleMemberError(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await requireCurrentTenantContext();
+    assertSameOriginRequest(request);
+    rateLimitOrThrow({
+      key: buildRateLimitKey(
+        "dashboard:members:create",
+        getClientIp(request),
+        context.actorUserId,
+        context.tenantId,
+      ),
+      ...RATE_LIMIT_POLICIES.dashboardMutation,
+    });
+
+    const input = validateTenantMemberCreateInput(await readJson(request));
+    const member = await createTenantMember(
+      context.tenantId,
+      input,
+      context.actorUserId,
+    );
+
+    return ok({ member });
   } catch (error) {
     return handleMemberError(error);
   }
@@ -36,6 +74,14 @@ async function requireCurrentTenantContext() {
     actorUserId: context.user.id,
     tenantId: tenant.tenantId,
   };
+}
+
+async function readJson(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new AppError("VALIDATION_ERROR", "Request body must be valid JSON.", 400);
+  }
 }
 
 function handleMemberError(error: unknown) {

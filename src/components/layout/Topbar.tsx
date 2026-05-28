@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { RoleBadge } from "@/components/ui/RoleBadge";
-import { TenantBadge } from "@/components/ui/TenantBadge";
 import { useAuth } from "@/lib/auth-context";
 import { UserMenu } from "./UserMenu";
 
 export function Topbar() {
   const { membership } = useAuth();
-  const tenantName = membership?.tenantName ?? "Tenant";
-  const tenantSlug = membership?.tenantSlug ?? "tenant";
   const role = membership?.role ?? "VIEWER";
 
   return (
@@ -22,12 +19,6 @@ export function Topbar() {
           Fulfillment
         </span>
       </Link>
-
-      {/* <TenantBadge
-        className="hidden max-w-[44vw] justify-self-center sm:inline-flex"
-        name={tenantName}
-        slug={tenantSlug}
-      /> */}
 
       <div className="flex items-center gap-2">
         <RoleBadge role={role} />

@@ -43,7 +43,7 @@ export async function apiFetch<T>(
   const failedEnvelope =
     isObjectBody && "success" in body && body.success === false;
 
-  if (response.status === 401) {
+  if (response.status === 401 && path !== "/api/auth/login") {
     redirectToExpiredLogin();
     throw new ApiError(401, "UNAUTHORIZED", "Session expired");
   }
