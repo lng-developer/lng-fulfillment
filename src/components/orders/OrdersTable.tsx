@@ -125,6 +125,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           controller.signal,
         );
 
+        if (controller.signal.aborted) {
+          return;
+        }
+
         setOrders(result.data);
         if (result.expandedData) {
           const expandedById = Object.fromEntries(
@@ -143,12 +147,16 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           totalPages: result.pagination.totalPages,
         });
       } catch (loadError) {
-        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
-          setOrders([]);
-          setError(getErrorMessage(loadError));
+        if (controller.signal.aborted) {
+          return;
         }
+
+        setOrders([]);
+        setError(getErrorMessage(loadError));
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -243,22 +251,33 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   return (
     <div className="grid gap-4">
       <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {orderStats.map((stat) => (
-          <div
-            className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3.5 py-3 shadow-soft"
-            key={stat.label}
-          >
-            <p className="text-[11px] font-medium text-[var(--text-muted)]">
-              {stat.label}
-            </p>
-            <p className={cn("mt-1 text-xl font-bold", stat.tone)}>
-              {stat.value}
-            </p>
-            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-              Current result set
-            </p>
-          </div>
-        ))}
+        {isLoading && !orders.length
+          ? Array.from({ length: 4 }).map((_, index) => (
+              <div
+                className="h-[86px] animate-pulse rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3.5 py-3 shadow-soft"
+                key={index}
+              >
+                <div className="h-3 w-24 rounded bg-[var(--bg-surface2)]" />
+                <div className="mt-3 h-6 w-12 rounded bg-[var(--bg-surface2)]" />
+                <div className="mt-3 h-2.5 w-28 rounded bg-[var(--bg-surface2)]" />
+              </div>
+            ))
+          : orderStats.map((stat) => (
+              <div
+                className="rounded border border-[var(--border)] bg-[var(--bg-surface)] px-3.5 py-3 shadow-soft"
+                key={stat.label}
+              >
+                <p className="text-[11px] font-medium text-[var(--text-muted)]">
+                  {stat.label}
+                </p>
+                <p className={cn("mt-1 text-xl font-bold", stat.tone)}>
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                  Current result set
+                </p>
+              </div>
+            ))}
       </section>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

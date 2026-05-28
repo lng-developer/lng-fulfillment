@@ -1,9 +1,11 @@
 import { error as errorResponse } from "@/shared/api-response";
-import { getCurrentUser } from "@/shared/auth/context";
+import {
+  getCurrentUserWithTenants,
+  requirePlatformContextFromSession,
+} from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
 import {
   recordPlatformDeniedTelemetry,
-  requirePlatformAccessContext,
   type PlatformAdminContext,
 } from "@/modules/platform";
 import {
@@ -20,17 +22,18 @@ export async function requirePlatformActor(
   request?: Request,
   routeGroup = "platform.unknown",
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
+  const context = await getCurrentUserWithTenants();
+  if (!context) {
     throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
   }
 
   try {
-    return await requirePlatformAccessContext(user);
+    return requirePlatformContextFromSession(context, true);
   } catch (error) {
     if (error instanceof AppError && error.code === "FORBIDDEN") {
       await recordDeniedTelemetryIfAllowed({
-        actorUserId: user.id,
+        actorUserId: context.user.id,
+        actorPlatformRole: context.platformAdmin?.role,
         event: "PLATFORM_ACCESS_DENIED",
         method: request?.method ?? "UNKNOWN",
         routeGroup,

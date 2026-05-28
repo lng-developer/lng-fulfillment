@@ -30,6 +30,7 @@ import type {
   PlatformTenantStatus,
   PlatformTenantType,
 } from "@/types/platform";
+import { usePlatformAuth } from "./PlatformAuthContext";
 
 const TENANT_NAME_MAX_LENGTH = 120;
 const MEMBER_NAME_MAX_LENGTH = 120;
@@ -63,12 +64,14 @@ type MemberUpdatePayload = {
 };
 
 export function PlatformTenantDetailContent({
-  canManage,
+  canManage: canManageProp,
   tenantId,
 }: {
-  canManage: boolean;
+  canManage?: boolean;
   tenantId: string;
 }) {
+  const platformAuth = usePlatformAuth();
+  const canManage = canManageProp ?? platformAuth.canManage;
   const [tenant, setTenant] = useState<PlatformTenantDetail | null>(null);
   const [members, setMembers] = useState<PlatformMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);

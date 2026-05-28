@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlatformTenantDetailContent } from "@/components/platform/PlatformTenantDetailContent";
-import { requirePlatformPageActor } from "../../_auth";
 
 export const metadata: Metadata = {
   title: "Tenant Detail | Fulfillment Platform",
@@ -12,11 +11,7 @@ export default async function PlatformTenantDetailPage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [{ tenantId }, { actor }] = await Promise.all([
-    params,
-    requirePlatformPageActor(),
-  ]);
-  const canManage = actor.role === "PLATFORM_ADMIN";
+  const { tenantId } = await params;
 
   return (
     <div className="grid gap-5">
@@ -34,7 +29,7 @@ export default async function PlatformTenantDetailPage({
           Manage tenant profile and members from the platform admin console.
         </p>
       </header>
-      <PlatformTenantDetailContent canManage={canManage} tenantId={tenantId} />
+      <PlatformTenantDetailContent tenantId={tenantId} />
     </div>
   );
 }

@@ -12,13 +12,11 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge, formatStatus } from "@/components/ui/StatusBadge";
-import { getErrorMessage } from "@/lib/api/base";
-import { createDraftShipment, getShipments } from "@/lib/api/shipments";
+import { createDraftShipment } from "@/lib/api/shipments";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { OrderDetail, OrderDetailItem } from "@/types/orders";
-import type { ShipmentListItem } from "@/types/shipments";
 
 export function OrderExpandPanel({
   order,
@@ -31,57 +29,14 @@ export function OrderExpandPanel({
   onDraftCreated: () => void;
   role: Role;
 }) {
-  const [shipments, setShipments] = useState<ShipmentListItem[]>([]);
-  const [isShipmentsLoading, setIsShipmentsLoading] = useState(false);
-  const [shipmentsError, setShipmentsError] = useState<string | null>(null);
-  const [shipmentsReloadKey, setShipmentsReloadKey] = useState(0);
   const [showCreateForm, setShowCreateForm] = useState(false);
-
-  useEffect(() => {
-    if (!order) {
-      setShipments([]);
-      return;
-    }
-
-    const currentOrderId = order.id;
-    const controller = new AbortController();
-
-    async function loadShipments() {
-      setIsShipmentsLoading(true);
-      setShipmentsError(null);
-
-      try {
-        const result = await getShipments(
-          {
-            orderId: currentOrderId,
-            page: 1,
-            pageSize: 20,
-            sortBy: "createdAt",
-            sortOrder: "desc",
-          },
-          controller.signal,
-        );
-        setShipments(result.data);
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setShipments([]);
-          setShipmentsError(getErrorMessage(error));
-        }
-      } finally {
-        setIsShipmentsLoading(false);
-      }
-    }
-
-    loadShipments();
-
-    return () => controller.abort();
-  }, [order, shipmentsReloadKey]);
 
   if (isLoading || !order) {
     return <OrderExpandSkeleton />;
   }
 
   const canCreate = can.createShipment(role);
+  const shipments = order.shipments ?? [];
 
   return (
     <div className="bg-[var(--brand-light)] px-3 pb-3 pt-0 sm:pl-12 sm:pr-3.5">
@@ -204,54 +159,42 @@ export function OrderExpandPanel({
         </PanelCard>
 
         <PanelCard icon={<Truck />} title="Shipments">
-          {isShipmentsLoading ? (
-            <p className="text-[11px] text-[var(--text-muted)]">
-              Loading shipments...
-            </p>
-          ) : null}
-          {!isShipmentsLoading && shipmentsError ? (
-            <p className="text-[11px] text-[var(--danger-text)]">
-              {shipmentsError}
-            </p>
-          ) : null}
-          {!isShipmentsLoading && !shipmentsError ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {shipments.length ? (
-                shipments.map((shipment) => (
-                  <div
-                    className="flex items-center gap-2 rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] px-2 py-1 text-[11px]"
-                    key={shipment.id}
-                  >
-                    <StatusBadge status={shipment.status} />
-                    <span className="font-mono text-[10px] text-[var(--text-secondary)]">
-                      {shipment.id}
-                    </span>
-                    {shipment.trackingNumber ? (
-                      <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                        {shipment.trackingNumber}
-                      </span>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
-                <EmptyState
-                  description="No shipments yet."
-                  heading="No related shipments"
-                  icon={<Truck className="h-6 w-6" aria-hidden />}
-                />
-              )}
-              {canCreate ? (
-                <button
-                  className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-2.5 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
-                  onClick={() => setShowCreateForm(true)}
-                  type="button"
+          <div className="flex flex-wrap items-center gap-2">
+            {shipments.length ? (
+              shipments.map((shipment) => (
+                <div
+                  className="flex items-center gap-2 rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] px-2 py-1 text-[11px]"
+                  key={shipment.id}
                 >
-                  <Plus className="h-3 w-3" aria-hidden />
-                  {shipments.length ? "Add Shipment" : "Create Draft Shipment"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+                  <StatusBadge status={shipment.status} />
+                  <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+                    {shipment.id}
+                  </span>
+                  {shipment.trackingNumber ? (
+                    <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                      {shipment.trackingNumber}
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <EmptyState
+                description="No shipments yet."
+                heading="No related shipments"
+                icon={<Truck className="h-6 w-6" aria-hidden />}
+              />
+            )}
+            {canCreate ? (
+              <button
+                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-2.5 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
+                onClick={() => setShowCreateForm(true)}
+                type="button"
+              >
+                <Plus className="h-3 w-3" aria-hidden />
+                {shipments.length ? "Add Shipment" : "Create Draft Shipment"}
+              </button>
+            ) : null}
+          </div>
 
           {showCreateForm ? (
             <CreateDraftShipmentForm
@@ -259,7 +202,6 @@ export function OrderExpandPanel({
               onCancel={() => setShowCreateForm(false)}
               onCreated={() => {
                 setShowCreateForm(false);
-                setShipmentsReloadKey((value) => value + 1);
                 onDraftCreated();
               }}
               orderId={order.id}

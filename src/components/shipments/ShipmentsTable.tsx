@@ -89,6 +89,10 @@ export function ShipmentsTable({
           controller.signal,
         );
 
+        if (controller.signal.aborted) {
+          return;
+        }
+
         setShipments(response.data);
         setPagination({
           page: response.pagination.page,
@@ -97,12 +101,16 @@ export function ShipmentsTable({
           totalPages: response.pagination.totalPages,
         });
       } catch (loadError) {
-        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
-          setError(getErrorMessage(loadError));
-          setShipments([]);
+        if (controller.signal.aborted) {
+          return;
         }
+
+        setError(getErrorMessage(loadError));
+        setShipments([]);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 

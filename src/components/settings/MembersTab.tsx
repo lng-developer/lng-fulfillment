@@ -70,11 +70,18 @@ export function MembersTab({
         header: "Email",
         render: (row) => (
           <span className="flex min-w-0 items-center gap-2">
-            <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white", memberAvatarClass(row))}>
+            <span
+              className={cn(
+                "grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white",
+                memberAvatarClass(row),
+              )}
+            >
               {getInitials(row.name ?? row.email)}
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-medium text-[var(--text-primary)]">{row.email}</span>
+              <span className="block truncate font-medium text-[var(--text-primary)]">
+                {row.email}
+              </span>
             </span>
           </span>
         ),
@@ -82,7 +89,8 @@ export function MembersTab({
       {
         key: "name",
         header: "Name",
-        render: (row) => row.name || <span className="text-[var(--text-muted)]">-</span>,
+        render: (row) =>
+          row.name || <span className="text-[var(--text-muted)]">-</span>,
       },
       {
         key: "role",
@@ -140,7 +148,9 @@ export function MembersTab({
       <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Members</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+              Members
+            </h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
               Review tenant membership and update access for authorized users.
             </p>
@@ -281,7 +291,7 @@ function AddTenantMemberForm({
   if (disabled) {
     return (
       <div className="rounded-sm border border-[#fcd34d] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning-text)]">
-        This tenant has reached the 10 account limit.
+        You has reached the 10 account limit.
       </div>
     );
   }
@@ -303,8 +313,8 @@ function AddTenantMemberForm({
     <div className="grid gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
       <div className="rounded-sm border border-[var(--brand-mid)] bg-[var(--brand-light)] p-3 text-xs text-[var(--brand-dark)]">
         Existing users are attached to this tenant. New users are created only
-        when a password is provided; if the email does not exist, the server will
-        require a password.
+        when a password is provided; if the email does not exist, the server
+        will require a password.
       </div>
       <div className="grid gap-3 md:grid-cols-5">
         <label className="grid gap-1 text-xs font-medium text-[var(--text-secondary)]">
@@ -420,7 +430,7 @@ function getCreateMemberError(error: unknown) {
 
     if (error.status === 409) {
       if (message.includes("limit")) {
-        return "This tenant has reached the 10 account limit.";
+        return "You has reached the 10 account limit.";
       }
 
       return "This user is already attached to the tenant.";

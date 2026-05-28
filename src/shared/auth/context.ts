@@ -9,11 +9,7 @@ import {
   type SafeUser,
   type TenantMembershipSummary,
 } from "@/modules/identity";
-import {
-  requirePlatformAccessContext,
-  requirePlatformAdminContext,
-  type PlatformAdminContext,
-} from "@/modules/platform";
+import type { PlatformAdminContext } from "@/modules/platform";
 import { AppError } from "@/shared/errors";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 
@@ -90,13 +86,13 @@ export async function requireTenantAccess(
 }
 
 export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
-  const user = await requireUser();
-  return requirePlatformAdminContext(user);
+  const context = await requireAuthContext();
+  return requirePlatformContextFromSession(context, false);
 }
 
 export async function requirePlatformAccess(): Promise<PlatformAdminContext> {
-  const user = await requireUser();
-  return requirePlatformAccessContext(user);
+  const context = await requireAuthContext();
+  return requirePlatformContextFromSession(context, true);
 }
 
 export async function getDefaultTenantForUser(
@@ -108,4 +104,41 @@ export async function getDefaultTenantForUser(
     memberships.find((membership) => membership.membershipStatus === "ACTIVE") ??
     null
   );
+}
+
+async function requireAuthContext(): Promise<AuthResponseData> {
+  const context = await getCurrentUserWithTenants();
+
+  if (!context) {
+    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
+  }
+
+  return context;
+}
+
+export function requirePlatformContextFromSession(
+  context: AuthResponseData,
+  allowSupport: boolean,
+): PlatformAdminContext {
+  const platformAdmin = context.platformAdmin;
+  const roleAllowed =
+    platformAdmin?.role === "PLATFORM_ADMIN" ||
+    (allowSupport && platformAdmin?.role === "PLATFORM_SUPPORT");
+
+  if (!platformAdmin || platformAdmin.status !== "ACTIVE" || !roleAllowed) {
+    throw new AppError(
+      "FORBIDDEN",
+      allowSupport
+        ? "Platform access required."
+        : "Platform admin access required.",
+      403,
+    );
+  }
+
+  return {
+    userId: context.user.id,
+    email: context.user.email,
+    name: context.user.name,
+    role: platformAdmin.role,
+  };
 }

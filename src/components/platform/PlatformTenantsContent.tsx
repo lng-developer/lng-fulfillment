@@ -29,8 +29,11 @@ import type {
   PlatformTenantSummary,
   PlatformTenantType,
 } from "@/types/platform";
+import { usePlatformAuth } from "./PlatformAuthContext";
 
-export function PlatformTenantsContent({ canManage }: { canManage: boolean }) {
+export function PlatformTenantsContent({ canManage: canManageProp }: { canManage?: boolean }) {
+  const platformAuth = usePlatformAuth();
+  const canManage = canManageProp ?? platformAuth.canManage;
   const router = useRouter();
   const [tenants, setTenants] = useState<PlatformTenantSummary[]>([]);
   const [pagination, setPagination] = useState<PlatformPagination>({

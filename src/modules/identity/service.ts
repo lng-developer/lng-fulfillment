@@ -213,7 +213,7 @@ export async function getCurrentSession(
         membershipStatus: membership.status,
       }),
     ),
-    platformAdmin: await getUserPlatformAdmin(session.user.id),
+    platformAdmin: session.user.platformAdmin,
   };
 }
 

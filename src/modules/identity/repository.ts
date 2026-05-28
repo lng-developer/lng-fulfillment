@@ -106,6 +106,12 @@ export async function findSessionContextByTokenHash(tokenHash: string) {
               },
             },
           },
+          platformAdmin: {
+            select: {
+              role: true,
+              status: true,
+            },
+          },
         },
       },
     },

@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
 import { PlatformTenantsContent } from "@/components/platform/PlatformTenantsContent";
-import { requirePlatformPageActor } from "../_auth";
 
 export const metadata: Metadata = {
   title: "Platform Tenants | Fulfillment Platform",
 };
 
-export default async function PlatformTenantsPage() {
-  const { actor } = await requirePlatformPageActor();
-  const canManage = actor.role === "PLATFORM_ADMIN";
-
+export default function PlatformTenantsPage() {
   return (
     <div className="grid gap-5">
       <header>
@@ -23,7 +19,7 @@ export default async function PlatformTenantsPage() {
           Create and manage customer tenant workspaces.
         </p>
       </header>
-      <PlatformTenantsContent canManage={canManage} />
+      <PlatformTenantsContent />
     </div>
   );
 }

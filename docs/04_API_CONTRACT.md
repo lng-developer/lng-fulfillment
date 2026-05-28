@@ -526,6 +526,12 @@ Rules for implemented read APIs:
 - `sortBy`: one of `receivedAt`, `createdAt`, `updatedAt`, `externalOrderId`, `orderNumber`, `status`; default `receivedAt`.
 - `sortOrder`: `asc` hoặc `desc`; default `desc`.
 
+- `include`: optional. `expanded` returns the current page list plus safe expanded row data in one response. This is intended for expandable table UIs and avoids per-row `GET /api/orders/:orderId` and per-row shipment list calls.
+
+`GET /api/orders/:orderId` remains the single-order detail endpoint and should not be used to build paginated list screens by looping over list ids.
+
+Future expandable/list UIs should follow the same rule: list endpoints return the filtered/paginated working set, and opt-in include or batch shapes provide row expansion data. Detail endpoints are for a single selected resource, not list hydration loops.
+
 List response:
 
 ```json
