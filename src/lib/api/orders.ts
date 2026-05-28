@@ -15,10 +15,12 @@ export interface OrderListParams {
   to?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  include?: "expanded";
 }
 
 export interface OrderListResponse {
   data: OrderListItem[];
+  expandedData?: OrderDetail[];
   pagination: {
     page: number;
     pageSize: number;
@@ -41,12 +43,16 @@ export async function getOrders(
   });
 
   const response = await apiFetch<
-    ApiSuccess<{ orders: OrderListItem[] }, PaginationMeta>
+    ApiSuccess<
+      { orders: OrderListItem[]; expandedOrders?: OrderDetail[] },
+      PaginationMeta
+    >
   >(`/api/orders?${query.toString()}`, { signal });
   const pagination = response.meta?.pagination;
 
   return {
     data: response.data.orders,
+    expandedData: response.data.expandedOrders,
     pagination: {
       page: pagination?.page ?? params.page ?? 1,
       pageSize: pagination?.pageSize ?? params.pageSize ?? response.data.orders.length,

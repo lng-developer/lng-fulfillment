@@ -114,6 +114,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           {
             page,
             pageSize: 20,
+            include: "expanded",
             sortBy: "receivedAt",
             sortOrder: "desc",
             search,
@@ -125,6 +126,16 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         );
 
         setOrders(result.data);
+        if (result.expandedData) {
+          const expandedById = Object.fromEntries(
+            result.expandedData.map((order) => [order.id, order]),
+          );
+          setDetailCache((current) => {
+            const next = { ...current, ...expandedById };
+            detailCacheRef.current = next;
+            return next;
+          });
+        }
         setPagination({
           page: result.pagination.page,
           pageSize: result.pagination.pageSize,
@@ -155,10 +166,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     setExpandedRows(
       Object.fromEntries(orders.map((order) => [order.id, true])),
     );
-    orders.forEach((order) => {
-      void ensureDetail(order.id);
-    });
-  }, [ensureDetail, orders]);
+  }, [orders]);
 
   const sortedOrders = useMemo(
     () =>
@@ -197,7 +205,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       Object.fromEntries(sortedOrders.map((order) => [order.id, true])),
     );
     sortedOrders.forEach((order) => {
-      void ensureDetail(order.id);
+      if (!detailCacheRef.current[order.id]) {
+        void ensureDetail(order.id);
+      }
     });
   }, [ensureDetail, sortedOrders]);
 
@@ -386,7 +396,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                           detailCacheRef.current = next;
                           return next;
                         });
-                        void ensureDetail(order.id);
                       }}
                       order={order}
                       role={role}

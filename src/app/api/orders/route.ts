@@ -13,7 +13,13 @@ export async function GET(request: Request) {
     const query = validateOrderListQuery(url.searchParams);
     const result = await listTenantOrders(context.tenantId, query);
 
-    return ok({ orders: result.orders }, result.meta);
+    return ok(
+      {
+        orders: result.orders,
+        ...(result.expandedOrders ? { expandedOrders: result.expandedOrders } : {}),
+      },
+      result.meta,
+    );
   } catch (error) {
     return handleOrderError(error);
   }

@@ -81,6 +81,7 @@ export function validateOrderListQuery(
     to: parseOptionalDate(searchParams.get("to"), "to"),
     sortBy: parseSortBy(searchParams.get("sortBy")),
     sortOrder: parseSortOrder(searchParams.get("sortOrder")),
+    includeExpanded: parseIncludeExpanded(searchParams.get("include")),
   };
 }
 
@@ -489,4 +490,17 @@ function parseSortOrder(value: string | null): SortOrder {
   }
 
   return sortOrder;
+}
+
+function parseIncludeExpanded(value: string | null) {
+  const include = optionalString(value);
+  if (!include) {
+    return false;
+  }
+
+  if (include !== "expanded") {
+    throw new AppError("VALIDATION_ERROR", "include is invalid.", 400);
+  }
+
+  return true;
 }

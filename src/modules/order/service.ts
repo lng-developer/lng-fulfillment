@@ -4,6 +4,7 @@ import {
   countOrders,
   createPortalOrderWithItems,
   getOrderDetail as getOrderDetailRecord,
+  listOrderDetailsByIds,
   listOrders as listOrderRecords,
 } from "./repository";
 import { validatePortalOrdersInput } from "./validation";
@@ -76,14 +77,25 @@ export async function receivePortalOrders(
 export async function listTenantOrders(
   tenantId: string,
   query: OrderListQuery,
-): Promise<{ orders: OrderListItem[]; meta: PaginationMeta }> {
+): Promise<{
+  orders: OrderListItem[];
+  expandedOrders?: OrderDetail[];
+  meta: PaginationMeta;
+}> {
   const [orders, totalItems] = await Promise.all([
     listOrderRecords(tenantId, query),
     countOrders(tenantId, query),
   ]);
+  const expandedOrders = query.includeExpanded
+    ? await listOrderDetailsByIds(
+        tenantId,
+        orders.map((order) => order.id),
+      )
+    : undefined;
 
   return {
     orders,
+    ...(expandedOrders ? { expandedOrders } : {}),
     meta: {
       pagination: {
         page: query.page,

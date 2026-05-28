@@ -1,14 +1,11 @@
-export default function HomePage() {
-  return (
-    <main className="shell">
-      <section className="intro">
-        <p className="eyebrow">Fulfillment Platform v2</p>
-        <h1>Fulfillment Platform v2</h1>
-        <p>
-          Nền tảng fulfillment dài hạn, multi-tenant-first,
-          auth-ready và carrier-adapter-ready.
-        </p>
-      </section>
-    </main>
-  );
+import LandingPage from "@/components/landing/LandingPage";
+
+export const metadata = {
+  title: "Fulfillment Platform — Vận hành fulfillment chuyên nghiệp",
+  description:
+    "Nền tảng fulfillment đa tenant. Quản lý đơn hàng, tạo shipment, tích hợp carrier an toàn.",
+};
+
+export default function Page() {
+  return <LandingPage />;
 }

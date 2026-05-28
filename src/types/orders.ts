@@ -101,6 +101,7 @@ export type OrderDetail = {
     actorType: "USER" | "API_KEY" | "SYSTEM";
     createdAt: string;
   }>;
+  shipments?: ShipmentListItem[];
 };
 
 export type ShipmentListItem = {

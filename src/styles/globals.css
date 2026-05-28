@@ -53,6 +53,14 @@
   /* Shadow */
   --shadow-sm: 0 1px 3px rgba(99,102,241,0.08), 0 1px 2px rgba(99,102,241,0.04);
   --shadow-md: 0 4px 16px rgba(99,102,241,0.12);
+
+  /* Landing page - dark surfaces */
+  --ink: #0a0b14;
+  --ink2: #1a1d3a;
+  --ink3: #3d4068;
+  --mist: #f0f1ff;
+  --mist2: #e8eaff;
+  --accent: #a5b4fc;
 }
 
 * {
@@ -99,6 +107,80 @@ textarea:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
   outline: none;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.lp-btn-primary {
+  align-items: center;
+  background: var(--brand);
+  border: none;
+  border-radius: var(--r-sm);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 7px;
+  padding: 10px 22px;
+  transition: background 0.1s;
+}
+
+.lp-btn-primary:hover {
+  background: var(--brand-dark);
+}
+
+.lp-btn-ghost {
+  align-items: center;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--r-sm);
+  color: rgba(255,255,255,0.85);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 7px;
+  padding: 10px 22px;
+  transition: background 0.1s;
+}
+
+.lp-btn-ghost:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.lp-section-label {
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.lp-section-h {
+  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 auto 8px;
+  max-width: 460px;
+  text-align: center;
+}
+
+.lp-section-sub {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 380px;
+  text-align: center;
 }
 
 .shell {

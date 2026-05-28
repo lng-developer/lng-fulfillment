@@ -116,6 +116,7 @@ export type OrderListQuery = {
   to?: Date;
   sortBy: OrderListSortField;
   sortOrder: SortOrder;
+  includeExpanded: boolean;
 };
 
 export type OrderListItem = {
@@ -173,6 +174,18 @@ export type OrderDetail = {
   updatedAt: Date;
   items: OrderDetailItem[];
   statusHistory: OrderDetailStatusHistory[];
+  shipments?: OrderDetailShipment[];
+};
+
+export type OrderDetailShipment = {
+  id: string;
+  status: string;
+  carrierCode: string | null;
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  labelUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type OrderDetailItem = {

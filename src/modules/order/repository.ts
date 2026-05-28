@@ -247,83 +247,129 @@ export async function getOrderDetail(
       id: orderId,
       tenantId,
     },
-    select: {
-      id: true,
-      externalOrderId: true,
-      orderNumber: true,
-      source: true,
-      sourceAccount: true,
-      shopName: true,
-      marketplace: true,
-      externalStatus: true,
-      purchaseAt: true,
-      paidAt: true,
-      status: true,
-      recipientName: true,
-      recipientPhone: true,
-      recipientEmail: true,
-      recipientAddress: true,
-      destinationCountry: true,
-      destinationState: true,
-      destinationCity: true,
-      destinationPostalCode: true,
-      shippingService: true,
-      shippingType: true,
-      currency: true,
-      orderTotal: true,
-      receivedAt: true,
-      createdAt: true,
-      updatedAt: true,
-      items: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          id: true,
-          externalItemId: true,
-          sku: true,
-          name: true,
-          title: true,
-          quantity: true,
-          asin: true,
-          listingId: true,
-          productType: true,
-          variant: true,
-          unitPrice: true,
-          currency: true,
-          weight: true,
-          declaredValue: true,
-          customizationUrl: true,
-          snapshotImageUrl: true,
-          fulfillmentFile: true,
-          listingSnapshot: true,
-          costCenterSnapshot: true,
-          productionStatus: true,
-          scaleStatus: true,
-          qcNote: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-      statusHistory: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          id: true,
-          status: true,
-          note: true,
-          actorType: true,
-          createdAt: true,
-        },
-      },
-    },
+    select: orderDetailSelect,
   });
 
   if (!row) {
     return null;
   }
 
+  return toOrderDetail(row);
+}
+
+export async function listOrderDetailsByIds(
+  tenantId: string,
+  orderIds: string[],
+): Promise<OrderDetail[]> {
+  if (!orderIds.length) {
+    return [];
+  }
+
+  const rows = await prisma.order.findMany({
+    where: {
+      id: {
+        in: orderIds,
+      },
+      tenantId,
+    },
+    select: orderDetailSelect,
+  });
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+
+  return orderIds
+    .map((orderId) => rowById.get(orderId))
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .map(toOrderDetail);
+}
+
+const orderDetailSelect = {
+  id: true,
+  externalOrderId: true,
+  orderNumber: true,
+  source: true,
+  sourceAccount: true,
+  shopName: true,
+  marketplace: true,
+  externalStatus: true,
+  purchaseAt: true,
+  paidAt: true,
+  status: true,
+  recipientName: true,
+  recipientPhone: true,
+  recipientEmail: true,
+  recipientAddress: true,
+  destinationCountry: true,
+  destinationState: true,
+  destinationCity: true,
+  destinationPostalCode: true,
+  shippingService: true,
+  shippingType: true,
+  currency: true,
+  orderTotal: true,
+  receivedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  items: {
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      id: true,
+      externalItemId: true,
+      sku: true,
+      name: true,
+      title: true,
+      quantity: true,
+      asin: true,
+      listingId: true,
+      productType: true,
+      variant: true,
+      unitPrice: true,
+      currency: true,
+      weight: true,
+      declaredValue: true,
+      customizationUrl: true,
+      snapshotImageUrl: true,
+      fulfillmentFile: true,
+      listingSnapshot: true,
+      costCenterSnapshot: true,
+      productionStatus: true,
+      scaleStatus: true,
+      qcNote: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+  statusHistory: {
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      id: true,
+      status: true,
+      note: true,
+      actorType: true,
+      createdAt: true,
+    },
+  },
+  shipments: {
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      status: true,
+      carrierCode: true,
+      carrierShipmentId: true,
+      trackingNumber: true,
+      labelUrl: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+} satisfies Prisma.OrderSelect;
+
+function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailSelect }>): OrderDetail {
   return {
     id: row.id,
     externalOrderId: row.externalOrderId,
@@ -378,6 +424,7 @@ export async function getOrderDetail(
       updatedAt: item.updatedAt,
     })),
     statusHistory: row.statusHistory,
+    shipments: row.shipments,
   };
 }
 
