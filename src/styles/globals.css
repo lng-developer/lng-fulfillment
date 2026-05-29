@@ -183,6 +183,27 @@ html {
   text-align: center;
 }
 
+.section-label-xs {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.broken-img {
+  align-items: center;
+  background: var(--bg-surface2);
+  display: flex;
+  justify-content: center;
+}
+
+.broken-img::after {
+  color: var(--text-muted);
+  content: "-";
+  font-size: 14px;
+}
+
 .shell {
   display: grid;
   min-height: 100vh;

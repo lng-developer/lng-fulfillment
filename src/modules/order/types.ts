@@ -169,12 +169,30 @@ export type OrderDetail = {
   shippingType: string | null;
   currency: string | null;
   orderTotal: string | null;
+  portalMetadata: OrderPortalMetadata | null;
   receivedAt: Date;
   createdAt: Date;
   updatedAt: Date;
   items: OrderDetailItem[];
   statusHistory: OrderDetailStatusHistory[];
   shipments?: OrderDetailShipment[];
+};
+
+export type OrderPortalMetadata = {
+  merchantId: string | null;
+  marketplaceId: string | null;
+  portalCreatedAt: string | null;
+  baseCost: string | null;
+  addressValidation: boolean | null;
+  scaleOverallStatus: string | null;
+  scaledBy: PortalPersonSummary | null;
+  seller: PortalPersonSummary | null;
+};
+
+export type PortalPersonSummary = {
+  id: string | null;
+  name: string | null;
+  email: string | null;
 };
 
 export type OrderDetailShipment = {
@@ -205,6 +223,13 @@ export type OrderDetailItem = {
   declaredValue: string | null;
   customizationUrl: string | null;
   snapshotImageUrl: string | null;
+  baseImageUrl: string | null;
+  totalCustomizationPrice: string | null;
+  customizationOptions: PortalCustomizationOption[];
+  trackingInfo: PortalItemTrackingInfo | null;
+  fulfillmentFiles: PortalFileLinks;
+  costCenter: PortalCostCenterSummary | null;
+  listing: PortalListingSummary | null;
   fulfillmentFileSummary: SafeJsonSummary | null;
   listingSnapshotSummary: SafeJsonSummary | null;
   costCenterSnapshotSummary: SafeJsonSummary | null;
@@ -213,6 +238,45 @@ export type OrderDetailItem = {
   qcNote: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type PortalCustomizationOption = {
+  label: string;
+  value: string;
+};
+
+export type PortalItemTrackingInfo = {
+  fulfillment: string | null;
+  status: string | null;
+  tracking: string | null;
+  note: string | null;
+};
+
+export type PortalFileLinks = Record<string, string>;
+
+export type PortalCostCenterSummary = {
+  vendorProductId: string | null;
+  vendorProductDisplayName: string | null;
+  vendorProductSKU: string | null;
+  sizeValue: string | null;
+  colorValue: string | null;
+};
+
+export type PortalListingSummary = {
+  asinType: string | null;
+  productImageUrl: string | null;
+  psd: PortalListingPsdSummary | null;
+};
+
+export type PortalListingPsdSummary = {
+  status: string | null;
+  fileExt: string | null;
+  archive: boolean | null;
+  fileName: string | null;
+  mime: string | null;
+  psdId: string | null;
+  size: string | null;
+  url: string | null;
 };
 
 export type OrderDetailStatusHistory = {

@@ -5,6 +5,12 @@ import type {
   OrderListItem,
   OrderListQuery,
   PortalOrderInput,
+  OrderPortalMetadata,
+  PortalCostCenterSummary,
+  PortalCustomizationOption,
+  PortalFileLinks,
+  PortalItemTrackingInfo,
+  PortalListingSummary,
   ReceivedOrderSummary,
   SafeJsonSummary,
 } from "./types";
@@ -306,6 +312,7 @@ const orderDetailSelect = {
   shippingType: true,
   currency: true,
   orderTotal: true,
+  metadata: true,
   receivedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -329,7 +336,9 @@ const orderDetailSelect = {
       weight: true,
       declaredValue: true,
       customizationUrl: true,
+      customizationData: true,
       snapshotImageUrl: true,
+      metadata: true,
       fulfillmentFile: true,
       listingSnapshot: true,
       costCenterSnapshot: true,
@@ -394,6 +403,7 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
     shippingType: row.shippingType,
     currency: row.currency,
     orderTotal: row.orderTotal?.toString() ?? null,
+    portalMetadata: buildOrderPortalMetadata(row.metadata),
     receivedAt: row.receivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -414,6 +424,16 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
       declaredValue: item.declaredValue?.toString() ?? null,
       customizationUrl: item.customizationUrl,
       snapshotImageUrl: item.snapshotImageUrl,
+      baseImageUrl: readOptionalString(item.metadata, "baseImageUrl"),
+      totalCustomizationPrice: readOptionalNumberString(
+        item.metadata,
+        "totalCustomizationPrice",
+      ),
+      customizationOptions: buildCustomizationOptions(item.customizationData),
+      trackingInfo: buildPortalItemTrackingInfo(item.metadata),
+      fulfillmentFiles: buildPortalFileLinks(item.fulfillmentFile),
+      costCenter: buildPortalCostCenter(item.costCenterSnapshot),
+      listing: buildPortalListing(item.listingSnapshot),
       fulfillmentFileSummary: summarizeJson(item.fulfillmentFile),
       listingSnapshotSummary: summarizeJson(item.listingSnapshot),
       costCenterSnapshotSummary: summarizeJson(item.costCenterSnapshot),
@@ -426,6 +446,233 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
     statusHistory: row.statusHistory,
     shipments: row.shipments,
   };
+}
+
+function buildOrderPortalMetadata(
+  value: Prisma.JsonValue | null,
+): OrderPortalMetadata | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const metadata: OrderPortalMetadata = {
+    merchantId: readOptionalString(record, "merchantId"),
+    marketplaceId: readOptionalString(record, "marketplaceId"),
+    portalCreatedAt: readOptionalString(record, "portalCreatedAt"),
+    baseCost: readOptionalNumberString(record, "baseCost"),
+    addressValidation: readOptionalBoolean(record, "addressValidation"),
+    scaleOverallStatus: readOptionalString(record, "scaleOverallStatus"),
+    scaledBy: buildPortalPersonSummary(record.scaledBy),
+    seller: buildPortalPersonSummary(record.seller),
+  };
+
+  return hasAnyPortalMetadataValue(metadata) ? metadata : null;
+}
+
+function buildPortalPersonSummary(value: unknown) {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: readOptionalString(record, "_id") ?? readOptionalString(record, "id"),
+    name:
+      readOptionalString(record, "full_name") ??
+      readOptionalString(record, "name"),
+    email: readOptionalString(record, "email"),
+  };
+}
+
+function hasAnyPortalMetadataValue(metadata: OrderPortalMetadata) {
+  return Object.values(metadata).some((value) => {
+    if (value === null) {
+      return false;
+    }
+
+    if (typeof value !== "object") {
+      return true;
+    }
+
+    return Object.values(value).some((nestedValue) => nestedValue !== null);
+  });
+}
+
+function buildCustomizationOptions(
+  value: Prisma.JsonValue | null,
+): PortalCustomizationOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = asRecord(entry);
+      if (!record) {
+        return null;
+      }
+
+      const label = readOptionalString(record, "label");
+      const optionValue = readOptionalString(record, "value");
+      if (!label && !optionValue) {
+        return null;
+      }
+
+      return {
+        label: label ?? "",
+        value: optionValue ?? "",
+      };
+    })
+    .filter((entry): entry is PortalCustomizationOption => Boolean(entry));
+}
+
+function buildPortalItemTrackingInfo(
+  value: Prisma.JsonValue | null,
+): PortalItemTrackingInfo | null {
+  const metadata = asRecord(value);
+  const record = asRecord(metadata?.trackingInfo);
+  if (!record) {
+    return null;
+  }
+
+  const trackingInfo = {
+    fulfillment: readOptionalString(record, "fulfillment"),
+    status: readOptionalString(record, "status"),
+    tracking: readOptionalString(record, "tracking"),
+    note: readOptionalString(record, "note"),
+  };
+
+  return Object.values(trackingInfo).some((entry) => entry !== null)
+    ? trackingInfo
+    : null;
+}
+
+function buildPortalFileLinks(value: Prisma.JsonValue | null): PortalFileLinks {
+  const record = asRecord(value);
+  if (!record) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(record).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === "string" && entry[1].trim().length > 0,
+    ),
+  );
+}
+
+function buildPortalCostCenter(
+  value: Prisma.JsonValue | null,
+): PortalCostCenterSummary | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const costCenter = {
+    vendorProductId: readOptionalString(record, "vendorProductId"),
+    vendorProductDisplayName: readOptionalString(
+      record,
+      "vendorProductDisplayName",
+    ),
+    vendorProductSKU: readOptionalString(record, "vendorProductSKU"),
+    sizeValue: readOptionalString(record, "sizeValue"),
+    colorValue: readOptionalString(record, "colorValue"),
+  };
+
+  return Object.values(costCenter).some((entry) => entry !== null)
+    ? costCenter
+    : null;
+}
+
+function buildPortalListing(
+  value: Prisma.JsonValue | null,
+): PortalListingSummary | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const listing = {
+    asinType: readOptionalString(record, "asin_type"),
+    productImageUrl: readOptionalString(record, "product_image"),
+    psd: buildPortalListingPsd(record.psd),
+  };
+
+  return listing.asinType || listing.productImageUrl || listing.psd
+    ? listing
+    : null;
+}
+
+function buildPortalListingPsd(value: unknown) {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const psd = {
+    status: readOptionalString(record, "status"),
+    fileExt: readOptionalString(record, "file_ext"),
+    archive: readOptionalBoolean(record, "archive"),
+    fileName: readOptionalString(record, "file_name"),
+    mime: readOptionalString(record, "mime"),
+    psdId: readOptionalString(record, "psd_id"),
+    size: readOptionalNumberString(record, "size"),
+    url: readOptionalString(record, "url"),
+  };
+
+  return Object.values(psd).some((entry) => entry !== null) ? psd : null;
+}
+
+function asRecord(value: unknown): Record<string, Prisma.JsonValue> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, Prisma.JsonValue>;
+}
+
+function readOptionalString(value: unknown, key: string): string | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const entry = record[key];
+  if (typeof entry !== "string") {
+    return null;
+  }
+
+  const trimmed = entry.trim();
+  return trimmed || null;
+}
+
+function readOptionalNumberString(value: unknown, key: string): string | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const entry = record[key];
+  if (typeof entry === "number" && Number.isFinite(entry)) {
+    return String(entry);
+  }
+
+  if (typeof entry === "string" && entry.trim()) {
+    return entry.trim();
+  }
+
+  return null;
+}
+
+function readOptionalBoolean(value: unknown, key: string): boolean | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  return typeof record[key] === "boolean" ? record[key] : null;
 }
 
 function summarizeJson(value: Prisma.JsonValue | null): SafeJsonSummary | null {

@@ -405,6 +405,8 @@ Rules:
 - API key phải `ACTIVE`, chưa expired và có scope `orders:write`.
 - API key resolve ra `tenantId`; server không tin `tenantId` trong request body.
 - Nếu client gửi `tenantId`, V2-020 bỏ qua giá trị đó và dùng tenant context từ API key.
+- Browser-based Portal clients may call this endpoint cross-origin only when CORS allows the origin. Local/test/development auto-allows `localhost:<port>` and `127.0.0.1:<port>`; deployed Portal origins must be configured explicitly via `PORTAL_CORS_ORIGINS`.
+- Preflight `OPTIONS /api/portal/orders` returns CORS headers for allowed origins and allows `Content-Type`, `Authorization`, and `X-Tenant-API-Key`.
 - Không log hoặc trả raw API key, `keyHash`, DB credentials hoặc secrets.
 - Body shape invalid trả `400 VALIDATION_ERROR`.
 - Missing/invalid/revoked/expired API key trả `401 UNAUTHORIZED`.
@@ -448,25 +450,69 @@ Request body:
 }
 ```
 
+Portal compatibility body:
+
+```json
+{
+  "data": [
+    {
+      "orderId": "112-0745906-0345025-R1",
+      "customer_infor": {
+        "name": "Jane Doe",
+        "address": "123 Main St",
+        "address_2": "",
+        "city": "Austin",
+        "state": "TX",
+        "zip_code": "73301",
+        "country": "US",
+        "phone_number": "123456789"
+      },
+      "status": "Fulfilled",
+      "purchase_date": "2026-05-28T03:51:03.369Z",
+      "shopName": "QA Test Shop",
+      "shipping_type": "Standard",
+      "items": [
+        {
+          "orderItemId": "ITEM-1",
+          "sku": "SKU-1",
+          "title": "Personalized item",
+          "quantity": 1,
+          "version3Data": [
+            { "label": "Color", "value": "Gray" }
+          ],
+          "snapshotImage": "https://example.test/snapshot.jpg",
+          "fulfillment_file": {
+            "front": "https://example.test/front.jpg"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
 Validation:
 
-- `orders` array là bắt buộc.
+- `orders` hoặc `data` array là bắt buộc.
 - Batch tối đa 50 orders.
 - Mỗi order cần `externalOrderId` hoặc alias `orderId`.
 - `items` là bắt buộc và không được rỗng.
 - `item.quantity` phải là positive integer.
 - Recipient fields optional trong V2-020.
-- Single order object không có `orders` bị reject với `400 VALIDATION_ERROR`.
+- Single order object không có `orders` hoặc `data` bị reject với `400 VALIDATION_ERROR`.
 - Unknown fields không bị reject; server giữ full source object trong `rawPayload`.
 
 V2-020B richer Portal/MVP-like payload support:
 
-- Order-level aliases accepted: `orderId`, `marketplaceId`, `customer_infor`, `shipping_type`, `purchase_date`, `payments_date`.
-- Item-level aliases accepted: `orderItemId`, `title`, `customized_url`, `snapshotImage`, `fulfillment_file`, `listing`, `cost_center`, `scale_status`, `qc_note`.
+- Request batch aliases accepted: `orders` and Portal `data`.
+- Order-level aliases accepted: `orderId`, `merchantId`, `marketplaceId`, `customer_infor`, `status`, `createdAt`, `base_cost`, `case`, `address_validation`, `scale_overall_status`, `scaledBy`, `seller`, `shipping_type`, `purchase_date`, `payments_date`.
+- Recipient aliases accepted: `address`, `address_2`, `zip_code`, `phone_number`.
+- Item-level aliases accepted: `orderItemId`, `title`, `version3Data`, `baseImageUrl`, `totalCustomizationPrice`, `customized_url`, `snapshotImage`, `fulfillment_file`, `tracking_info`, `listing`, `cost_center`, `scale_status`, `qc_note`.
 - Server normalizes common fields into columns for search, shipment preparation, production review and audit.
 - Server still stores original order/item source object in `rawPayload`.
+- Server stores safe Portal operational fields in `metadata`/JSON snapshots for detail display, including seller/scaler summaries, cost center snapshot, listing snapshot, fulfillment file links, customization options, and portal tracking info.
 - List APIs do not return `rawPayload` or large JSON snapshots.
-- Detail APIs continue to omit `rawPayload` and large JSON snapshots by default; a future debug endpoint/flag can expose safe raw data if explicitly designed.
+- Detail APIs continue to omit `rawPayload` and raw large JSON snapshots by default. They may return curated safe display fields derived from metadata/snapshots.
 
 Success response data:
 
@@ -608,6 +654,24 @@ Detail response data:
     "shippingType": "standard",
     "currency": "USD",
     "orderTotal": "10",
+    "portalMetadata": {
+      "merchantId": "merchant-account-1",
+      "marketplaceId": "ATVPDKIKX0DER",
+      "portalCreatedAt": "2026-05-28T03:51:03.373Z",
+      "baseCost": "15.05",
+      "addressValidation": true,
+      "scaleOverallStatus": "Sent",
+      "scaledBy": {
+        "id": "user-source-id",
+        "name": "Scaler Name",
+        "email": "scaler@example.test"
+      },
+      "seller": {
+        "id": null,
+        "name": "Seller Name",
+        "email": "seller@example.test"
+      }
+    },
     "receivedAt": "2026-05-19T00:00:00.000Z",
     "createdAt": "2026-05-19T00:00:00.000Z",
     "updatedAt": "2026-05-19T00:00:00.000Z",
@@ -629,6 +693,41 @@ Detail response data:
         "declaredValue": "10",
         "customizationUrl": "https://example.test/custom",
         "snapshotImageUrl": "https://example.test/image.png",
+        "baseImageUrl": "https://example.test/base.png",
+        "totalCustomizationPrice": "16.9",
+        "customizationOptions": [
+          { "label": "Color", "value": "Gray" }
+        ],
+        "trackingInfo": {
+          "fulfillment": "Merchize",
+          "status": "New",
+          "tracking": "",
+          "note": ""
+        },
+        "fulfillmentFiles": {
+          "front": "https://example.test/front.jpg"
+        },
+        "costCenter": {
+          "vendorProductId": "vendor-product-id",
+          "vendorProductDisplayName": "Vendor product name",
+          "vendorProductSKU": "SKU-VENDOR",
+          "sizeValue": "One size",
+          "colorValue": null
+        },
+        "listing": {
+          "asinType": "Normal",
+          "productImageUrl": "https://example.test/product.png",
+          "psd": {
+            "status": "Available",
+            "fileExt": ".zip",
+            "archive": true,
+            "fileName": "B000TEST.zip",
+            "mime": "application/zip",
+            "psdId": "B000TEST",
+            "size": "122354",
+            "url": "https://example.test/B000TEST.zip"
+          }
+        },
         "fulfillmentFileSummary": {
           "type": "object",
           "keys": ["url"]

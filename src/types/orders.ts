@@ -54,16 +54,78 @@ export type OrderDetailItem = {
   sku: string | null;
   name: string | null;
   title: string | null;
+  asin: string | null;
+  listingId: string | null;
+  productType: string | null;
+  variant: string | null;
   quantity: number;
   unitPrice: string | null;
   currency: string | null;
   weight: string | null;
   declaredValue: string | null;
+  customizationUrl: string | null;
+  snapshotImageUrl: string | null;
+  baseImageUrl: string | null;
+  totalCustomizationPrice: string | null;
+  customizationOptions: PortalCustomizationOption[];
+  trackingInfo: PortalItemTrackingInfo | null;
+  fulfillmentFiles: PortalFileLinks;
+  costCenter: PortalCostCenterSummary | null;
+  listing: PortalListingSummary | null;
+  fulfillmentFileSummary: SafeJsonSummary | null;
+  listingSnapshotSummary: SafeJsonSummary | null;
+  costCenterSnapshotSummary: SafeJsonSummary | null;
   productionStatus: string | null;
   scaleStatus: string | null;
   qcNote: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type PortalCustomizationOption = {
+  label: string;
+  value: string;
+};
+
+export type PortalItemTrackingInfo = {
+  fulfillment: string | null;
+  status: string | null;
+  tracking: string | null;
+  note: string | null;
+};
+
+export type PortalFileLinks = Record<string, string>;
+
+export type PortalCostCenterSummary = {
+  vendorProductId: string | null;
+  vendorProductDisplayName: string | null;
+  vendorProductSKU: string | null;
+  sizeValue: string | null;
+  colorValue: string | null;
+};
+
+export type PortalListingSummary = {
+  asinType: string | null;
+  productImageUrl: string | null;
+  psd: PortalListingPsdSummary | null;
+};
+
+export type PortalListingPsdSummary = {
+  status: string | null;
+  fileExt: string | null;
+  archive: boolean | null;
+  fileName: string | null;
+  mime: string | null;
+  psdId: string | null;
+  size: string | null;
+  url: string | null;
+};
+
+export type SafeJsonSummary = {
+  type: "object" | "array" | "string" | "number" | "boolean";
+  keys?: string[];
+  itemCount?: number;
+  valuePreview?: string;
 };
 
 export type OrderDetail = {
@@ -90,6 +152,7 @@ export type OrderDetail = {
   shippingType: string | null;
   currency: string | null;
   orderTotal: string | null;
+  portalMetadata: OrderPortalMetadata | null;
   receivedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -102,6 +165,23 @@ export type OrderDetail = {
     createdAt: string;
   }>;
   shipments?: ShipmentListItem[];
+};
+
+export type OrderPortalMetadata = {
+  merchantId: string | null;
+  marketplaceId: string | null;
+  portalCreatedAt: string | null;
+  baseCost: string | null;
+  addressValidation: boolean | null;
+  scaleOverallStatus: string | null;
+  scaledBy: PortalPersonSummary | null;
+  seller: PortalPersonSummary | null;
+};
+
+export type PortalPersonSummary = {
+  id: string | null;
+  name: string | null;
+  email: string | null;
 };
 
 export type ShipmentListItem = {

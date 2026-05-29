@@ -365,10 +365,13 @@ Indexes bổ sung:
 
 Business rules trong V2-020B:
 
+- Portal receive chấp nhận batch wrapper chuẩn `orders` và wrapper tương thích Portal `data`.
 - Portal receive chấp nhận cả `externalOrderId` và alias `orderId`.
-- Portal receive chấp nhận các alias Portal/MVP như `customer_infor`, `marketplaceId`, `purchase_date`, `payments_date`, `shipping_type`, `customized_url`, `snapshotImage`, `fulfillment_file`, `cost_center`, `scale_status`, `qc_note`.
+- Portal receive chấp nhận các alias Portal/MVP như `merchantId`, `customer_infor`, `marketplaceId`, `status`, `createdAt`, `purchase_date`, `payments_date`, `shipping_type`, `base_cost`, `case`, `address_validation`, `scale_overall_status`, `scaledBy`, `seller`, `version3Data`, `baseImageUrl`, `totalCustomizationPrice`, `customized_url`, `snapshotImage`, `fulfillment_file`, `tracking_info`, `listing`, `cost_center`, `scale_status`, `qc_note`.
+- Các trường vận hành Portal được normalize vào cột sẵn có khi có thể; phần chi tiết như seller/scaler, tracking_info, fulfillment files, listing, cost center và customization options được lưu trong `metadata` hoặc JSON snapshot tương ứng.
 - Unknown fields không bị reject và được giữ trong `rawPayload`.
-- List/detail API mặc định không trả `rawPayload` hoặc các JSON snapshot lớn.
+- List API mặc định không trả `rawPayload` hoặc các JSON snapshot lớn.
+- Detail API không trả raw payload/snapshot nguyên bản, nhưng có thể trả các display fields an toàn đã được trích từ JSON snapshot để UI hiển thị chi tiết Portal order.
 
 ## Shipment
 

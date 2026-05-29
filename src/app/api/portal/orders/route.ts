@@ -2,12 +2,17 @@ import { receivePortalOrders } from "@/modules/order";
 import { verifyTenantApiKeyForRequest } from "@/modules/tenant";
 import { ok, error as errorResponse } from "@/shared/api-response";
 import { AppError } from "@/shared/errors";
+import { NextResponse } from "next/server";
 import {
   RATE_LIMIT_POLICIES,
   buildRateLimitKey,
   getClientIp,
   rateLimitOrThrow,
 } from "@/shared/security";
+
+export async function OPTIONS(request: Request) {
+  return withPortalCors(new NextResponse(null, { status: 204 }), request);
+}
 
 export async function POST(request: Request) {
   try {
@@ -36,9 +41,9 @@ export async function POST(request: Request) {
 
     const result = await receivePortalOrders(await readJson(request), tenantContext);
 
-    return ok(result);
+    return withPortalCors(ok(result), request);
   } catch (error) {
-    return handlePortalOrderError(error);
+    return withPortalCors(handlePortalOrderError(error), request);
   }
 }
 
@@ -74,4 +79,52 @@ function handlePortalOrderError(error: unknown) {
   }
 
   return errorResponse("INTERNAL_ERROR", "Internal server error.", 500);
+}
+
+function withPortalCors(response: Response, request: Request) {
+  const origin = request.headers.get("origin");
+  const allowedOrigin = resolveAllowedPortalOrigin(origin);
+
+  if (allowedOrigin) {
+    response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
+    response.headers.set("Vary", "Origin");
+  }
+
+  response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Tenant-API-Key",
+  );
+  response.headers.set("Access-Control-Max-Age", "600");
+
+  return response;
+}
+
+function resolveAllowedPortalOrigin(origin: string | null) {
+  if (!origin) {
+    return null;
+  }
+
+  const configuredOrigins = (process.env.PORTAL_CORS_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (configuredOrigins.includes(origin)) {
+    return origin;
+  }
+
+  if (
+    isLocalLikeEnvironment() &&
+    /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
+  ) {
+    return origin;
+  }
+
+  return null;
+}
+
+function isLocalLikeEnvironment() {
+  const appEnv = process.env.APP_ENV ?? process.env.NODE_ENV;
+  return ["local", "test", "development"].includes(appEnv ?? "");
 }

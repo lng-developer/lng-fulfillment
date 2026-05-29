@@ -22,18 +22,32 @@ export function validatePortalOrdersInput(
   }
 
   const body = input as Record<string, unknown>;
-  if (!Array.isArray(body.orders)) {
-    throw new AppError("VALIDATION_ERROR", "orders array is required.", 400);
-  }
+  const rawOrders = Array.isArray(body.orders)
+    ? body.orders
+    : Array.isArray(body.data)
+      ? body.data
+      : undefined;
 
-  if (body.orders.length === 0) {
-    throw new AppError("VALIDATION_ERROR", "orders array must not be empty.", 400);
-  }
-
-  if (body.orders.length > MAX_PORTAL_ORDER_BATCH_SIZE) {
+  if (!rawOrders) {
     throw new AppError(
       "VALIDATION_ERROR",
-      `orders array must contain at most ${MAX_PORTAL_ORDER_BATCH_SIZE} orders.`,
+      "orders or data array is required.",
+      400,
+    );
+  }
+
+  if (rawOrders.length === 0) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "orders or data array must not be empty.",
+      400,
+    );
+  }
+
+  if (rawOrders.length > MAX_PORTAL_ORDER_BATCH_SIZE) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `orders or data array must contain at most ${MAX_PORTAL_ORDER_BATCH_SIZE} orders.`,
       400,
     );
   }
@@ -41,7 +55,7 @@ export function validatePortalOrdersInput(
   const orders: PortalOrderInput[] = [];
   const errors: PortalOrderValidationError[] = [];
 
-  for (const value of body.orders) {
+  for (const value of rawOrders) {
     const result = validatePortalOrder(value);
     if ("error" in result) {
       errors.push(result.error);
@@ -53,7 +67,7 @@ export function validatePortalOrdersInput(
   return {
     orders,
     errors,
-    received: body.orders.length,
+    received: rawOrders.length,
   };
 }
 
@@ -113,7 +127,7 @@ function validatePortalOrder(
   }
 
   const recipient = firstObject(order.recipient, order.customer_infor);
-  const recipientAddressObject = firstObject(
+  const recipientAddressObject = firstOptionalObject(
     recipient.address,
     recipient.shippingAddress,
     recipient.Address,
@@ -125,8 +139,13 @@ function validatePortalOrder(
         recipient.street,
         recipient.Street,
         recipient.address1,
+        recipient.address,
       ),
-      line2: firstString(recipient.line2, recipient.address2),
+      line2: firstString(
+        recipient.line2,
+        recipient.address2,
+        recipient.address_2,
+      ),
       city: firstString(recipient.city, recipient.City),
       state: firstString(recipient.state, recipient.State),
       postalCode: firstString(
@@ -134,6 +153,7 @@ function validatePortalOrder(
         recipient.zip,
         recipient.Zip,
         recipient.post_code,
+        recipient.zip_code,
       ),
       country: firstString(
         recipient.country,
@@ -165,6 +185,7 @@ function validatePortalOrder(
     recipient.zip,
     recipient.Zip,
     recipient.post_code,
+    recipient.zip_code,
     recipientAddress?.postalCode,
     recipientAddress?.zip,
     recipientAddress?.Zip,
@@ -173,12 +194,12 @@ function validatePortalOrder(
   return {
     order: {
       externalOrderId,
-      orderNumber: optionalString(order.orderNumber),
-      source: optionalString(order.source),
-      sourceAccount: optionalString(order.sourceAccount),
+      orderNumber: firstString(order.orderNumber, order.orderId),
+      source: firstString(order.source, order.channel, order.platform) ?? "portal",
+      sourceAccount: firstString(order.sourceAccount, order.merchantId),
       shopName: optionalString(order.shopName),
       marketplace: firstString(order.marketplace, order.marketplaceId),
-      externalStatus: optionalString(order.externalStatus),
+      externalStatus: firstString(order.externalStatus, order.status),
       purchaseAt: readOptionalDate(order.purchaseAt, order.purchase_date),
       paidAt: readOptionalDate(order.paidAt, order.payments_date),
       recipientName:
@@ -188,6 +209,7 @@ function validatePortalOrder(
         recipient.phone,
         recipient.Phone,
         recipient.phoneNumber,
+        recipient.phone_number,
         recipient.tel,
       ),
       recipientEmail: firstString(recipient.email, recipient.Email),
@@ -200,7 +222,7 @@ function validatePortalOrder(
       shippingType: firstString(order.shippingType, order.shipping_type),
       currency: optionalString(order.currency),
       orderTotal: firstNumber(order.orderTotal, order.total, order.amount),
-      metadata: optionalJsonObject(order.metadata),
+      metadata: buildOrderMetadata(order),
       rawPayload: value as Prisma.InputJsonValue,
       items,
     },
@@ -222,7 +244,11 @@ function validatePortalOrderItem(
 
   const weight = optionalNumber(item.weight);
   const declaredValue = optionalNumber(item.declaredValue);
-  const unitPrice = firstNumber(item.unitPrice, item.price);
+  const unitPrice = firstNumber(
+    item.unitPrice,
+    item.price,
+    item.totalCustomizationPrice,
+  );
   if (weight !== undefined && weight < 0) {
     return { error: "item weight must be greater than or equal to 0" };
   }
@@ -251,15 +277,18 @@ function validatePortalOrderItem(
       weight,
       declaredValue,
       customizationUrl: firstString(item.customizationUrl, item.customized_url),
-      customizationData: optionalJson(item.customizationData),
+      customizationData: firstJson(item.customizationData, item.version3Data),
       snapshotImageUrl: firstString(item.snapshotImageUrl, item.snapshotImage),
       fulfillmentFile: firstJson(item.fulfillmentFile, item.fulfillment_file),
       listingSnapshot: firstJson(item.listingSnapshot, item.listing),
       costCenterSnapshot: firstJson(item.costCenterSnapshot, item.cost_center),
-      productionStatus: optionalString(item.productionStatus),
+      productionStatus: firstString(
+        item.productionStatus,
+        firstObject(item.tracking_info).status,
+      ),
       scaleStatus: firstString(item.scaleStatus, item.scale_status),
       qcNote: firstString(item.qcNote, item.qc_note),
-      metadata: optionalJsonObject(item.metadata),
+      metadata: buildOrderItemMetadata(item),
       rawPayload: value as Prisma.InputJsonValue,
     },
   };
@@ -327,6 +356,12 @@ function firstNumber(...values: unknown[]): number | undefined {
 }
 
 function firstObject(...values: unknown[]): Record<string, unknown> {
+  return firstOptionalObject(...values) ?? {};
+}
+
+function firstOptionalObject(
+  ...values: unknown[]
+): Record<string, unknown> | undefined {
   for (const value of values) {
     if (
       typeof value === "object" &&
@@ -337,7 +372,7 @@ function firstObject(...values: unknown[]): Record<string, unknown> {
     }
   }
 
-  return {};
+  return undefined;
 }
 
 function compactJsonObject(
@@ -368,6 +403,59 @@ function optionalJson(value: unknown): Prisma.InputJsonValue | undefined {
   }
 
   return value as Prisma.InputJsonValue;
+}
+
+function buildOrderMetadata(
+  order: Record<string, unknown>,
+): Prisma.InputJsonValue | undefined {
+  return mergeJsonObjects(
+    optionalJsonObject(order.metadata),
+    compactJsonObject({
+      merchantId: optionalString(order.merchantId),
+      marketplaceId: optionalString(order.marketplaceId),
+      portalCreatedAt: optionalString(order.createdAt),
+      baseCost: optionalNumber(order.base_cost),
+      cases: optionalJson(order.case),
+      addressValidation:
+        typeof order.address_validation === "boolean"
+          ? order.address_validation
+          : undefined,
+      scaleOverallStatus: optionalString(order.scale_overall_status),
+      scaledBy: optionalJsonObject(order.scaledBy),
+      seller: optionalJsonObject(order.seller),
+    }),
+  );
+}
+
+function buildOrderItemMetadata(
+  item: Record<string, unknown>,
+): Prisma.InputJsonValue | undefined {
+  return mergeJsonObjects(
+    optionalJsonObject(item.metadata),
+    compactJsonObject({
+      baseImageUrl: optionalString(item.baseImageUrl),
+      totalCustomizationPrice: optionalNumber(item.totalCustomizationPrice),
+      trackingInfo: optionalJsonObject(item.tracking_info),
+    }),
+  );
+}
+
+function mergeJsonObjects(
+  ...values: (Prisma.InputJsonValue | undefined)[]
+): Prisma.InputJsonValue | undefined {
+  const merged: Record<string, unknown> = {};
+
+  for (const value of values) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      continue;
+    }
+
+    Object.assign(merged, value);
+  }
+
+  return Object.keys(merged).length
+    ? (merged as Prisma.InputJsonObject)
+    : undefined;
 }
 
 function firstJson(...values: unknown[]): Prisma.InputJsonValue | undefined {
