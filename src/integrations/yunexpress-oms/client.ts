@@ -1,9 +1,16 @@
 import type { YunExpressOmsConfig } from "./config";
+import {
+  CarrierIntegrationError,
+  createCarrierError,
+} from "@/modules/carrier/errors";
 import type {
   YunExpressCreateOrderLabelPayload,
   YunExpressCreateOrderLabelResponse,
+  YunExpressDeleteOrderResponse,
   YunExpressGetCarrierResponse,
+  YunExpressGetOrderResponse,
   YunExpressGetTrackingNumberResponse,
+  YunExpressPrintLabelResponse,
   YunExpressTrackInfoResponse,
 } from "./types";
 
@@ -16,30 +23,53 @@ export async function callYunExpressCreateOrderLabel(input: {
   payload: YunExpressCreateOrderLabelPayload[];
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressCreateOrderLabelResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), input.config.timeoutMs);
-  const fetchImpl = input.fetchImpl ?? fetch;
-
-  try {
-    const response = await fetchImpl(
-      buildCreateOrderLabelUrl(input.config.baseUrl),
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          Authorization: input.authorizationHeader,
-          "Content-Type": "application/json",
-          "__lang": input.config.lang,
-        },
-        body: JSON.stringify(input.payload),
-        signal: controller.signal,
+  return yunFetchJson<YunExpressCreateOrderLabelResponse>({
+    action: "create_order_label",
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.config.timeoutMs,
+    url: buildCreateOrderLabelUrl(input.config.baseUrl),
+    init: {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: input.authorizationHeader,
+        "Content-Type": "application/json",
+        "__lang": input.config.lang,
       },
-    );
+      body: JSON.stringify(input.payload),
+    },
+  });
+}
 
-    return (await response.json()) as YunExpressCreateOrderLabelResponse;
-  } finally {
-    clearTimeout(timeout);
-  }
+export async function callYunExpressDeleteOrder(input: {
+  config: Required<
+    Pick<YunExpressOmsConfig, "baseUrl" | "customerNo" | "apiSecret">
+  > &
+    Pick<YunExpressOmsConfig, "lang" | "timeoutMs">;
+  authorizationHeader: string;
+  orderNumber: string;
+  orderType?: 1 | 2 | 3;
+  fetchImpl?: typeof fetch;
+}): Promise<YunExpressDeleteOrderResponse> {
+  return yunFetchJson<YunExpressDeleteOrderResponse>({
+    action: "delete_order",
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.config.timeoutMs,
+    url: buildDeleteOrderUrl(input.config.baseUrl),
+    init: {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: input.authorizationHeader,
+        "Content-Type": "application/json",
+        "__lang": input.config.lang,
+      },
+      body: JSON.stringify({
+        OrderType: input.orderType ?? 1,
+        OrderNumber: input.orderNumber,
+      }),
+    },
+  });
 }
 
 export async function callYunExpressGetTrackingNumber(input: {
@@ -54,6 +84,50 @@ export async function callYunExpressGetTrackingNumber(input: {
     url: buildTrackingNumberUrl(input.config.baseUrl, input.customerOrderNumber),
     fetchImpl: input.fetchImpl,
   }) as Promise<YunExpressGetTrackingNumberResponse>;
+}
+
+export async function callYunExpressGetOrder(input: {
+  config: Pick<YunExpressOmsConfig, "baseUrl" | "lang" | "timeoutMs"> & {
+    baseUrl: string;
+  };
+  orderNumber: string;
+  authorizationHeader?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<YunExpressGetOrderResponse> {
+  return callYunExpressGet({
+    config: input.config,
+    url: buildGetOrderUrl(input.config.baseUrl, input.orderNumber),
+    authorizationHeader: input.authorizationHeader,
+    fetchImpl: input.fetchImpl,
+  }) as Promise<YunExpressGetOrderResponse>;
+}
+
+export async function callYunExpressPrintLabel(input: {
+  config: Pick<YunExpressOmsConfig, "baseUrl" | "lang" | "timeoutMs"> & {
+    baseUrl: string;
+  };
+  orderNumbers: string[];
+  authorizationHeader?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<YunExpressPrintLabelResponse> {
+  return yunFetchJson<YunExpressPrintLabelResponse>({
+    action: "print_label",
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.config.timeoutMs,
+    url: buildPrintLabelUrl(input.config.baseUrl),
+    init: {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...(input.authorizationHeader
+          ? { Authorization: input.authorizationHeader }
+          : {}),
+        "Content-Type": "application/json",
+        "__lang": input.config.lang,
+      },
+      body: JSON.stringify(input.orderNumbers),
+    },
+  });
 }
 
 export async function callYunExpressGetTrackInfo(input: {
@@ -78,12 +152,12 @@ export async function callYunExpressGetCarrier(input: {
   orderNumbers: string[];
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressGetCarrierResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), input.config.timeoutMs);
-  const fetchImpl = input.fetchImpl ?? fetch;
-
-  try {
-    const response = await fetchImpl(buildGetCarrierUrl(input.config.baseUrl), {
+  return yunFetchJson<YunExpressGetCarrierResponse>({
+    action: "get_carrier",
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.config.timeoutMs,
+    url: buildGetCarrierUrl(input.config.baseUrl),
+    init: {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -91,38 +165,167 @@ export async function callYunExpressGetCarrier(input: {
         "__lang": input.config.lang,
       },
       body: JSON.stringify(input.orderNumbers),
-      signal: controller.signal,
-    });
-
-    return (await response.json()) as YunExpressGetCarrierResponse;
-  } finally {
-    clearTimeout(timeout);
-  }
+    },
+  });
 }
 
 async function callYunExpressGet(input: {
   config: Pick<YunExpressOmsConfig, "lang" | "timeoutMs">;
   url: string;
+  authorizationHeader?: string;
   fetchImpl?: typeof fetch;
 }) {
+  return yunFetchJson({
+    action: "get",
+    fetchImpl: input.fetchImpl,
+    timeoutMs: input.config.timeoutMs,
+    url: input.url,
+    init: {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...(input.authorizationHeader
+          ? { Authorization: input.authorizationHeader }
+          : {}),
+        "__lang": input.config.lang,
+      },
+    },
+  });
+}
+
+async function yunFetchJson<T>(input: {
+  action: string;
+  url: string;
+  init: RequestInit;
+  timeoutMs: number;
+  fetchImpl?: typeof fetch;
+}): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), input.config.timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
   const fetchImpl = input.fetchImpl ?? fetch;
 
   try {
     const response = await fetchImpl(input.url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "__lang": input.config.lang,
-      },
+      ...input.init,
       signal: controller.signal,
     });
 
-    return await response.json();
+    if (!response.ok) {
+      const carrierError = mapYunHttpFailure(input.action, response);
+      throw new CarrierIntegrationError(
+        createCarrierError(carrierError),
+      );
+    }
+
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new CarrierIntegrationError(
+        createCarrierError({
+          carrierCode: "YUNEXPRESS_OMS",
+          reason: "REMOTE_REJECTED",
+          message: "YunExpress OMS response was not valid JSON.",
+          retryable: false,
+          statusCode: 502,
+          safeMetadata: {
+            action: input.action,
+          },
+        }),
+      );
+    }
+  } catch (error) {
+    if (error instanceof CarrierIntegrationError) {
+      throw error;
+    }
+
+    throw mapYunFetchFailure(error, input.action, input.timeoutMs);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function mapYunHttpFailure(
+  action: string,
+  response: Response,
+): Parameters<typeof createCarrierError>[0] {
+  const safeMetadata = {
+    action,
+    httpStatus: response.status,
+    ...(response.statusText ? { statusText: response.statusText } : {}),
+  };
+
+  if (response.status === 429) {
+    return {
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "RATE_LIMITED",
+      message: "YunExpress OMS rate limit was reached.",
+      retryable: true,
+      statusCode: 429,
+      safeMetadata,
+    };
+  }
+
+  if (response.status >= 500) {
+    return {
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "TEMPORARY_UNAVAILABLE",
+      message: "YunExpress OMS is temporarily unavailable.",
+      retryable: true,
+      statusCode: 503,
+      safeMetadata,
+    };
+  }
+
+  return {
+    carrierCode: "YUNEXPRESS_OMS",
+    reason: "REMOTE_REJECTED",
+    message:
+      response.status === 421
+        ? "YunExpress OMS rejected the request before processing. Check the selected environment, base URL, and credentials."
+        : "YunExpress OMS rejected the request.",
+    retryable: false,
+    statusCode: 502,
+    safeMetadata,
+  };
+}
+
+function mapYunFetchFailure(error: unknown, action: string, timeoutMs: number) {
+  const name =
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    typeof error.name === "string"
+      ? error.name
+      : null;
+
+  if (name === "AbortError" || name === "TimeoutError") {
+    return new CarrierIntegrationError(
+      createCarrierError({
+        carrierCode: "YUNEXPRESS_OMS",
+        reason: "REMOTE_TIMEOUT",
+        message: "YunExpress OMS request timed out.",
+        retryable: true,
+        statusCode: 503,
+        safeMetadata: {
+          action,
+          timeoutMs,
+        },
+      }),
+    );
+  }
+
+  return new CarrierIntegrationError(
+    createCarrierError({
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "TEMPORARY_UNAVAILABLE",
+      message: "YunExpress OMS request failed.",
+      retryable: true,
+      statusCode: 503,
+      safeMetadata: {
+        action,
+      },
+    }),
+  );
 }
 
 function buildCreateOrderLabelUrl(baseUrl: string) {
@@ -149,6 +352,16 @@ function buildTrackingNumberUrl(baseUrl: string, customerOrderNumber: string) {
   return url.toString();
 }
 
+function buildGetOrderUrl(baseUrl: string, orderNumber: string) {
+  const url = new URL(buildApiUrl(baseUrl, "/api/WayBill/GetOrder"));
+  url.searchParams.set("OrderNumber", orderNumber);
+  return url.toString();
+}
+
+function buildPrintLabelUrl(baseUrl: string) {
+  return buildApiUrl(baseUrl, "/api/Label/Print");
+}
+
 function buildTrackInfoUrl(
   baseUrl: string,
   orderNumber: string,
@@ -164,6 +377,10 @@ function buildTrackInfoUrl(
 
 function buildGetCarrierUrl(baseUrl: string) {
   return buildApiUrl(baseUrl, "/api/Waybill/GetCarrier");
+}
+
+function buildDeleteOrderUrl(baseUrl: string) {
+  return buildApiUrl(baseUrl, "/api/WayBill/Delete");
 }
 
 function buildApiUrl(baseUrl: string, apiPath: string) {

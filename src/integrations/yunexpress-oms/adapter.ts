@@ -15,6 +15,7 @@ import {
 import { createYunExpressOmsAuthorizationHeader } from "./auth";
 import {
   callYunExpressCreateOrderLabel,
+  callYunExpressDeleteOrder,
   callYunExpressGetCarrier,
   callYunExpressGetTrackingNumber,
   callYunExpressGetTrackInfo,
@@ -23,6 +24,7 @@ import { mapCreateShipmentToYunExpressPayload } from "./mapping";
 import {
   mergeCarrierProvider,
   normalizeCreateOrderLabelResponse,
+  normalizeDeleteOrderResponse,
   normalizeGetCarrierResponse,
   normalizeGetTrackingNumberResponse,
   normalizeTrackInfoResponse,
@@ -305,10 +307,43 @@ export function createYunExpressOmsAdapter(
 
       return tracking;
     },
-    async cancelShipment() {
-      throw new CarrierIntegrationError(
-        notSupported("YunExpress OMS cancel shipment is not implemented."),
-      );
+    async cancelShipment(input, context) {
+      const config = getConfig(context);
+      const missing = validateYunExpressLiveConfig(config);
+      if (missing.length > 0 || !config.baseUrl || !config.customerNo || !config.apiSecret) {
+        throw new CarrierIntegrationError(
+          createCarrierError({
+            carrierCode: "YUNEXPRESS_OMS",
+            reason: "AUTHENTICATION_FAILED",
+            message: "YunExpress OMS cancel configuration is incomplete.",
+            retryable: false,
+            statusCode: 503,
+            safeMetadata: {
+              missing,
+              credentialSource: context.credentials?.source ?? "envFallback",
+            },
+          }),
+        );
+      }
+
+      const response = await callYunExpressDeleteOrder({
+        config: {
+          baseUrl: config.baseUrl,
+          customerNo: config.customerNo,
+          apiSecret: config.apiSecret,
+          lang: config.lang,
+          timeoutMs: config.timeoutMs,
+        },
+        authorizationHeader: createYunExpressOmsAuthorizationHeader({
+          customerNo: config.customerNo,
+          apiSecret: config.apiSecret,
+        }),
+        orderNumber: input.carrierShipmentId,
+        orderType: 1,
+        fetchImpl: options.fetchImpl,
+      });
+
+      return normalizeDeleteOrderResponse(response);
     },
     async updateWeight() {
       throw new CarrierIntegrationError(

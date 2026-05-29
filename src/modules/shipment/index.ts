@@ -5,12 +5,19 @@ export {
   listTenantShipments,
   prepareShipmentCarrierExecution,
   preflightShipmentExecution,
+  cancelOrderYunShipment,
+  confirmOrderShipped,
+  resetCancelledOrder,
+  shipOrderWithYun,
+  shipOrdersBatchWithYun,
   syncShipmentTracking,
 } from "./service";
 export {
   validateExecuteShipmentInput,
   validateCreateDraftShipmentInput,
   validatePreflightShipmentExecutionInput,
+  validateShipOrderInput,
+  validateShipOrdersBatchInput,
   validateShipmentListQuery,
 } from "./validation";
 export {
@@ -24,6 +31,8 @@ export type {
   CreateDraftShipmentItemInput,
   ExecuteShipmentInput,
   ExecuteShipmentResult,
+  CancelOrderYunResult,
+  ConfirmOrderShippedResult,
   PaginationMeta,
   PrepareShipmentCarrierExecutionInput,
   PrepareShipmentCarrierExecutionResult,
@@ -37,5 +46,11 @@ export type {
   ShipmentListQuery,
   ShipmentListSortField,
   ShipmentTrackingSyncResult,
+  ShipmentYunEnvironment,
+  ResetCancelledOrderResult,
+  ShipOrderInput,
+  ShipOrderResult,
+  ShipOrdersBatchInput,
+  ShipOrdersBatchResult,
   SortOrder,
 } from "./types";

@@ -110,6 +110,52 @@ export type PrepareShipmentCarrierExecutionResult = {
 export type ExecuteShipmentInput = {
   carrierCode: string;
   carrierAccountId?: string | null;
+  environment?: ShipmentYunEnvironment;
+  options?: ShipOrderOptions;
+};
+
+export type ShipmentYunEnvironment = "test" | "live";
+
+export type ShipOrderInput = {
+  orderId: string;
+  environment: ShipmentYunEnvironment;
+  options?: ShipOrderOptions;
+};
+
+export type ShipOrdersBatchInput = {
+  orderIds: string[];
+  environment: ShipmentYunEnvironment;
+  optionsByOrderId?: Record<string, ShipOrderOptions | undefined>;
+};
+
+export type ShipParcelOverride = {
+  orderItemId?: string;
+  sku?: string;
+  eName?: string;
+  cName?: string;
+  unitPrice?: number;
+  unitWeight?: number;
+  currencyCode?: string;
+  invoicePart?: string;
+  invoiceUsage?: string;
+  remark?: string;
+};
+
+export type ShipOrderOptions = {
+  shippingMethodCode?: string;
+  sourceCode?: string;
+  receiverCompany?: string;
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  sizeUnits?: string;
+  packageCount?: number;
+  applicationType?: number;
+  returnOption?: number;
+  tariffPrepay?: number;
+  insuranceOption?: number;
+  parcels?: ShipParcelOverride[];
 };
 
 export type PreflightShipmentExecutionInput = {
@@ -138,6 +184,52 @@ export type ExecuteShipmentResult = {
   shipment: ShipmentDetail;
   carrierCode: CarrierCode;
   carrierAccountId: string | null;
+};
+
+export type ShipOrderResult = ExecuteShipmentResult & {
+  orderStatus: "IN_PROCESSING";
+  environment: ShipmentYunEnvironment;
+};
+
+export type ShipOrdersBatchResult = {
+  results: Array<{
+    orderId: string;
+    success: boolean;
+    shipment?: ShipmentDetail;
+    error?: {
+      code: string;
+      message: string;
+      details?: unknown;
+    };
+  }>;
+};
+
+export type ConfirmOrderShippedResult = {
+  orderId: string;
+  orderStatus: "SHIPPED";
+  labelUrl: string;
+  shipment: ShipmentDetail;
+};
+
+export type CancelOrderYunResult = {
+  orderId: string;
+  orderStatus: "CANCELLED";
+  shipment: ShipmentDetail;
+};
+
+export type ResetCancelledOrderResult = {
+  orderId: string;
+  orderStatus: "FULFILLED";
+  shipment?: {
+    id: string;
+    status: ShipmentStatus;
+    carrierCode: string | null;
+    carrierShipmentId: string | null;
+    trackingNumber: string | null;
+    labelUrl: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
 };
 
 export type ShipmentTrackingSyncResult = {

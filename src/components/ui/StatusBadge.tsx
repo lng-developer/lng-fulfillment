@@ -2,6 +2,9 @@ import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
   READY_TO_SHIP: "bg-[var(--success-bg)] text-[var(--success-text)]",
+  FULFILLED: "bg-[var(--success-bg)] text-[var(--success-text)]",
+  IN_PROCESSING: "bg-[var(--info-bg)] text-[var(--info-text)]",
+  SHIPPED: "bg-[var(--success-bg)] text-[var(--success-text)]",
   RECEIVED: "bg-[var(--info-bg)] text-[var(--info-text)]",
   ON_HOLD: "bg-[var(--warning-bg)] text-[var(--warning-text)]",
   DRAFT: "bg-[#f1f5f9] text-[#475569]",

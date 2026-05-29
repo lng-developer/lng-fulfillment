@@ -22,6 +22,80 @@ export type PaginationMeta = {
   };
 };
 
+export type OrderStatus =
+  | "FULFILLED"
+  | "IN_PROCESSING"
+  | "SHIPPED"
+  | "CANCELLED"
+  | "ON_HOLD"
+  | "READY_TO_SHIP"
+  | "RECEIVED"
+  | "DRAFT"
+  | string;
+
+export type ShipEnvironment = "test" | "live";
+
+export const YUN_ENDPOINTS: Record<ShipEnvironment, string> = {
+  test: "http://omsapi.uat.yunexpress.com/",
+  live: "http://oms.api.yunexpress.com/",
+};
+
+export type ShipMappingPreview = {
+  customerOrderNumber: string;
+  shippingMethodCode: string;
+  sourceCode: string;
+  receiver: {
+    country: string;
+    state?: string;
+    city?: string;
+    postalCode?: string;
+  };
+  estimatedWeight?: number;
+  parcelCount: number;
+  items: Array<{
+    sku: string;
+    name?: string;
+    quantity: number;
+    unitWeight?: number;
+    unitPrice?: number;
+  }>;
+};
+
+export type ShipParcelOverride = {
+  orderItemId?: string;
+  sku?: string;
+  eName?: string;
+  cName?: string;
+  unitPrice?: number;
+  unitWeight?: number;
+  currencyCode?: string;
+  invoicePart?: string;
+  invoiceUsage?: string;
+  remark?: string;
+};
+
+export type ShipOrderOptions = {
+  shippingMethodCode?: string;
+  sourceCode?: string;
+  receiverCompany?: string;
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  sizeUnits?: string;
+  packageCount?: number;
+  applicationType?: number;
+  returnOption?: number;
+  tariffPrepay?: number;
+  insuranceOption?: number;
+  parcels?: ShipParcelOverride[];
+};
+
+export type BatchShipResult = {
+  succeeded: string[];
+  failed: Array<{ orderId: string; message: string; details?: unknown }>;
+};
+
 export type OrderListItem = {
   id: string;
   externalOrderId: string;
@@ -46,6 +120,14 @@ export type OrderListItem = {
   firstSku: string | null;
   firstItemName: string | null;
   totalQuantity: number;
+  latestShipmentStatus: string | null;
+  latestTrackingNumber: string | null;
+  latestLabelUrl: string | null;
+  trackingNumber?: string | null;
+  carrierShipmentId?: string | null;
+  labelUrl?: string | null;
+  latestShipmentCarrier?: string | null;
+  shipMappingPreview?: ShipMappingPreview | null;
 };
 
 export type OrderDetailItem = {

@@ -4,7 +4,7 @@ import {
   countOrders,
   createPortalOrderWithItems,
   getOrderDetail as getOrderDetailRecord,
-  listOrderDetailsByIds,
+  listOrderDetailPage,
   listOrders as listOrderRecords,
 } from "./repository";
 import { validatePortalOrdersInput } from "./validation";
@@ -37,7 +37,7 @@ export async function receivePortalOrders(
     const result = await createPortalOrderWithItems({
       tenantId: tenantContext.tenantId,
       order,
-      status: "READY_TO_SHIP",
+      status: "FULFILLED",
       actorType: "API_KEY",
       actorId: tenantContext.apiKeyId,
     });
@@ -82,20 +82,34 @@ export async function listTenantOrders(
   expandedOrders?: OrderDetail[];
   meta: PaginationMeta;
 }> {
+  if (query.includeExpanded) {
+    const [expandedOrders, totalItems] = await Promise.all([
+      listOrderDetailPage(tenantId, query),
+      countOrders(tenantId, query),
+    ]);
+
+    return {
+      orders: expandedOrders.map(toOrderListItem),
+      expandedOrders,
+      meta: {
+        pagination: {
+          page: query.page,
+          pageSize: query.pageSize,
+          totalItems,
+          totalPages:
+            totalItems === 0 ? 0 : Math.ceil(totalItems / query.pageSize),
+        },
+      },
+    };
+  }
+
   const [orders, totalItems] = await Promise.all([
     listOrderRecords(tenantId, query),
     countOrders(tenantId, query),
   ]);
-  const expandedOrders = query.includeExpanded
-    ? await listOrderDetailsByIds(
-        tenantId,
-        orders.map((order) => order.id),
-      )
-    : undefined;
 
   return {
     orders,
-    ...(expandedOrders ? { expandedOrders } : {}),
     meta: {
       pagination: {
         page: query.page,
@@ -118,4 +132,38 @@ export async function getTenantOrderDetail(
   }
 
   return order;
+}
+
+function toOrderListItem(order: OrderDetail): OrderListItem {
+  const firstItem = order.items[0];
+  const latestShipment = order.shipments?.[0];
+
+  return {
+    id: order.id,
+    externalOrderId: order.externalOrderId,
+    orderNumber: order.orderNumber,
+    source: order.source,
+    shopName: order.shopName,
+    marketplace: order.marketplace,
+    status: order.status,
+    recipientName: order.recipientName,
+    destinationCountry: order.destinationCountry,
+    destinationState: order.destinationState,
+    destinationCity: order.destinationCity,
+    destinationPostalCode: order.destinationPostalCode,
+    shippingService: order.shippingService,
+    shippingType: order.shippingType,
+    purchaseAt: order.purchaseAt,
+    paidAt: order.paidAt,
+    receivedAt: order.receivedAt,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    itemCount: order.items.length,
+    firstSku: firstItem?.sku ?? null,
+    firstItemName: firstItem?.title ?? firstItem?.name ?? null,
+    totalQuantity: order.items.reduce((sum, item) => sum + item.quantity, 0),
+    latestShipmentStatus: latestShipment?.status ?? null,
+    latestTrackingNumber: latestShipment?.trackingNumber ?? null,
+    latestLabelUrl: latestShipment?.labelUrl ?? null,
+  };
 }

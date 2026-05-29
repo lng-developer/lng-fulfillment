@@ -1,8 +1,11 @@
 import type {
   ApiSuccess,
+  BatchShipResult,
   OrderDetail,
   OrderListItem,
   PaginationMeta,
+  ShipOrderOptions,
+  ShipEnvironment,
 } from "@/types/orders";
 import { apiFetch } from "./base";
 
@@ -74,4 +77,138 @@ export async function getOrder(
   );
 
   return response.data.order;
+}
+
+export type ShipOrderEnvironment = ShipEnvironment;
+
+export async function shipOrder(
+  orderId: string,
+  environment: ShipOrderEnvironment,
+  options?: ShipOrderOptions,
+) {
+  const response = await apiFetch<
+    ApiSuccess<{
+      orderStatus: string;
+      shipment?: {
+        id?: string;
+        status?: string;
+        carrierShipmentId?: string | null;
+        trackingNumber?: string | null;
+        labelUrl?: string | null;
+      };
+    }>
+  >(
+    `/api/orders/${orderId}/ship`,
+    {
+      method: "POST",
+      body: JSON.stringify({ environment, ...(options ? { options } : {}) }),
+    },
+  );
+
+  return response.data;
+}
+
+export async function confirmOrderShipped(orderId: string) {
+  const response = await apiFetch<
+    ApiSuccess<{
+      orderId: string;
+      orderStatus: string;
+      labelUrl: string | null;
+      shipment?: {
+        id?: string;
+        status?: string;
+        carrierShipmentId?: string | null;
+        trackingNumber?: string | null;
+        labelUrl?: string | null;
+      };
+    }>
+  >(`/api/orders/${orderId}/confirm-shipped`, {
+    method: "POST",
+  });
+
+  return response.data;
+}
+
+export async function cancelYunShipment(orderId: string) {
+  const response = await apiFetch<
+    ApiSuccess<{
+      orderId: string;
+      orderStatus: string;
+      shipment?: {
+        id?: string;
+        status?: string;
+        carrierShipmentId?: string | null;
+        trackingNumber?: string | null;
+      };
+    }>
+  >(
+    `/api/orders/${orderId}/cancel-yun`,
+    {
+      method: "POST",
+    },
+  );
+
+  return response.data;
+}
+
+export const cancelYunOrder = cancelYunShipment;
+
+export async function resetOrder(orderId: string) {
+  const response = await apiFetch<
+    ApiSuccess<{
+      orderId: string;
+      orderStatus: string;
+      shipment?: {
+        id?: string;
+        status?: string;
+        carrierCode?: string | null;
+        carrierShipmentId?: string | null;
+        trackingNumber?: string | null;
+        labelUrl?: string | null;
+      };
+    }>
+  >(
+    `/api/orders/${orderId}/reset`,
+    {
+      method: "POST",
+    },
+  );
+
+  return response.data;
+}
+
+export async function shipOrdersBatch(
+  orderIds: string[],
+  environment: ShipOrderEnvironment,
+  optionsByOrderId?: Record<string, ShipOrderOptions | undefined>,
+): Promise<BatchShipResult> {
+  const response = await apiFetch<
+    ApiSuccess<{
+      results: Array<{
+        orderId: string;
+        success: boolean;
+        error?: { message?: string; details?: unknown } | null;
+      }>;
+    }>
+  >("/api/orders/ship-batch", {
+    method: "POST",
+    body: JSON.stringify({
+      orderIds,
+      environment,
+      ...(optionsByOrderId ? { optionsByOrderId } : {}),
+    }),
+  });
+
+  return {
+    succeeded: response.data.results
+      .filter((item) => item.success)
+      .map((item) => item.orderId),
+    failed: response.data.results
+      .filter((item) => !item.success)
+      .map((item) => ({
+        orderId: item.orderId,
+        message: item.error?.message ?? "Failed to create shipment.",
+        details: item.error?.details,
+      })),
+  };
 }

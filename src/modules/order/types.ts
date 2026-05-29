@@ -143,6 +143,9 @@ export type OrderListItem = {
   firstSku: string | null;
   firstItemName: string | null;
   totalQuantity: number;
+  latestShipmentStatus: string | null;
+  latestTrackingNumber: string | null;
+  latestLabelUrl: string | null;
 };
 
 export type OrderDetail = {

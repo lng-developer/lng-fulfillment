@@ -10,6 +10,12 @@ const auditLogSafeSelect = {
   resourceId: true,
   metadata: true,
   createdAt: true,
+  actorUser: {
+    select: {
+      name: true,
+      email: true,
+    },
+  },
 } satisfies Prisma.AuditLogSelect;
 
 export type CreateAuditLogInput = {

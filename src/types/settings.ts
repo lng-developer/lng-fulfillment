@@ -95,6 +95,7 @@ export type AuditLog = {
   action: string;
   actorType: "USER" | "API_KEY" | "SYSTEM";
   actorUserId?: string | null;
+  actorName?: string | null;
   actorEmail?: string | null;
   actorKeyPrefix?: string | null;
   resourceType: string;

@@ -1,7 +1,8 @@
 # YunExpress OMS API — Tổng hợp API và hướng dẫn sử dụng
 
 **Tài liệu nguồn:** YunExpress API Development Specification — OMS Version 1.4.2, ngày 2026-02-04  
-**ServerAddress đang test:** `http://oms.api.yunexpress.com`  
+Production Environment: http://oms.api.yunexpress.com/
+Test Environment: http://omsapi.uat.yunexpress.com/
 **Định dạng request/response:** request dùng URI + parameters hoặc JSON body tùy API; response trả JSON, UTF-8.
 
 ---

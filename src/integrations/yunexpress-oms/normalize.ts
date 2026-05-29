@@ -1,14 +1,17 @@
 import { createCarrierError } from "@/modules/carrier/errors";
 import type {
+  CarrierSafeMetadata,
   CarrierNormalizedTrackingStatus,
   CarrierTrackingEvent,
   CreateCarrierShipmentResult,
+  CancelCarrierShipmentResult,
   GetCarrierTrackingResult,
 } from "@/modules/carrier/types";
 import type {
   YunExpressCreateOrderLabelResponse,
   YunExpressCreateOrderLabelResponseItem,
   YunExpressCarrierItem,
+  YunExpressDeleteOrderResponse,
   YunExpressGetCarrierResponse,
   YunExpressGetTrackingNumberResponse,
   YunExpressTrackInfoEvent,
@@ -28,6 +31,7 @@ export function normalizeCreateOrderLabelResponse(
       safeMetadata: {
         code: response.Code ?? null,
         message: response.Message ?? null,
+        ...buildCreateOrderLabelFailureMetadata(response),
       },
       rawResponse: response,
     });
@@ -43,6 +47,7 @@ export function normalizeCreateOrderLabelResponse(
       statusCode: 502,
       safeMetadata: {
         code: response.Code,
+        ...buildCreateOrderLabelFailureMetadata(response),
       },
       rawResponse: response,
     });
@@ -57,7 +62,10 @@ export function normalizeCreateOrderLabelResponse(
       statusCode: 502,
       safeMetadata: {
         code: response.Code,
+        customerOrderNumber: item.CustomerOrderNumber ?? null,
+        success: stringifyNullable(item.Success),
         remark: item.Remark ?? null,
+        ...buildCreateOrderLabelItemFailureMetadata(item),
       },
       rawResponse: response,
     });
@@ -80,8 +88,139 @@ export function normalizeCreateOrderLabelResponse(
   };
 }
 
+export function normalizeDeleteOrderResponse(
+  response: YunExpressDeleteOrderResponse,
+): CancelCarrierShipmentResult {
+  if (response.Code !== "0000") {
+    throw createCarrierError({
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "REMOTE_REJECTED",
+      message: "YunExpress OMS delete request was rejected.",
+      retryable: false,
+      statusCode: 502,
+      safeMetadata: {
+        code: response.Code ?? null,
+        message: response.Message ?? null,
+      },
+      rawResponse: response,
+    });
+  }
+
+  const item = response.Item;
+  if (!item?.OrderNumber) {
+    throw createCarrierError({
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "REMOTE_REJECTED",
+      message: "YunExpress OMS delete response did not include order result.",
+      retryable: false,
+      statusCode: 502,
+      safeMetadata: {
+        code: response.Code,
+      },
+      rawResponse: response,
+    });
+  }
+
+  const status = String(item.Status ?? "");
+  const cancelled = status === "5012" || /success/i.test(item.Remark ?? "");
+
+  if (!cancelled) {
+    throw createCarrierError({
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "REMOTE_REJECTED",
+      message: "YunExpress OMS order was not deleted.",
+      retryable: false,
+      statusCode: 502,
+      safeMetadata: {
+        status: item.Status ?? null,
+        remark: item.Remark ?? null,
+      },
+      rawResponse: response,
+    });
+  }
+
+  return {
+    carrierCode: "YUNEXPRESS_OMS",
+    carrierShipmentId: item.OrderNumber,
+    cancelled: true,
+    metadata: {
+      safe: {
+        status: item.Status ?? null,
+        remark: item.Remark ?? null,
+      },
+      rawResponse: response,
+    },
+  };
+}
+
 function isSuccessfulItem(item: YunExpressCreateOrderLabelResponseItem) {
   return item.Success === 1 || item.Success === "1" || item.Success === true;
+}
+
+function buildCreateOrderLabelFailureMetadata(
+  response: YunExpressCreateOrderLabelResponse,
+): CarrierSafeMetadata {
+  const items = response.Item ?? [];
+  const itemRemarks = compactStrings(items.map((item) => item.Remark));
+  const itemCustomerOrderNumbers = compactStrings(
+    items.map((item) => item.CustomerOrderNumber),
+  );
+  const itemSuccessValues = compactStrings(
+    items.map((item) => stringifyNullable(item.Success)),
+  );
+  const labelOrderInfoErrors = compactStrings(
+    items.flatMap((item) =>
+      item.Label?.OrderInfos?.map((orderInfo) => orderInfo.Error) ?? [],
+    ),
+  );
+  const labelOrderInfoCodes = compactStrings(
+    items.flatMap((item) =>
+      item.Label?.OrderInfos?.map((orderInfo) =>
+        stringifyNullable(orderInfo.Code),
+      ) ?? [],
+    ),
+  );
+
+  return {
+    itemCount: items.length,
+    ...(itemRemarks.length > 0 ? { itemRemarks } : {}),
+    ...(itemCustomerOrderNumbers.length > 0 ? { itemCustomerOrderNumbers } : {}),
+    ...(itemSuccessValues.length > 0 ? { itemSuccessValues } : {}),
+    ...(labelOrderInfoErrors.length > 0 ? { labelOrderInfoErrors } : {}),
+    ...(labelOrderInfoCodes.length > 0 ? { labelOrderInfoCodes } : {}),
+  };
+}
+
+function buildCreateOrderLabelItemFailureMetadata(
+  item: YunExpressCreateOrderLabelResponseItem,
+): CarrierSafeMetadata {
+  const labelOrderInfoErrors = compactStrings(
+    item.Label?.OrderInfos?.map((orderInfo) => orderInfo.Error) ?? [],
+  );
+  const labelOrderInfoCodes = compactStrings(
+    item.Label?.OrderInfos?.map((orderInfo) =>
+      stringifyNullable(orderInfo.Code),
+    ) ?? [],
+  );
+
+  return {
+    ...(labelOrderInfoErrors.length > 0 ? { labelOrderInfoErrors } : {}),
+    ...(labelOrderInfoCodes.length > 0 ? { labelOrderInfoCodes } : {}),
+  };
+}
+
+function compactStrings(values: Array<string | null | undefined>) {
+  return values
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function stringifyNullable(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return String(value);
 }
 
 export function normalizeGetTrackingNumberResponse(

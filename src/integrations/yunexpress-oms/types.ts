@@ -50,13 +50,20 @@ export type YunExpressCreateOrderLabelResponse = {
 };
 
 export type YunExpressCreateOrderLabelResponseItem = {
+  CustomerOrderNumber?: string;
   Success?: number | string | boolean;
+  TrackType?: string;
   WayBillNumber?: string;
   TrackingNumber?: string;
   Label?: {
     Url?: string;
     LabelType?: string;
     LabelString?: string;
+    OrderInfos?: Array<{
+      CustomerOrderNumber?: string;
+      Error?: string;
+      Code?: number | string;
+    }>;
   };
   Remark?: string;
 };
@@ -65,6 +72,51 @@ export type YunExpressGetTrackingNumberResponse = {
   Code?: string;
   Message?: string;
   Items?: YunExpressTrackingNumberItem[];
+};
+
+export type YunExpressGetOrderResponse = {
+  Code?: string;
+  Message?: string;
+  Item?: YunExpressOrderItem | null;
+};
+
+export type YunExpressOrderItem = {
+  OrderNumber?: string | null;
+  CustomerOrderNumber?: string | null;
+  WayBillNumber?: string | null;
+  TrackingNumber?: string | null;
+  ShippingMethodCode?: string | null;
+  Status?: string | number | null;
+  PackageNumber?: string | number | null;
+  PackageCount?: string | number | null;
+  Length?: string | number | null;
+  Width?: string | number | null;
+  Height?: string | number | null;
+  Weight?: string | number | null;
+  Receiver?: unknown;
+  Sender?: unknown;
+  Parcels?: unknown[] | null;
+  [key: string]: unknown;
+};
+
+export type YunExpressPrintLabelResponse = {
+  Code?: string;
+  Message?: string;
+  Item?: YunExpressPrintLabelItem[] | null;
+};
+
+export type YunExpressPrintLabelItem = {
+  Url?: string | null;
+  LabelType?: string | null;
+  OrderInfos?: YunExpressPrintLabelOrderInfo[] | null;
+  [key: string]: unknown;
+};
+
+export type YunExpressPrintLabelOrderInfo = {
+  CustomerOrderNumber?: string | null;
+  Error?: string | null;
+  Code?: string | number | null;
+  [key: string]: unknown;
 };
 
 export type YunExpressTrackingNumberItem = {
@@ -113,6 +165,17 @@ export type YunExpressGetCarrierResponse = {
   Code?: string;
   Message?: string;
   Item?: YunExpressCarrierItem[] | null;
+};
+
+export type YunExpressDeleteOrderResponse = {
+  Code?: string;
+  Message?: string;
+  Item?: {
+    OrderNumber?: string | null;
+    Status?: string | number | null;
+    Type?: string | number | null;
+    Remark?: string | null;
+  } | null;
 };
 
 export type YunExpressCarrierItem = {

@@ -299,6 +299,7 @@ export async function listPlatformAuditLogRecords(input: {
       },
       actorUser: {
         select: {
+          name: true,
           email: true,
         },
       },

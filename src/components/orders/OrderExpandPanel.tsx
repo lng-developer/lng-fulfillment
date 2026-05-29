@@ -2,26 +2,21 @@
 
 /* eslint-disable @next/next/no-img-element -- Portal image URLs are external and not pre-whitelisted for next/image. */
 
+import type React from "react";
 import {
   CheckCircle2,
   ExternalLink,
   FileText,
   ImageIcon,
-  Loader2,
   Package,
-  Plus,
   ShoppingCart,
   Store,
   Truck,
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge, formatStatus } from "@/components/ui/StatusBadge";
-import { createDraftShipment } from "@/lib/api/shipments";
-import { can, type Role } from "@/lib/rbac";
-import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type {
   OrderDetail,
@@ -46,21 +41,14 @@ type RecipientAddress = {
 export function OrderExpandPanel({
   order,
   isLoading = false,
-  onDraftCreated,
-  role,
 }: {
   order: OrderDetail | null;
   isLoading?: boolean;
-  onDraftCreated: () => void;
-  role: Role;
 }) {
-  const [showCreateForm, setShowCreateForm] = useState(false);
-
   if (isLoading || !order) {
     return <OrderExpandSkeleton />;
   }
 
-  const canCreate = can.createShipment(role);
   const shipments = order.shipments ?? [];
   const hasSellerOrScaler =
     hasPerson(order.portalMetadata?.seller) ||
@@ -106,38 +94,27 @@ export function OrderExpandPanel({
                       {shipment.trackingNumber}
                     </span>
                   ) : null}
+                  {shipment.labelUrl ? (
+                    <a
+                      className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--brand)] hover:underline"
+                      href={shipment.labelUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <ExternalLink className="h-3 w-3" aria-hidden />
+                      Label
+                    </a>
+                  ) : null}
                 </div>
               ))
             ) : (
               <EmptyState
-                description="No shipments yet."
+                description="Create a YunExpress shipment from the Actions column when this order is ready."
                 heading="No related shipments"
                 icon={<Truck className="h-6 w-6" aria-hidden />}
               />
             )}
-            {canCreate ? (
-              <button
-                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-2.5 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
-                onClick={() => setShowCreateForm(true)}
-                type="button"
-              >
-                <Plus className="h-3 w-3" aria-hidden />
-                {shipments.length ? "Add Shipment" : "Create Draft Shipment"}
-              </button>
-            ) : null}
           </div>
-
-          {showCreateForm ? (
-            <CreateDraftShipmentForm
-              items={order.items}
-              onCancel={() => setShowCreateForm(false)}
-              onCreated={() => {
-                setShowCreateForm(false);
-                onDraftCreated();
-              }}
-              orderId={order.id}
-            />
-          ) : null}
         </PanelCard>
       </div>
     </div>
@@ -185,8 +162,9 @@ function OrderSummaryCard({ order }: { order: OrderDetail }) {
           value={
             <SmallBadge
               tone={
-                metadata.scaleOverallStatus.toUpperCase() === "SCALED" ||
-                metadata.scaleOverallStatus.toUpperCase() === "SENT"
+                ["SCALED", "SENT", "COMPLETE"].includes(
+                  metadata.scaleOverallStatus.toUpperCase(),
+                )
                   ? "success"
                   : "neutral"
               }
@@ -273,7 +251,7 @@ function StatusHistoryCard({ order }: { order: OrderDetail }) {
   return (
     <PanelCard icon={<CheckCircle2 />} title="Status history">
       {order.statusHistory.length ? (
-        <ol className="grid gap-2">
+        <ol className="grid max-h-[220px] gap-2 overflow-y-auto pr-1">
           {order.statusHistory
             .slice()
             .sort(
@@ -319,54 +297,66 @@ function StatusHistoryCard({ order }: { order: OrderDetail }) {
 
 function ItemCard({ item }: { item: OrderDetailItem }) {
   return (
-    <article className="rounded-sm border border-[var(--border)] bg-white p-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <SkuBadge value={item.sku ?? "NO-SKU"} />
-            <span className="min-w-0 text-[12px] font-medium text-[var(--text-primary)]">
-              {item.title ?? item.name ?? "Unnamed item"}
-            </span>
-            <span className="text-[11px] text-[var(--text-muted)]">
-              x{item.quantity}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
-            {item.asin ? (
-              <span>
-                ASIN: <span className="font-mono">{item.asin}</span>
-              </span>
-            ) : null}
-            {item.listingId ? (
-              <span>
-                Listing: <span className="font-mono">{item.listingId}</span>
-              </span>
-            ) : null}
-            {item.scaleStatus ? (
-              <StatusBadge className="px-1.5 py-0 text-[9px]" status={item.scaleStatus} />
-            ) : null}
-            {item.productionStatus ? (
-              <StatusBadge
-                className="px-1.5 py-0 text-[9px]"
-                status={item.productionStatus}
-              />
-            ) : null}
-          </div>
-          {item.qcNote ? (
-            <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-              QC: {item.qcNote}
+    <article className="rounded-sm border border-[var(--border)] bg-white p-2.5">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+        <ItemContentBox icon={<Package />} title="Item details">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <SkuBadge value={item.sku ?? "NO-SKU"} />
+                <span className="min-w-0 text-[12px] font-medium text-[var(--text-primary)]">
+                  {item.title ?? item.name ?? "Unnamed item"}
+                </span>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  x{item.quantity}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                {item.asin ? (
+                  <span>
+                    ASIN: <span className="font-mono">{item.asin}</span>
+                  </span>
+                ) : null}
+                {item.listingId ? (
+                  <span>
+                    Listing: <span className="font-mono">{item.listingId}</span>
+                  </span>
+                ) : null}
+                {item.scaleStatus ? (
+                  <StatusBadge
+                    className="px-1.5 py-0 text-[9px]"
+                    status={item.scaleStatus}
+                  />
+                ) : null}
+                {item.productionStatus ? (
+                  <StatusBadge
+                    className="px-1.5 py-0 text-[9px]"
+                    status={item.productionStatus}
+                  />
+                ) : null}
+              </div>
+              {item.qcNote ? (
+                <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                  QC: {item.qcNote}
+                </div>
+              ) : null}
+              <PricingRow item={item} />
             </div>
-          ) : null}
-          <PricingRow item={item} />
-        </div>
-        <ItemImages item={item} />
-      </div>
+            <ItemImages item={item} />
+          </div>
 
-      <CustomizationOptions options={item.customizationOptions ?? []} />
-      <FulfillmentFiles files={item.fulfillmentFiles ?? {}} />
-      {item.costCenter ? <CostCenterInfo costCenter={item.costCenter} /> : null}
-      {item.listing ? <ListingInfoPanel listing={item.listing} /> : null}
-      {item.trackingInfo ? <PortalTrackingInfo info={item.trackingInfo} /> : null}
+          <FulfillmentFiles files={item.fulfillmentFiles ?? {}} />
+          {item.costCenter ? (
+            <CostCenterInfo costCenter={item.costCenter} />
+          ) : null}
+          {item.listing ? <ListingInfoPanel listing={item.listing} /> : null}
+          {item.trackingInfo ? (
+            <PortalTrackingInfo info={item.trackingInfo} />
+          ) : null}
+        </ItemContentBox>
+
+        <CustomizationOptions options={item.customizationOptions ?? []} />
+      </div>
     </article>
   );
 }
@@ -439,28 +429,30 @@ function CustomizationOptions({
 }: {
   options: PortalCustomizationOption[];
 }) {
-  if (!options.length) {
-    return null;
-  }
-
   return (
-    <ItemSubsection icon={<FileText />} title="Customization options">
-      <div className="space-y-0.5">
-        {options.map((option, index) => (
-          <div
-            className="flex justify-between gap-3 border-b border-[var(--border)] py-1 text-[11px] last:border-b-0"
-            key={`${option.label}-${index}`}
-          >
-            <span className="max-w-[55%] text-[var(--text-secondary)]">
-              {option.label || "-"}
-            </span>
-            <span className="max-w-[60%] break-words text-right font-medium text-[var(--text-primary)] md:max-w-[40%]">
-              {option.value || "-"}
-            </span>
-          </div>
-        ))}
-      </div>
-    </ItemSubsection>
+    <ItemContentBox icon={<FileText />} title="Customization options">
+      {options.length ? (
+        <div className="max-h-[360px] space-y-0.5 overflow-auto pr-1">
+          {options.map((option, index) => (
+            <div
+              className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-3 border-b border-[var(--border)] py-1.5 text-[11px] last:border-b-0"
+              key={`${option.label}-${index}`}
+            >
+              <span className="min-w-0 break-words text-[var(--text-secondary)]">
+                {option.label || "-"}
+              </span>
+              <span className="min-w-0 break-words text-right font-medium text-[var(--text-primary)]">
+                {option.value || "-"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-sm border border-dashed border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-4 text-center text-[11px] text-[var(--text-muted)]">
+          No customization options.
+        </p>
+      )}
+    </ItemContentBox>
   );
 }
 
@@ -649,6 +641,26 @@ function ItemSubsection({
   );
 }
 
+function ItemContentBox({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactElement;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="min-w-0 rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+      <div className="section-label-xs mb-2 flex items-center gap-1">
+        <span className="text-[var(--brand)]">{icon}</span>
+        {title}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function InlinePair({
   label,
   value,
@@ -664,154 +676,6 @@ function InlinePair({
     <div className="flex gap-2">
       <span className="text-[var(--text-secondary)]">{label}</span>
       <span className="font-medium text-[var(--text-primary)]">{value}</span>
-    </div>
-  );
-}
-
-function CreateDraftShipmentForm({
-  orderId,
-  items,
-  onCancel,
-  onCreated,
-}: {
-  orderId: string;
-  items: OrderDetailItem[];
-  onCancel: () => void;
-  onCreated: () => void;
-}) {
-  const initialSelection = useMemo(
-    () =>
-      Object.fromEntries(
-        items.map((item) => [
-          item.id,
-          { checked: true, quantity: Math.max(1, item.quantity) },
-        ]),
-      ) as Record<string, { checked: boolean; quantity: number }>,
-    [items],
-  );
-  const [selection, setSelection] = useState(initialSelection);
-  const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelection(initialSelection);
-  }, [initialSelection]);
-
-  const selectedItems = items
-    .map((item) => ({
-      orderItemId: item.id,
-      quantity: selection[item.id]?.quantity ?? 0,
-      checked: selection[item.id]?.checked ?? false,
-      max: item.quantity,
-    }))
-    .filter((item) => item.checked && item.quantity > 0 && item.quantity <= item.max);
-
-  async function submitDraft() {
-    setError(null);
-
-    if (!selectedItems.length) {
-      setError("Select at least one valid item quantity.");
-      return;
-    }
-
-    setIsPending(true);
-    try {
-      await createDraftShipment(
-        orderId,
-        selectedItems.map(({ orderItemId, quantity }) => ({
-          orderItemId,
-          quantity,
-        })),
-      );
-      toastSuccess("Draft shipment created.");
-      onCreated();
-    } catch {
-      setError("Failed to create shipment. Please try again.");
-      toastError("Failed to create shipment. Please try again.");
-    } finally {
-      setIsPending(false);
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3">
-      <div className="mb-3 text-[11px] font-semibold text-[var(--text-primary)]">
-        Select items
-      </div>
-      <div className="grid gap-1">
-        {items.map((item) => {
-          const row = selection[item.id] ?? {
-            checked: true,
-            quantity: Math.max(1, item.quantity),
-          };
-
-          return (
-            <label
-              className="flex items-center gap-2 border-b border-[var(--border)] py-2 text-xs last:border-b-0"
-              key={item.id}
-            >
-              <input
-                checked={row.checked}
-                className="h-4 w-4 rounded border-[var(--border-strong)]"
-                onChange={(event) =>
-                  setSelection((current) => ({
-                    ...current,
-                    [item.id]: { ...row, checked: event.target.checked },
-                  }))
-                }
-                type="checkbox"
-              />
-              <SkuBadge value={item.sku ?? "NO-SKU"} />
-              <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
-                {item.title ?? item.name ?? "Unnamed item"}
-              </span>
-              <input
-                aria-label={`Quantity for ${item.sku ?? item.id}`}
-                className="h-7 w-14 rounded-xs border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1 text-center text-xs"
-                max={item.quantity}
-                min={1}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setSelection((current) => ({
-                    ...current,
-                    [item.id]: {
-                      ...row,
-                      quantity: Number.isInteger(value) ? value : row.quantity,
-                    },
-                  }));
-                }}
-                type="number"
-                value={row.quantity}
-              />
-              <span className="text-[var(--text-muted)]">/ {item.quantity}</span>
-            </label>
-          );
-        })}
-      </div>
-
-      {error ? (
-        <p className="mt-3 text-[11px] text-[var(--danger-text)]">{error}</p>
-      ) : null}
-
-      <div className="mt-3 flex gap-2">
-        <button
-          className="h-8 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-          disabled={isPending}
-          onClick={onCancel}
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:bg-[#94a3b8]"
-          disabled={isPending}
-          onClick={submitDraft}
-          type="button"
-        >
-          {isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> : null}
-          Create Draft
-        </button>
-      </div>
     </div>
   );
 }
@@ -1041,11 +905,11 @@ function formatCurrency(value: string | null | undefined, currency?: string | nu
 }
 
 function statusDotClass(status: string) {
-  if (["READY_TO_SHIP", "DELIVERED"].includes(status)) {
+  if (["READY_TO_SHIP", "FULFILLED", "SHIPPED", "DELIVERED"].includes(status)) {
     return "bg-[var(--success)] shadow-[0_0_0_3px_var(--success-bg)]";
   }
 
-  if (["IN_TRANSIT", "CREATED"].includes(status)) {
+  if (["IN_PROCESSING", "IN_TRANSIT", "CREATED"].includes(status)) {
     return "bg-[var(--info)] shadow-[0_0_0_3px_var(--info-bg)]";
   }
 

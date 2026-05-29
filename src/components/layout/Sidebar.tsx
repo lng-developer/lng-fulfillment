@@ -1,6 +1,6 @@
 "use client";
 
-import { Package, Settings, Truck } from "lucide-react";
+import { Package, Search, Settings, Truck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/orders", label: "Orders", icon: Package },
   { href: "/shipments", label: "Shipments", icon: Truck },
+  { href: "/order-lookup", label: "Yun Lookup", icon: Search },
   { separator: true },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;

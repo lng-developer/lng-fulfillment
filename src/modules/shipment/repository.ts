@@ -1,4 +1,4 @@
-import type { AuditActorType, Prisma, ShipmentStatus } from "@prisma/client";
+import type { AuditActorType, OrderStatus, Prisma, ShipmentStatus } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import type {
   CreateDraftShipmentInput,
@@ -67,6 +67,312 @@ export async function createDraftShipmentRecord(input: {
   });
 
   return toShipmentDetail(row);
+}
+
+export async function getOrderShipmentPreparation(
+  tenantId: string,
+  orderId: string,
+) {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      tenantId,
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      externalOrderId: true,
+      orderNumber: true,
+      status: true,
+      recipientName: true,
+      recipientPhone: true,
+      recipientEmail: true,
+      recipientAddress: true,
+      destinationCountry: true,
+      items: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        select: {
+          id: true,
+          externalItemId: true,
+          sku: true,
+          name: true,
+          title: true,
+          quantity: true,
+          weight: true,
+          declaredValue: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getOrderWorkflowState(
+  tenantId: string,
+  orderId: string,
+) {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      tenantId,
+    },
+    select: {
+      id: true,
+      status: true,
+      statusHistory: {
+        where: {
+          status: "SHIPPED",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+        select: {
+          createdAt: true,
+        },
+      },
+    },
+  });
+}
+
+export async function createInternalShipmentForOrder(input: {
+  tenantId: string;
+  orderId: string;
+  items: Array<{ orderItemId: string; quantity: number }>;
+  actorType: AuditActorType;
+  actorId?: string;
+}): Promise<ShipmentDetail> {
+  const row = await prisma.shipment.create({
+    data: {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      status: "DRAFT",
+      items: {
+        create: input.items.map((item) => ({
+          tenantId: input.tenantId,
+          orderItemId: item.orderItemId,
+          quantity: item.quantity,
+        })),
+      },
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: "DRAFT",
+          note: "Shipment prepared for YunExpress creation.",
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+    select: shipmentDetailSelect,
+  });
+
+  return toShipmentDetail(row);
+}
+
+export async function updateOrderWorkflowStatus(input: {
+  tenantId: string;
+  orderId: string;
+  status: Extract<
+    OrderStatus,
+    "FULFILLED" | "IN_PROCESSING" | "SHIPPED" | "CANCELLED"
+  >;
+  note: string;
+  actorType: AuditActorType;
+  actorId?: string;
+}) {
+  return prisma.order.update({
+    where: {
+      id: input.orderId,
+      tenantId: input.tenantId,
+    },
+    data: {
+      status: input.status,
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: input.status,
+          note: input.note,
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+}
+
+export async function getLatestShipmentForOrder(
+  tenantId: string,
+  orderId: string,
+) {
+  const row = await prisma.shipment.findFirst({
+    where: {
+      tenantId,
+      orderId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      ...shipmentDetailSelect,
+      metadata: true,
+    },
+  });
+
+  return row ? { ...toShipmentDetail(row), metadata: row.metadata } : null;
+}
+
+export async function updateShipmentCancelled(input: {
+  tenantId: string;
+  shipmentId: string;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}): Promise<ShipmentDetail> {
+  const row = await prisma.shipment.update({
+    where: {
+      id: input.shipmentId,
+      tenantId: input.tenantId,
+    },
+    data: {
+      status: "CANCELLED",
+      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: "CANCELLED",
+          note: "Shipment cancelled in YunExpress.",
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+    select: shipmentDetailSelect,
+  });
+
+  return toShipmentDetail(row);
+}
+
+export async function clearLatestShipmentCarrierArtifacts(input: {
+  tenantId: string;
+  orderId: string;
+}): Promise<ShipmentDetail | null> {
+  const latestShipment = await prisma.shipment.findFirst({
+    where: {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!latestShipment) {
+    return null;
+  }
+
+  const row = await prisma.shipment.update({
+    where: {
+      id: latestShipment.id,
+      tenantId: input.tenantId,
+    },
+    data: {
+      carrierShipmentId: null,
+      trackingNumber: null,
+      labelUrl: null,
+    },
+    select: shipmentDetailSelect,
+  });
+
+  return toShipmentDetail(row);
+}
+
+export async function resetCancelledOrderRecords(input: {
+  tenantId: string;
+  orderId: string;
+  actorType: AuditActorType;
+  actorId?: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const orderUpdate = await tx.order.updateMany({
+      where: {
+        id: input.orderId,
+        tenantId: input.tenantId,
+        status: "CANCELLED",
+      },
+      data: {
+        status: "FULFILLED",
+      },
+    });
+
+    if (orderUpdate.count === 0) {
+      return null;
+    }
+
+    await tx.orderStatusHistory.create({
+      data: {
+        tenantId: input.tenantId,
+        orderId: input.orderId,
+        status: "FULFILLED",
+        note: "Cancelled order reset for shipment recreation.",
+        actorType: input.actorType,
+        actorId: input.actorId,
+      },
+    });
+
+    const latestShipment = await tx.shipment.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        orderId: input.orderId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const shipment = latestShipment
+      ? await tx.shipment.update({
+          where: {
+            id: latestShipment.id,
+            tenantId: input.tenantId,
+          },
+          data: {
+            carrierShipmentId: null,
+            trackingNumber: null,
+            labelUrl: null,
+          },
+          select: {
+            id: true,
+            status: true,
+            carrierCode: true,
+            carrierShipmentId: true,
+            trackingNumber: true,
+            labelUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : null;
+
+    return {
+      order: {
+        id: input.orderId,
+        status: "FULFILLED" as const,
+      },
+      shipment,
+    };
+  });
 }
 
 export async function listShipments(
@@ -184,6 +490,7 @@ export async function getShipmentCarrierPreparation(
               externalItemId: true,
               sku: true,
               name: true,
+              title: true,
               weight: true,
               declaredValue: true,
             },
@@ -418,6 +725,7 @@ function toShipmentDetail(row: {
       externalItemId: string | null;
       sku: string | null;
       name: string | null;
+      title?: string | null;
       quantity: number;
     };
   }>;

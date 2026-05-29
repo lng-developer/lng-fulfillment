@@ -119,6 +119,7 @@ export function AuditLogsTab() {
     return logs.filter((log) =>
       [
         log.action,
+        log.actorName,
         log.actorEmail,
         log.actorKeyPrefix,
         log.actorUserId,
@@ -407,7 +408,7 @@ function actorLabel(log: AuditLog) {
     return log.actorKeyPrefix ?? "api key";
   }
 
-  return log.actorEmail ?? log.actorUserId ?? "user";
+  return log.actorName ?? log.actorEmail ?? log.actorUserId ?? "user";
 }
 
 function actionPillClass(action: string) {

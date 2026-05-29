@@ -112,6 +112,7 @@ export type PlatformAuditLogRecord = {
   tenantSlug: string | null;
   actorType: "USER" | "API_KEY" | "SYSTEM";
   actorUserId: string | null;
+  actorName: string | null;
   actorEmail: string | null;
   action: string;
   resourceType: string;

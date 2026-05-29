@@ -56,6 +56,8 @@ export type AuditLogRecord = {
   id: string;
   actorType: "USER" | "API_KEY" | "SYSTEM";
   actorUserId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
   action: string;
   resourceType: string;
   resourceId: string | null;
@@ -171,6 +173,8 @@ export async function listAuditLogs(
       id: record.id,
       actorType: record.actorType,
       actorUserId: record.actorUserId,
+      actorName: record.actorUser?.name ?? null,
+      actorEmail: record.actorUser?.email ?? null,
       action: record.action,
       resourceType: record.resourceType,
       resourceId: record.resourceId,

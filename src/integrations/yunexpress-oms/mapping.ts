@@ -6,26 +6,37 @@ export function mapCreateShipmentToYunExpressPayload(
   input: CreateCarrierShipmentInput,
   config: YunExpressOmsConfig,
 ): YunExpressCreateOrderLabelPayload {
-  const packageCount = Math.max(input.items.length, 1);
   const receiverName = splitReceiverName(input.recipient?.name);
+  const shippingMethodCode =
+    metadataString(
+      input.metadata,
+      "shippingMethodCode",
+      config.defaultShippingMethodCode,
+    ) ?? config.defaultShippingMethodCode;
+  const sourceCode =
+    metadataString(input.metadata, "sourceCode", config.defaultSourceCode) ??
+    config.defaultSourceCode;
+  const sizeUnits =
+    metadataString(input.metadata, "sizeUnits", config.defaultSizeUnit) ??
+    config.defaultSizeUnit;
 
   return {
     CustomerOrderNumber:
       input.orderNumber ?? input.externalOrderId ?? input.shipmentId,
-    ShippingMethodCode: config.defaultShippingMethodCode,
+    ShippingMethodCode: shippingMethodCode,
     TrackingNumber: null,
     TransactionNumber: null,
-    SizeUnits: config.defaultSizeUnit,
-    Length: metadataNumber(input.metadata, "length", 1),
-    Width: metadataNumber(input.metadata, "width", 1),
-    Height: metadataNumber(input.metadata, "height", 1),
-    PackageCount: packageCount,
-    Weight: calculateShipmentWeight(input),
-    ApplicationType: metadataNumber(input.metadata, "applicationType", 1),
+    SizeUnits: sizeUnits,
+    Length: metadataNumber(input.metadata, "length", 20),
+    Width: metadataNumber(input.metadata, "width", 15),
+    Height: metadataNumber(input.metadata, "height", 5),
+    PackageCount: metadataNumber(input.metadata, "packageCount", 1),
+    Weight: metadataNumber(input.metadata, "weight", calculateShipmentWeight(input)),
+    ApplicationType: metadataNumber(input.metadata, "applicationType", 4),
     ReturnOption: metadataNumber(input.metadata, "returnOption", 0),
     TariffPrepay: metadataNumber(input.metadata, "tariffPrepay", 0),
     InsuranceOption: metadataNumber(input.metadata, "insuranceOption", 0),
-    SourceCode: config.defaultSourceCode,
+    SourceCode: sourceCode,
     Receiver: {
       CountryCode: input.recipient?.country ?? input.destinationCountry ?? undefined,
       FirstName: receiverName.firstName,
@@ -35,24 +46,37 @@ export function mapCreateShipmentToYunExpressPayload(
       City: input.recipient?.city,
       State: input.recipient?.state,
       Zip: input.recipient?.postalCode,
-      Phone: input.recipient?.phone,
+      Phone: normalizeReceiverPhone(input.recipient?.phone),
       Email: input.recipient?.email,
     },
-    Parcels: input.items.map((item) => ({
-      SKU: item.sku ?? item.externalItemId ?? item.orderItemId,
-      EName: item.name || item.sku || "Item",
-      CName:
-        metadataString(input.metadata, "defaultCName", item.name || item.sku || "货物") ??
-        "货物",
-      HSCode: metadataNullableString(input.metadata, "hsCode"),
-      Quantity: item.quantity,
-      UnitPrice: item.declaredValue ?? metadataNumber(input.metadata, "unitPrice", 1),
-      UnitWeight: item.weight ?? metadataNumber(input.metadata, "unitWeight", 0.1),
-      Remark: item.name || item.sku || "Item",
-      CurrencyCode: metadataString(input.metadata, "currencyCode", "USD") ?? "USD",
-      InvoicePart: metadataString(input.metadata, "invoicePart", undefined),
-      InvoiceUsage: metadataString(input.metadata, "invoiceUsage", undefined),
-    })),
+    Parcels: input.items.map((item) => {
+      const defaultName = item.name || item.sku || "Item";
+
+      return {
+        SKU: item.sku ?? item.externalItemId ?? item.orderItemId,
+        EName: item.eName || defaultName,
+        CName:
+          item.cName ||
+          metadataString(input.metadata, "defaultCName", defaultName) ||
+          "Goods",
+        HSCode: metadataNullableString(input.metadata, "hsCode"),
+        Quantity: item.quantity,
+        UnitPrice:
+          item.declaredValue ?? metadataNumber(input.metadata, "unitPrice", 1),
+        UnitWeight: item.weight ?? metadataNumber(input.metadata, "unitWeight", 0.1),
+        Remark: item.remark ?? "",
+        CurrencyCode:
+          item.currencyCode ??
+          metadataString(input.metadata, "currencyCode", "USD") ??
+          "USD",
+        InvoicePart:
+          item.invoicePart ??
+          metadataString(input.metadata, "invoicePart", "cotton"),
+        InvoiceUsage:
+          item.invoiceUsage ??
+          metadataString(input.metadata, "invoiceUsage", "wear"),
+      };
+    }),
   };
 }
 
@@ -104,6 +128,18 @@ function splitReceiverName(name: string | undefined) {
     firstName: parts[0],
     lastName: parts.length > 1 ? parts.slice(1).join(" ") : undefined,
   };
+}
+
+function normalizeReceiverPhone(phone: string | undefined) {
+  const trimmed = phone?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const withoutExtension = trimmed.split(/\b(?:ext|extension|x)\b/i)[0] ?? trimmed;
+  const digits = withoutExtension.replace(/\D/g, "");
+
+  return digits || trimmed;
 }
 
 function round(value: number) {

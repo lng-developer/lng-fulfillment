@@ -395,6 +395,7 @@ export async function listPlatformAuditLogs(
       tenantSlug: record.tenant?.slug ?? null,
       actorType: record.actorType,
       actorUserId: record.actorUserId,
+      actorName: record.actorUser?.name ?? null,
       actorEmail: record.actorUser?.email ?? null,
       action: record.action,
       resourceType: record.resourceType,

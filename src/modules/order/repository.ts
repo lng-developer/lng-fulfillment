@@ -183,6 +183,17 @@ export async function listOrders(
           title: true,
         },
       },
+      shipments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+        select: {
+          status: true,
+          trackingNumber: true,
+          labelUrl: true,
+        },
+      },
       _count: {
         select: {
           items: true,
@@ -232,6 +243,9 @@ export async function listOrders(
     firstSku: row.items[0]?.sku ?? null,
     firstItemName: row.items[0]?.title ?? row.items[0]?.name ?? null,
     totalQuantity: quantityByOrderId.get(row.id) ?? 0,
+    latestShipmentStatus: row.shipments[0]?.status ?? null,
+    latestTrackingNumber: row.shipments[0]?.trackingNumber ?? null,
+    latestLabelUrl: row.shipments[0]?.labelUrl ?? null,
   }));
 }
 
@@ -286,6 +300,23 @@ export async function listOrderDetailsByIds(
     .map((orderId) => rowById.get(orderId))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
     .map(toOrderDetail);
+}
+
+export async function listOrderDetailPage(
+  tenantId: string,
+  query: OrderListQuery,
+): Promise<OrderDetail[]> {
+  const rows = await prisma.order.findMany({
+    where: buildOrderWhereInput(tenantId, query),
+    orderBy: {
+      [query.sortBy]: query.sortOrder,
+    },
+    skip: (query.page - 1) * query.pageSize,
+    take: query.pageSize,
+    select: orderDetailSelect,
+  });
+
+  return rows.map(toOrderDetail);
 }
 
 const orderDetailSelect = {
@@ -502,29 +533,97 @@ function hasAnyPortalMetadataValue(metadata: OrderPortalMetadata) {
 function buildCustomizationOptions(
   value: Prisma.JsonValue | null,
 ): PortalCustomizationOption[] {
-  if (!Array.isArray(value)) {
+  if (value === null) {
     return [];
   }
 
-  return value
-    .map((entry) => {
-      const record = asRecord(entry);
-      if (!record) {
-        return null;
-      }
+  const options: PortalCustomizationOption[] = [];
+  collectCustomizationOptions(value, options);
+  return dedupeCustomizationOptions(options).slice(0, 50);
+}
 
-      const label = readOptionalString(record, "label");
-      const optionValue = readOptionalString(record, "value");
-      if (!label && !optionValue) {
-        return null;
-      }
+function collectCustomizationOptions(
+  value: Prisma.JsonValue,
+  options: PortalCustomizationOption[],
+) {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectCustomizationOptions(entry, options);
+    }
+    return;
+  }
 
-      return {
-        label: label ?? "",
-        value: optionValue ?? "",
-      };
-    })
-    .filter((entry): entry is PortalCustomizationOption => Boolean(entry));
+  const record = asRecord(value);
+  if (!record) {
+    return;
+  }
+
+  appendCustomizationOption(record, options);
+
+  const customizationInfo = asRecord(record.customizationInfo);
+  const surfaces = customizationInfo?.surfaces;
+  if (Array.isArray(surfaces)) {
+    for (const surface of surfaces) {
+      const surfaceRecord = asRecord(surface);
+      const areas = surfaceRecord?.areas;
+      if (Array.isArray(areas)) {
+        for (const area of areas) {
+          collectCustomizationOptions(area, options);
+        }
+      }
+    }
+  }
+
+  const children = record.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      collectCustomizationOptions(child, options);
+    }
+  }
+}
+
+function appendCustomizationOption(
+  record: Record<string, Prisma.JsonValue>,
+  options: PortalCustomizationOption[],
+) {
+  const label = readOptionalString(record, "label") ?? readOptionalString(record, "name");
+  const optionSelection = asRecord(record.optionSelection);
+  const optionValue =
+    readOptionalString(record, "value") ??
+    readOptionalString(record, "displayValue") ??
+    readOptionalString(record, "inputValue") ??
+    readOptionalString(record, "text") ??
+    readOptionalString(record, "optionValue") ??
+    readOptionalString(optionSelection, "label") ??
+    readOptionalString(optionSelection, "name");
+
+  if (!label && !optionValue) {
+    return;
+  }
+
+  options.push({
+    label: label ?? "",
+    value: optionValue ?? "",
+  });
+}
+
+function dedupeCustomizationOptions(
+  options: PortalCustomizationOption[],
+): PortalCustomizationOption[] {
+  const seen = new Set<string>();
+  const deduped: PortalCustomizationOption[] = [];
+
+  for (const option of options) {
+    const key = `${option.label}\u0000${option.value}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(option);
+  }
+
+  return deduped;
 }
 
 function buildPortalItemTrackingInfo(

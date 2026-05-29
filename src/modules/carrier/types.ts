@@ -76,6 +76,12 @@ export type CreateCarrierShipmentItemInput = {
   quantity: number;
   weight?: number | null;
   declaredValue?: number | null;
+  eName?: string | null;
+  cName?: string | null;
+  currencyCode?: string | null;
+  invoicePart?: string | null;
+  invoiceUsage?: string | null;
+  remark?: string | null;
 };
 
 export type CreateCarrierShipmentInput = {

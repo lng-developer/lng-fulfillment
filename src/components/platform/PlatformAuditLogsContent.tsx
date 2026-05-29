@@ -371,7 +371,7 @@ export function PlatformAuditLogsContent() {
                       {log.tenantSlug ?? "system"}
                     </span>
                     <span className="truncate text-[var(--text-secondary)]">
-                      {log.actorEmail ?? log.actorType.toLowerCase()}
+                      {formatActor(log)}
                     </span>
                   </summary>
                   <div className="grid gap-3 bg-[var(--bg-surface2)] px-4 pb-4">
@@ -381,7 +381,7 @@ export function PlatformAuditLogsContent() {
                         value={`${log.resourceType}:${log.resourceId ?? "-"}`}
                       />
                       <Info label="Tenant" value={log.tenantName ?? "System"} />
-                      <Info label="Actor" value={log.actorEmail ?? log.actorType} />
+                      <Info label="Actor" value={formatActor(log)} />
                     </div>
                     {log.metadata ? (
                       <SafeMetadataViewer data={log.metadata} />
@@ -511,6 +511,18 @@ function formatDate(value: string) {
 
 function getActionDescription(action: string) {
   return ACTION_BY_VALUE.get(action)?.description ?? "Audit event";
+}
+
+function formatActor(log: PlatformAuditLog) {
+  if (log.actorType === "SYSTEM") {
+    return "System";
+  }
+
+  if (log.actorType === "API_KEY") {
+    return "API key";
+  }
+
+  return log.actorName ?? log.actorEmail ?? log.actorUserId ?? "User";
 }
 
 function parsePositivePage(value: string | null) {

@@ -14,11 +14,18 @@ import {
 import { AppError } from "@/shared/errors";
 import {
   countShipments,
+  createInternalShipmentForOrder,
   createDraftShipmentRecord,
   findOrderForDraftShipment,
+  getLatestShipmentForOrder,
+  getOrderWorkflowState,
+  getOrderShipmentPreparation,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   listShipments as listShipmentRecords,
+  resetCancelledOrderRecords,
+  updateOrderWorkflowStatus,
+  updateShipmentCancelled,
   updateShipmentExecutionFailed,
   updateShipmentExecutionStarted,
   updateShipmentExecutionSucceeded,
@@ -28,19 +35,32 @@ import type {
   CreateDraftShipmentInput,
   ExecuteShipmentInput,
   ExecuteShipmentResult,
+  CancelOrderYunResult,
+  ConfirmOrderShippedResult,
   PaginationMeta,
   PrepareShipmentCarrierExecutionInput,
   PrepareShipmentCarrierExecutionResult,
   PreflightShipmentExecutionInput,
+  ResetCancelledOrderResult,
   ShipmentActor,
   ShipmentDetail,
   ShipmentExecutionPreflightResult,
   ShipmentListItem,
   ShipmentListQuery,
   ShipmentTrackingSyncResult,
+  ShipmentYunEnvironment,
+  ShipParcelOverride,
+  ShipOrderInput,
+  ShipOrderResult,
+  ShipOrdersBatchInput,
+  ShipOrdersBatchResult,
 } from "./types";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
+const DIRECT_SHIP_ORDER_STATUSES = ["FULFILLED", "READY_TO_SHIP"] as const;
+const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
+const YUN_TEST_BASE_URL = "http://omsapi.uat.yunexpress.com/";
+const YUN_LIVE_BASE_URL = "http://oms.api.yunexpress.com/";
 
 export async function createDraftShipment(
   tenantId: string,
@@ -139,6 +159,286 @@ export async function getTenantShipmentDetail(
   }
 
   return shipment;
+}
+
+export async function shipOrderWithYun(
+  tenantId: string,
+  input: ShipOrderInput,
+  actor: ShipmentActor,
+): Promise<ShipOrderResult> {
+  const order = await getOrderShipmentPreparation(tenantId, input.orderId);
+
+  if (!order) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+
+  if (!DIRECT_SHIP_ORDER_STATUSES.includes(order.status as never)) {
+    throw new AppError(
+      "CONFLICT",
+      "Order cannot be shipped from its current status.",
+      409,
+      {
+        orderStatus: order.status,
+        allowedStatuses: [...DIRECT_SHIP_ORDER_STATUSES],
+      },
+    );
+  }
+
+  if (!order.items.length) {
+    throw new AppError("CONFLICT", "Order must have items.", 409);
+  }
+
+  const shipment = await createInternalShipmentForOrder({
+    tenantId,
+    orderId: order.id,
+    items: order.items.map((item) => ({
+      orderItemId: item.id,
+      quantity: item.quantity,
+    })),
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  const result = await executeShipment(
+    tenantId,
+    shipment.id,
+    {
+      carrierCode: "YUNEXPRESS_OMS",
+      carrierAccountId: null,
+      environment: input.environment,
+      options: input.options,
+    },
+    actor,
+  );
+
+  await updateOrderWorkflowStatus({
+    tenantId,
+    orderId: order.id,
+    status: "IN_PROCESSING",
+    note: "YunExpress shipment created. Waiting for ship confirmation.",
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  return {
+    ...result,
+    orderStatus: "IN_PROCESSING",
+    environment: input.environment,
+  };
+}
+
+export async function shipOrdersBatchWithYun(
+  tenantId: string,
+  input: ShipOrdersBatchInput,
+  actor: ShipmentActor,
+): Promise<ShipOrdersBatchResult> {
+  const results: ShipOrdersBatchResult["results"] = [];
+
+  for (const orderId of input.orderIds) {
+    try {
+      const result = await shipOrderWithYun(
+        tenantId,
+        {
+          orderId,
+          environment: input.environment,
+          options: input.optionsByOrderId?.[orderId],
+        },
+        actor,
+      );
+      results.push({
+        orderId,
+        success: true,
+        shipment: result.shipment,
+      });
+    } catch (error) {
+      const appError =
+        error instanceof AppError ? error : mapCarrierErrorToAppError(error);
+      results.push({
+        orderId,
+        success: false,
+        error: {
+          code: appError.code,
+          message: appError.message,
+          details: appError.details,
+        },
+      });
+    }
+  }
+
+  return { results };
+}
+
+export async function confirmOrderShipped(
+  tenantId: string,
+  orderId: string,
+  actor: ShipmentActor,
+): Promise<ConfirmOrderShippedResult> {
+  const shipment = await getLatestShipmentForOrder(tenantId, orderId);
+
+  if (!shipment) {
+    throw new AppError("NOT_FOUND", "Shipment not found.", 404);
+  }
+
+  if (!shipment.labelUrl) {
+    throw new AppError("CONFLICT", "Shipment label is not available.", 409);
+  }
+
+  await updateOrderWorkflowStatus({
+    tenantId,
+    orderId,
+    status: "SHIPPED",
+    note: "Shipment confirmed and label opened.",
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  return {
+    orderId,
+    orderStatus: "SHIPPED",
+    labelUrl: shipment.labelUrl,
+    shipment,
+  };
+}
+
+export async function cancelOrderYunShipment(
+  tenantId: string,
+  orderId: string,
+  actor: ShipmentActor,
+): Promise<CancelOrderYunResult> {
+  const orderState = await getOrderWorkflowState(tenantId, orderId);
+
+  if (!orderState) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+
+  assertOrderCanBeCancelled(orderState);
+
+  const shipment = await getLatestShipmentForOrder(tenantId, orderId);
+
+  if (!shipment) {
+    throw new AppError("NOT_FOUND", "Shipment not found.", 404);
+  }
+
+  if (!shipment.carrierCode || shipment.carrierCode !== "YUNEXPRESS_OMS") {
+    throw new AppError("CONFLICT", "Shipment is not a YunExpress shipment.", 409);
+  }
+
+  if (!shipment.carrierShipmentId) {
+    throw new AppError("CONFLICT", "Shipment does not have a YunExpress waybill.", 409);
+  }
+
+  if (shipment.status === "CANCELLED") {
+    throw new AppError("CONFLICT", "Shipment is already cancelled.", 409);
+  }
+
+  const environment = readShipmentEnvironment(shipment.metadata);
+  const adapter = getCarrierAdapter("YUNEXPRESS_OMS");
+  const runtimeCredentials = applyYunEnvironmentOverride(
+    await resolveCarrierRuntimeCredentials(
+      tenantId,
+      "YUNEXPRESS_OMS",
+      shipment.carrierAccountId,
+    ),
+    environment,
+  );
+
+  try {
+    await adapter.cancelShipment(
+      {
+        tenantId,
+        shipmentId: shipment.id,
+        carrierCode: "YUNEXPRESS_OMS",
+        carrierShipmentId: shipment.carrierShipmentId,
+        reason: "Cancelled from fulfillment platform.",
+      },
+      {
+        tenantId,
+        credentials: runtimeCredentials,
+      },
+    );
+  } catch (error) {
+    throw mapCarrierErrorToAppError(error);
+  }
+
+  const updatedShipment = await updateShipmentCancelled({
+    tenantId,
+    shipmentId: shipment.id,
+    metadata: {
+      carrier: {
+        environmentMode: environment,
+        cancelled: true,
+      },
+    },
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  await updateOrderWorkflowStatus({
+    tenantId,
+    orderId,
+    status: "CANCELLED",
+    note: "YunExpress shipment cancelled.",
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  return {
+    orderId,
+    orderStatus: "CANCELLED",
+    shipment: updatedShipment,
+  };
+}
+
+export async function resetCancelledOrder(
+  tenantId: string,
+  orderId: string,
+  actor: ShipmentActor,
+): Promise<ResetCancelledOrderResult> {
+  const result = await resetCancelledOrderRecords({
+    tenantId,
+    orderId,
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  if (!result) {
+    const orderState = await getOrderWorkflowState(tenantId, orderId);
+
+    if (!orderState) {
+      throw new AppError("NOT_FOUND", "Order not found.", 404);
+    }
+
+    throw new AppError(
+      "CONFLICT",
+      "Only cancelled orders can be reset.",
+      409,
+      {
+        orderStatus: orderState.status,
+        allowedStatuses: ["CANCELLED"],
+      },
+    );
+  }
+
+  if (actor.actorType === "USER" && actor.actorId) {
+    await recordUserAuditLog({
+      tenantId,
+      actorUserId: actor.actorId,
+      action: "ORDER_RESET_AFTER_CANCEL",
+      resourceType: "Order",
+      resourceId: orderId,
+      metadata: {
+        orderId,
+        previousStatus: "CANCELLED",
+        nextStatus: "FULFILLED",
+      },
+    });
+  }
+
+  return {
+    orderId,
+    orderStatus: result.order.status,
+    shipment: result.shipment ?? undefined,
+  };
 }
 
 export async function prepareShipmentCarrierExecution(
@@ -260,15 +560,28 @@ export async function executeShipment(
   }
 
   const adapter = getCarrierAdapter(prepared.carrierCode);
-  const runtimeCredentials = await resolveCarrierRuntimeCredentials(
-    tenantId,
-    prepared.carrierCode,
-    prepared.carrierAccountId,
+  const runtimeCredentials = applyYunEnvironmentOverride(
+    await resolveCarrierRuntimeCredentials(
+      tenantId,
+      prepared.carrierCode,
+      prepared.carrierAccountId,
+    ),
+    input.environment,
   );
   const resolvedCarrierAccountId =
     runtimeCredentials.carrierAccountId ?? prepared.carrierAccountId;
+  const carrierPreparation = await getShipmentCarrierPreparation(tenantId, shipmentId);
+  if (!carrierPreparation) {
+    throw new AppError("NOT_FOUND", "Shipment not found.", 404);
+  }
   const carrierInput = {
-    ...buildCreateCarrierShipmentInput(tenantId, prepared),
+    ...buildCreateCarrierShipmentInputFromPreparation(
+      tenantId,
+      carrierPreparation,
+      prepared.carrierCode,
+      resolvedCarrierAccountId,
+      input.options,
+    ),
     carrierAccountId: resolvedCarrierAccountId,
   };
   const carrierContext = {
@@ -306,7 +619,14 @@ export async function executeShipment(
       trackingNumber: result.trackingNumber ?? null,
       labelUrl: result.labelUrl ?? null,
       metadata: result.metadata?.safe
-        ? { carrier: result.metadata.safe }
+        ? {
+            carrier: {
+              ...result.metadata.safe,
+              ...(input.environment
+                ? { environmentMode: input.environment }
+                : {}),
+            },
+          }
         : undefined,
       actorType: actor.actorType,
       actorId: actor.actorId,
@@ -498,32 +818,6 @@ export async function syncShipmentTracking(
   }
 }
 
-function buildCreateCarrierShipmentInput(
-  tenantId: string,
-  prepared: PrepareShipmentCarrierExecutionResult,
-): CreateCarrierShipmentInput {
-  return {
-    tenantId,
-    shipmentId: prepared.shipment.id,
-    orderId: prepared.shipment.orderId,
-    externalOrderId: prepared.shipment.externalOrderId,
-    orderNumber: prepared.shipment.orderNumber,
-    carrierCode: prepared.carrierCode,
-    carrierAccountId: prepared.carrierAccountId,
-    items: prepared.shipment.items.map((item) => ({
-      shipmentItemId: item.id,
-      orderItemId: item.orderItemId,
-      externalItemId: item.externalItemId,
-      sku: item.sku,
-      name: item.name,
-      quantity: item.quantity,
-    })),
-    metadata: {
-      source: "shipment_execution_service",
-    },
-  };
-}
-
 function chooseTrackingShipmentStatus(
   currentStatus: ShipmentDetail["status"],
   carrierStatus: CarrierNormalizedTrackingStatus | null,
@@ -629,12 +923,64 @@ function buildShipmentTrackingSyncResult(
   };
 }
 
+function assertOrderCanBeCancelled(orderState: {
+  status: string;
+  statusHistory: Array<{ createdAt: Date }>;
+}) {
+  if (orderState.status === "IN_PROCESSING") {
+    return;
+  }
+
+  if (orderState.status !== "SHIPPED") {
+    throw new AppError(
+      "CONFLICT",
+      "Order cannot be cancelled from its current status.",
+      409,
+      {
+        orderStatus: orderState.status,
+        allowedStatuses: ["IN_PROCESSING", "SHIPPED"],
+      },
+    );
+  }
+
+  const shippedAt = orderState.statusHistory[0]?.createdAt;
+  const windowExpiresAt = shippedAt
+    ? new Date(shippedAt.getTime() + SHIPPED_CANCEL_WINDOW_MS)
+    : null;
+
+  if (!shippedAt || Date.now() > shippedAt.getTime() + SHIPPED_CANCEL_WINDOW_MS) {
+    throw new AppError(
+      "CONFLICT",
+      "Shipped orders can only be cancelled within 30 minutes after confirmation.",
+      409,
+      {
+        orderStatus: orderState.status,
+        cancelWindowMinutes: 30,
+        shippedAt: shippedAt?.toISOString() ?? null,
+        cancelWindowExpiresAt: windowExpiresAt?.toISOString() ?? null,
+      },
+    );
+  }
+}
+
 function buildCreateCarrierShipmentInputFromPreparation(
   tenantId: string,
   shipment: NonNullable<Awaited<ReturnType<typeof getShipmentCarrierPreparation>>>,
   carrierCode: string,
   carrierAccountId: string | null,
+  options?: ExecuteShipmentInput["options"],
 ): CreateCarrierShipmentInput {
+  const parcelOverrideByOrderItemId = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.orderItemId)
+      .map((parcel) => [parcel.orderItemId as string, parcel]) ?? [],
+  );
+  const parcelOverrideBySku = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.sku)
+      .map((parcel) => [parcel.sku as string, parcel]) ?? [],
+  );
+
   return {
     tenantId,
     shipmentId: shipment.id,
@@ -659,18 +1005,69 @@ function buildCreateCarrierShipmentInputFromPreparation(
     },
     destinationCountry: shipment.order.destinationCountry,
     items: shipment.items.map((item) => ({
-      shipmentItemId: item.id,
-      orderItemId: item.orderItemId,
-      externalItemId: item.orderItem.externalItemId,
-      sku: item.orderItem.sku,
-      name: item.orderItem.name,
-      quantity: item.quantity,
-      weight: decimalToNumber(item.orderItem.weight),
-      declaredValue: decimalToNumber(item.orderItem.declaredValue),
+      ...buildCarrierShipmentItemInput(
+        item,
+        parcelOverrideByOrderItemId.get(item.orderItemId) ??
+          (item.orderItem.sku
+            ? parcelOverrideBySku.get(item.orderItem.sku)
+            : undefined),
+      ),
     })),
     metadata: {
-      source: "shipment_preflight",
+      source: "shipment_execution_service",
+      ...(options?.shippingMethodCode
+        ? { shippingMethodCode: options.shippingMethodCode }
+        : {}),
+      ...(options?.sourceCode ? { sourceCode: options.sourceCode } : {}),
+      ...(options?.receiverCompany
+        ? { receiverCompany: options.receiverCompany }
+        : {}),
+      ...(options?.weight !== undefined ? { weight: options.weight } : {}),
+      ...(options?.length !== undefined ? { length: options.length } : {}),
+      ...(options?.width !== undefined ? { width: options.width } : {}),
+      ...(options?.height !== undefined ? { height: options.height } : {}),
+      ...(options?.sizeUnits ? { sizeUnits: options.sizeUnits } : {}),
+      ...(options?.packageCount !== undefined
+        ? { packageCount: options.packageCount }
+        : {}),
+      ...(options?.applicationType !== undefined
+        ? { applicationType: options.applicationType }
+        : {}),
+      ...(options?.returnOption !== undefined
+        ? { returnOption: options.returnOption }
+        : {}),
+      ...(options?.tariffPrepay !== undefined
+        ? { tariffPrepay: options.tariffPrepay }
+        : {}),
+      ...(options?.insuranceOption !== undefined
+        ? { insuranceOption: options.insuranceOption }
+        : {}),
     },
+  };
+}
+
+function buildCarrierShipmentItemInput(
+  item: NonNullable<
+    Awaited<ReturnType<typeof getShipmentCarrierPreparation>>
+  >["items"][number],
+  override: ShipParcelOverride | undefined,
+) {
+  return {
+    shipmentItemId: item.id,
+    orderItemId: item.orderItemId,
+    externalItemId: item.orderItem.externalItemId,
+    sku: item.orderItem.sku,
+    name: item.orderItem.title ?? item.orderItem.name,
+    quantity: item.quantity,
+    weight: override?.unitWeight ?? decimalToNumber(item.orderItem.weight),
+    declaredValue:
+      override?.unitPrice ?? decimalToNumber(item.orderItem.declaredValue),
+    eName: override?.eName,
+    cName: override?.cName,
+    currencyCode: override?.currencyCode,
+    invoicePart: override?.invoicePart,
+    invoiceUsage: override?.invoiceUsage,
+    remark: override?.remark,
   };
 }
 
@@ -703,4 +1100,35 @@ function decimalToNumber(value: unknown): number | null {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function applyYunEnvironmentOverride<T extends { payload: Record<string, unknown> }>(
+  credentials: T,
+  environment?: ShipmentYunEnvironment,
+): T {
+  if (!environment) {
+    return credentials;
+  }
+
+  return {
+    ...credentials,
+    payload: {
+      ...credentials.payload,
+      baseUrl: environment === "live" ? YUN_LIVE_BASE_URL : YUN_TEST_BASE_URL,
+      liveEnabled: true,
+    },
+  };
+}
+
+function readShipmentEnvironment(value: unknown): ShipmentYunEnvironment {
+  const carrier =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>).carrier
+      : undefined;
+  const environment =
+    typeof carrier === "object" && carrier !== null && !Array.isArray(carrier)
+      ? (carrier as Record<string, unknown>).environmentMode
+      : undefined;
+
+  return environment === "live" ? "live" : "test";
 }

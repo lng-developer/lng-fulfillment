@@ -61,6 +61,9 @@ enum AuditActorType {
 enum OrderStatus {
   RECEIVED
   READY_TO_SHIP
+  FULFILLED
+  IN_PROCESSING
+  SHIPPED
   CANCELLED
   ON_HOLD
 }
