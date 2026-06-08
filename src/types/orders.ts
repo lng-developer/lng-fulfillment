@@ -91,8 +91,22 @@ export type ShipOrderOptions = {
   parcels?: ShipParcelOverride[];
 };
 
+export type BatchShipSuccess = {
+  orderId: string;
+  shipment?: {
+    id?: string;
+    status?: string;
+    carrierCode?: string | null;
+    carrierShipmentId?: string | null;
+    trackingNumber?: string | null;
+    labelUrl?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+};
+
 export type BatchShipResult = {
-  succeeded: string[];
+  succeeded: BatchShipSuccess[];
   failed: Array<{ orderId: string; message: string; details?: unknown }>;
 };
 

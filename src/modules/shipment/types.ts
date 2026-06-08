@@ -187,6 +187,7 @@ export type ExecuteShipmentResult = {
 };
 
 export type ShipOrderResult = ExecuteShipmentResult & {
+  orderId: string;
   orderStatus: "IN_PROCESSING";
   environment: ShipmentYunEnvironment;
 };

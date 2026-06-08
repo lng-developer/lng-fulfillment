@@ -62,6 +62,35 @@ const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
 const YUN_TEST_BASE_URL = "http://omsapi.uat.yunexpress.com/";
 const YUN_LIVE_BASE_URL = "http://oms.api.yunexpress.com/";
 
+function createShipmentTimingLogger(
+  action: string,
+  context: Record<string, string | number | boolean | null | undefined>,
+) {
+  const enabled = process.env.SHIPMENT_TIMING_LOGS === "true";
+  const startedAt = Date.now();
+  let previousAt = startedAt;
+
+  return (
+    step: string,
+    metadata: Record<string, string | number | boolean | null | undefined> = {},
+  ) => {
+    if (!enabled) {
+      return;
+    }
+
+    const now = Date.now();
+    console.info("[shipment-timing]", {
+      action,
+      step,
+      elapsedMs: now - startedAt,
+      stepMs: now - previousAt,
+      ...context,
+      ...metadata,
+    });
+    previousAt = now;
+  };
+}
+
 export async function createDraftShipment(
   tenantId: string,
   input: CreateDraftShipmentInput,
@@ -166,7 +195,14 @@ export async function shipOrderWithYun(
   input: ShipOrderInput,
   actor: ShipmentActor,
 ): Promise<ShipOrderResult> {
+  const timing = createShipmentTimingLogger("shipOrderWithYun", {
+    orderId: input.orderId,
+  });
   const order = await getOrderShipmentPreparation(tenantId, input.orderId);
+  timing("orderLoaded", {
+    found: Boolean(order),
+    itemCount: order?.items.length ?? 0,
+  });
 
   if (!order) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
@@ -198,6 +234,10 @@ export async function shipOrderWithYun(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("internalShipmentCreated", {
+    shipmentStatus: shipment.status,
+    itemCount: shipment.items.length,
+  });
 
   const result = await executeShipment(
     tenantId,
@@ -210,6 +250,11 @@ export async function shipOrderWithYun(
     },
     actor,
   );
+  timing("carrierExecutionCompleted", {
+    shipmentStatus: result.shipment.status,
+    trackingPresent: Boolean(result.shipment.trackingNumber),
+    labelPresent: Boolean(result.shipment.labelUrl),
+  });
 
   await updateOrderWorkflowStatus({
     tenantId,
@@ -219,9 +264,11 @@ export async function shipOrderWithYun(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("orderStatusUpdated", { orderStatus: "IN_PROCESSING" });
 
   return {
     ...result,
+    orderId: order.id,
     orderStatus: "IN_PROCESSING",
     environment: input.environment,
   };
@@ -305,7 +352,14 @@ export async function cancelOrderYunShipment(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<CancelOrderYunResult> {
+  const timing = createShipmentTimingLogger("cancelOrderYunShipment", {
+    orderId,
+  });
   const orderState = await getOrderWorkflowState(tenantId, orderId);
+  timing("orderStateLoaded", {
+    found: Boolean(orderState),
+    orderStatus: orderState?.status ?? null,
+  });
 
   if (!orderState) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
@@ -314,6 +368,11 @@ export async function cancelOrderYunShipment(
   assertOrderCanBeCancelled(orderState);
 
   const shipment = await getLatestShipmentForOrder(tenantId, orderId);
+  timing("latestShipmentLoaded", {
+    found: Boolean(shipment),
+    shipmentStatus: shipment?.status ?? null,
+    carrierCode: shipment?.carrierCode ?? null,
+  });
 
   if (!shipment) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
@@ -341,6 +400,10 @@ export async function cancelOrderYunShipment(
     ),
     environment,
   );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+    environmentMode: environment,
+  });
 
   try {
     await adapter.cancelShipment(
@@ -356,6 +419,7 @@ export async function cancelOrderYunShipment(
         credentials: runtimeCredentials,
       },
     );
+    timing("carrierCancelCompleted");
   } catch (error) {
     throw mapCarrierErrorToAppError(error);
   }
@@ -372,6 +436,9 @@ export async function cancelOrderYunShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("shipmentMarkedCancelled", {
+    shipmentStatus: updatedShipment.status,
+  });
 
   await updateOrderWorkflowStatus({
     tenantId,
@@ -381,6 +448,7 @@ export async function cancelOrderYunShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("orderStatusUpdated", { orderStatus: "CANCELLED" });
 
   return {
     orderId,
@@ -394,11 +462,18 @@ export async function resetCancelledOrder(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<ResetCancelledOrderResult> {
+  const timing = createShipmentTimingLogger("resetCancelledOrder", {
+    orderId,
+  });
   const result = await resetCancelledOrderRecords({
     tenantId,
     orderId,
     actorType: actor.actorType,
     actorId: actor.actorId,
+  });
+  timing("resetRecordsUpdated", {
+    success: Boolean(result),
+    shipmentCleared: Boolean(result?.shipment),
   });
 
   if (!result) {
@@ -432,6 +507,7 @@ export async function resetCancelledOrder(
         nextStatus: "FULFILLED",
       },
     });
+    timing("auditRecorded", { action: "ORDER_RESET_AFTER_CANCEL" });
   }
 
   return {
@@ -527,7 +603,13 @@ export async function executeShipment(
   input: ExecuteShipmentInput,
   actor: ShipmentActor,
 ): Promise<ExecuteShipmentResult> {
+  const timing = createShipmentTimingLogger("executeShipment", {
+    shipmentId,
+    carrierCode: input.carrierCode,
+    environmentMode: input.environment ?? null,
+  });
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
+  timing("shipmentLoaded", { shipmentStatus: shipment.status });
 
   if (!EXECUTABLE_SHIPMENT_STATUSES.includes(shipment.status as never)) {
     throw new AppError(
@@ -545,6 +627,10 @@ export async function executeShipment(
     shipmentId,
     carrierCode: input.carrierCode,
     carrierAccountId: input.carrierAccountId,
+  });
+  timing("carrierPrepared", {
+    carrierCode: prepared.carrierCode,
+    adapterRegistered: prepared.adapterRegistered,
   });
 
   if (!prepared.adapterRegistered) {
@@ -568,9 +654,13 @@ export async function executeShipment(
     ),
     input.environment,
   );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+  });
   const resolvedCarrierAccountId =
     runtimeCredentials.carrierAccountId ?? prepared.carrierAccountId;
   const carrierPreparation = await getShipmentCarrierPreparation(tenantId, shipmentId);
+  timing("carrierPreparationLoaded", { found: Boolean(carrierPreparation) });
   if (!carrierPreparation) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
   }
@@ -591,6 +681,7 @@ export async function executeShipment(
 
   try {
     await adapter.assertCanCreateShipment?.(carrierInput, carrierContext);
+    timing("carrierCreateAsserted");
   } catch (error) {
     throw mapCarrierErrorToAppError(error);
   }
@@ -603,9 +694,14 @@ export async function executeShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("shipmentMarkedCreating");
 
   try {
     const result = await adapter.createShipment(carrierInput, carrierContext);
+    timing("carrierCreateCompleted", {
+      trackingPresent: Boolean(result.trackingNumber),
+      labelPresent: Boolean(result.labelUrl),
+    });
     const successStatus = result.labelUrl
       ? "LABEL_READY"
       : result.trackingNumber
@@ -631,6 +727,11 @@ export async function executeShipment(
       actorType: actor.actorType,
       actorId: actor.actorId,
     });
+    timing("shipmentExecutionSucceeded", {
+      shipmentStatus: updatedShipment.status,
+      trackingPresent: Boolean(updatedShipment.trackingNumber),
+      labelPresent: Boolean(updatedShipment.labelUrl),
+    });
 
     if (actor.actorType === "USER" && actor.actorId) {
       await recordUserAuditLog({
@@ -646,6 +747,7 @@ export async function executeShipment(
           trackingNumber: result.trackingNumber ?? null,
         },
       });
+      timing("auditRecorded", { action: "SHIPMENT_EXECUTED" });
     }
 
     return {
@@ -655,6 +757,10 @@ export async function executeShipment(
     };
   } catch (error) {
     const appError = mapCarrierErrorToAppError(error);
+    timing("carrierCreateFailed", {
+      errorCode: appError.code,
+      status: appError.status,
+    });
 
     await updateShipmentExecutionFailed({
       tenantId,
@@ -674,6 +780,7 @@ export async function executeShipment(
       actorType: actor.actorType,
       actorId: actor.actorId,
     });
+    timing("shipmentExecutionFailed");
 
     if (actor.actorType === "USER" && actor.actorId) {
       await recordUserAuditLog({
@@ -688,6 +795,7 @@ export async function executeShipment(
           errorCode: appError.code,
         },
       });
+      timing("auditRecorded", { action: "SHIPMENT_EXECUTION_FAILED" });
     }
 
     throw appError;

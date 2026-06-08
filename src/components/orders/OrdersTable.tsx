@@ -6,8 +6,6 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  ChevronsDown,
-  ChevronsUp,
   Copy,
   ExternalLink,
   Inbox,
@@ -27,7 +25,7 @@ import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { OrderDetail, OrderListItem } from "@/types/orders";
+import type { BatchShipResult, OrderDetail, OrderListItem } from "@/types/orders";
 import { BatchShipModal } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
 import { ConfirmShipModal } from "./ConfirmShipModal";
@@ -255,6 +253,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     [selectedIds, sortedOrders],
   );
   const overLimit = selectedIds.size > BATCH_LIMIT;
+  const allRowsExpanded =
+    sortedOrders.length > 0 &&
+    sortedOrders.every((order) => expandedRows[order.id] ?? false);
 
   const expandAll = useCallback(() => {
     setExpandedRows(Object.fromEntries(sortedOrders.map((order) => [order.id, true])));
@@ -312,21 +313,25 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     );
   }
 
-  function handleBatchSuccess(result: { succeeded: string[] }) {
+  function handleBatchSuccess(result: BatchShipResult) {
     const now = new Date().toISOString();
-    selectedOrders
-      .filter((order) => result.succeeded.includes(order.id))
-      .forEach((order) => {
-        applyOrderMutation({
-          orderId: order.id,
-          orderStatus: "IN_PROCESSING",
-          shipment: {
-            status: "CREATED",
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
+    const selectedById = new Map(selectedOrders.map((order) => [order.id, order]));
+
+    result.succeeded.forEach((success) => {
+      if (!selectedById.has(success.orderId)) {
+        return;
+      }
+
+      applyOrderMutation({
+        orderId: success.orderId,
+        orderStatus: "IN_PROCESSING",
+        shipment: success.shipment ?? {
+          status: "CREATED",
+          createdAt: now,
+          updatedAt: now,
+        },
       });
+    });
     clearSelection();
   }
 
@@ -492,24 +497,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <section className="overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
           {sortedOrders.length ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs text-[var(--text-secondary)]">
-              <button
-                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-                onClick={expandAll}
-                type="button"
-              >
-                <ChevronsDown className="h-[13px] w-[13px]" aria-hidden />
-                Mở tất cả
-              </button>
-              <button
-                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-                onClick={collapseAll}
-                type="button"
-              >
-                <ChevronsUp className="h-[13px] w-[13px]" aria-hidden />
-                Đóng tất cả
-              </button>
-              <div className="mx-1 h-4 w-px bg-[var(--border)]" />
-
               {selectedIds.size > 0 ? (
                 <span>
                   Selected <strong>{selectedIds.size}</strong>/{BATCH_LIMIT}
@@ -557,7 +544,26 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                       type="checkbox"
                     />
                   </th>
-                  <th className="w-9 border-b border-[var(--border)] px-2 py-2.5" />
+                  <th className="w-9 border-b border-[var(--border)] px-2 py-2.5">
+                    <button
+                      aria-label={
+                        allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                      }
+                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] transition-colors hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!sortedOrders.length}
+                      onClick={allRowsExpanded ? collapseAll : expandAll}
+                      title={allRowsExpanded ? "Collapse all" : "Expand all"}
+                      type="button"
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "h-[13px] w-[13px] transition-transform duration-150",
+                          allRowsExpanded ? "rotate-180" : "",
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                  </th>
                   <TableHeader className="w-[180px]">Order #</TableHeader>
                   <SortableHeader
                     active={sort.key === "status"}
@@ -567,7 +573,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     Status
                   </SortableHeader>
                   <TableHeader className="w-[180px]">Recipient</TableHeader>
-                  <TableHeader className="w-[170px]">Items</TableHeader>
                   <TableHeader className="w-[150px]">Tracking</TableHeader>
                   <TableHeader className="w-[150px]">Shipment</TableHeader>
                   <SortableHeader
@@ -833,17 +838,6 @@ function OrderRows({
           </div>
         </td>
         <td className="px-3.5 py-2.5 align-middle">
-          <span className="block truncate text-xs text-[var(--text-secondary)]">
-            {order.itemCount} items
-            {order.firstSku ? ` · ${order.firstSku}` : ""}
-          </span>
-          {order.firstItemName ? (
-            <span className="block max-w-[160px] truncate text-[10px] text-[var(--text-muted)]">
-              {order.firstItemName}
-            </span>
-          ) : null}
-        </td>
-        <td className="px-3.5 py-2.5 align-middle">
           {shipment.trackingNumber ? (
             <div className="flex items-center gap-1">
               <span className="font-mono text-[11px] text-[var(--text-secondary)]">
@@ -911,7 +905,7 @@ function OrderRows({
       </tr>
       {isExpanded ? (
         <tr>
-          <td className="border-b border-[var(--border)] p-0" colSpan={10}>
+          <td className="border-b border-[var(--border)] p-0" colSpan={9}>
             {detailError ? (
               <div className="bg-[var(--brand-light)] px-12 py-4">
                 <ErrorState message={detailError} />

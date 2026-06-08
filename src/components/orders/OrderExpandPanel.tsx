@@ -15,7 +15,6 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge, formatStatus } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 import type {
@@ -49,7 +48,6 @@ export function OrderExpandPanel({
     return <OrderExpandSkeleton />;
   }
 
-  const shipments = order.shipments ?? [];
   const hasSellerOrScaler =
     hasPerson(order.portalMetadata?.seller) ||
     hasPerson(order.portalMetadata?.scaledBy);
@@ -69,15 +67,15 @@ export function OrderExpandPanel({
 
         {hasSellerOrScaler ? <StatusHistoryCard order={order} /> : null}
 
-        <PanelCard icon={<ShoppingCart />} title="Items">
+        <PanelCard icon={<ShoppingCart />} title={`Items (${order.items.length})`}>
           <div className="grid gap-3">
-            {order.items.map((item) => (
-              <ItemCard item={item} key={item.id} />
+            {order.items.map((item, index) => (
+              <ItemCard item={item} itemIndex={index} key={item.id} />
             ))}
           </div>
         </PanelCard>
 
-        <PanelCard icon={<Truck />} title="Shipments">
+        {/* <PanelCard icon={<Truck />} title="Shipments">
           <div className="flex flex-wrap items-center gap-2">
             {shipments.length ? (
               shipments.map((shipment) => (
@@ -115,7 +113,7 @@ export function OrderExpandPanel({
               />
             )}
           </div>
-        </PanelCard>
+        </PanelCard> */}
       </div>
     </div>
   );
@@ -123,15 +121,36 @@ export function OrderExpandPanel({
 
 function OrderSummaryCard({ order }: { order: OrderDetail }) {
   const metadata = order.portalMetadata;
+  const skuSummary = summarizeUniqueItemValues(
+    order.items.map((item) => item.sku),
+  );
+  const asinSummary = summarizeUniqueItemValues(
+    order.items.map((item) => item.asin),
+  );
   const rows = [
-    { label: "Order #", value: order.orderNumber ?? order.externalOrderId, mono: true },
+    {
+      label: "Order #",
+      value: order.orderNumber ?? order.externalOrderId,
+      mono: true,
+    },
+    { label: "SKU", value: skuSummary, mono: true },
+    { label: "ASIN", value: asinSummary, mono: true },
     { label: "External status", value: order.externalStatus },
     { label: "Shop", value: order.shopName },
     { label: "Marketplace", value: order.marketplace },
-    { label: "Shipping type", value: order.shippingType ?? order.shippingService },
+    {
+      label: "Shipping type",
+      value: order.shippingType ?? order.shippingService,
+    },
     { label: "Purchased", value: formatDate(order.purchaseAt) },
-    { label: "Portal created", value: formatDateTime(metadata?.portalCreatedAt ?? null) },
-    { label: "Base cost", value: formatCurrency(metadata?.baseCost ?? null, order.currency) },
+    {
+      label: "Portal created",
+      value: formatDateTime(metadata?.portalCreatedAt ?? null),
+    },
+    {
+      label: "Base cost",
+      value: formatCurrency(metadata?.baseCost ?? null, order.currency),
+    },
   ].filter((row) => hasText(row.value));
 
   return (
@@ -219,7 +238,9 @@ function SellerScalerCard({ order }: { order: OrderDetail }) {
 
   return (
     <PanelCard icon={<UsersRound />} title="Seller & scaler">
-      {hasPerson(seller) ? <PersonBlock label="Seller" person={seller} /> : null}
+      {hasPerson(seller) ? (
+        <PersonBlock label="Seller" person={seller} />
+      ) : null}
       {hasPerson(scaledBy) ? (
         <PersonBlock label="Scaled by" person={scaledBy} />
       ) : null}
@@ -295,29 +316,29 @@ function StatusHistoryCard({ order }: { order: OrderDetail }) {
   );
 }
 
-function ItemCard({ item }: { item: OrderDetailItem }) {
+function ItemCard({
+  item,
+  itemIndex,
+}: {
+  item: OrderDetailItem;
+  itemIndex: number;
+}) {
   return (
     <article className="rounded-sm border border-[var(--border)] bg-white p-2.5">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
-        <ItemContentBox icon={<Package />} title="Item details">
+      <div className="grid gap-3 grid-cols-2">
+        <ItemContentBox icon={<Package />} title={`Item ${itemIndex + 1}`}>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 flex-1">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
-                <SkuBadge value={item.sku ?? "NO-SKU"} />
+              {/* <div className="mb-1 flex flex-wrap items-center gap-2">
                 <span className="min-w-0 text-[12px] font-medium text-[var(--text-primary)]">
                   {item.title ?? item.name ?? "Unnamed item"}
                 </span>
                 <span className="text-[11px] text-[var(--text-muted)]">
                   x{item.quantity}
                 </span>
-              </div>
+              </div> */}
               <div className="flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
-                {item.asin ? (
-                  <span>
-                    ASIN: <span className="font-mono">{item.asin}</span>
-                  </span>
-                ) : null}
-                {item.listingId ? (
+                {/* {item.listingId ? (
                   <span>
                     Listing: <span className="font-mono">{item.listingId}</span>
                   </span>
@@ -327,7 +348,7 @@ function ItemCard({ item }: { item: OrderDetailItem }) {
                     className="px-1.5 py-0 text-[9px]"
                     status={item.scaleStatus}
                   />
-                ) : null}
+                ) : null} */}
                 {item.productionStatus ? (
                   <StatusBadge
                     className="px-1.5 py-0 text-[9px]"
@@ -335,17 +356,20 @@ function ItemCard({ item }: { item: OrderDetailItem }) {
                   />
                 ) : null}
               </div>
-              {item.qcNote ? (
+              {/* {item.qcNote ? (
                 <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
                   QC: {item.qcNote}
                 </div>
-              ) : null}
-              <PricingRow item={item} />
+              ) : null} */}
+              {/* <PricingRow item={item} /> */}
             </div>
-            <ItemImages item={item} />
+            {/* <ItemImages item={item} /> */}
           </div>
 
-          <FulfillmentFiles files={item.fulfillmentFiles ?? {}} />
+          <FulfillmentFiles
+            files={item.fulfillmentFiles ?? {}}
+            previewImageUrl={item.snapshotImageUrl}
+          />
           {item.costCenter ? (
             <CostCenterInfo costCenter={item.costCenter} />
           ) : null}
@@ -358,69 +382,6 @@ function ItemCard({ item }: { item: OrderDetailItem }) {
         <CustomizationOptions options={item.customizationOptions ?? []} />
       </div>
     </article>
-  );
-}
-
-function PricingRow({ item }: { item: OrderDetailItem }) {
-  const rows = [
-    { label: "Unit price", value: formatCurrency(item.unitPrice, item.currency) },
-    {
-      label: "Total customization",
-      value: formatCurrency(item.totalCustomizationPrice, item.currency),
-    },
-  ].filter((row) => hasText(row.value));
-
-  if (!rows.length) {
-    return null;
-  }
-
-  return (
-    <div className="mt-2 flex flex-wrap gap-4 text-[11px]">
-      {rows.map((row) => (
-        <span key={row.label}>
-          <span className="text-[var(--text-muted)]">{row.label} </span>
-          <span className="font-semibold text-[var(--text-primary)]">
-            {row.value}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function ItemImages({ item }: { item: OrderDetailItem }) {
-  const images = [
-    { label: "Product", url: item.listing?.productImageUrl },
-    { label: "Base", url: item.baseImageUrl },
-    { label: "Preview", url: item.snapshotImageUrl },
-  ].filter((image): image is { label: string; url: string } => hasText(image.url));
-
-  if (!images.length) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2 lg:justify-end">
-      {images.map((image) => (
-        <div className="flex flex-col items-center gap-1" key={image.label}>
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)]">
-            <img
-              alt={image.label}
-              className="h-full w-full object-cover"
-              loading="lazy"
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-                event.currentTarget.parentElement?.classList.add("broken-img");
-              }}
-              src={image.url}
-            />
-          </div>
-          <span className="text-[9px] text-[var(--text-muted)]">
-            {image.label}
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -456,25 +417,67 @@ function CustomizationOptions({
   );
 }
 
-function FulfillmentFiles({ files }: { files: PortalFileLinks }) {
+function FulfillmentFiles({
+  files,
+  previewImageUrl,
+}: {
+  files: PortalFileLinks;
+  previewImageUrl?: string | null;
+}) {
   const entries = Object.entries(files).filter(([, url]) => hasText(url));
-  if (!entries.length) {
+  const images = [
+    ...(hasText(previewImageUrl)
+      ? [{ label: "Preview", url: previewImageUrl, preview: true }]
+      : []),
+    ...entries.map(([side, url]) => ({
+      label: side,
+      url,
+      preview: false,
+    })),
+  ];
+
+  if (!images.length) {
     return null;
   }
 
   return (
     <ItemSubsection icon={<ExternalLink />} title="Fulfillment files">
       <div className="flex flex-wrap gap-2">
-        {entries.map(([side, url]) => (
+        {images.map((image) => (
           <a
-            className="inline-flex items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)]"
-            href={url}
-            key={side}
+            className="group w-32 overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] transition-colors hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)]"
+            href={image.url}
+            key={`${image.label}-${image.url}`}
             rel="noreferrer"
             target="_blank"
           >
-            <ExternalLink className="h-3 w-3 text-[var(--brand)]" aria-hidden />
-            {side}
+            <div className="flex  w-full items-center justify-center overflow-hidden bg-[var(--bg-surface2)]">
+              <img
+                alt={
+                  image.preview
+                    ? "Preview image"
+                    : `${image.label} fulfillment image`
+                }
+                className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.03]"
+                loading="lazy"
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                  event.currentTarget.parentElement?.classList.add(
+                    "broken-img",
+                  );
+                }}
+                src={image.url}
+              />
+            </div>
+            <div className="flex min-w-0 items-center justify-between gap-1 border-t border-[var(--border)] px-1.5 py-1">
+              <span className="truncate text-[10px] font-medium capitalize text-[var(--text-primary)]">
+                {image.label}
+              </span>
+              <ExternalLink
+                className="h-3 w-3 shrink-0 text-[var(--brand)]"
+                aria-hidden
+              />
+            </div>
           </a>
         ))}
       </div>
@@ -744,12 +747,21 @@ function KeyValue({
   );
 }
 
-function SkuBadge({ value }: { value: string }) {
-  return (
-    <span className="rounded-full bg-[var(--brand-light)] px-2 py-0.5 font-mono text-[10px] font-semibold text-[var(--brand-dark)]">
-      {value}
-    </span>
+function summarizeUniqueItemValues(values: Array<string | null | undefined>) {
+  const uniqueValues = Array.from(
+    new Set(values.filter((value): value is string => hasText(value))),
   );
+
+  if (!uniqueValues.length) {
+    return null;
+  }
+
+  const visibleValues = uniqueValues.slice(0, 3);
+  const hiddenCount = uniqueValues.length - visibleValues.length;
+
+  return hiddenCount > 0
+    ? `${visibleValues.join(", ")} +${hiddenCount} more`
+    : visibleValues.join(", ");
 }
 
 function SmallBadge({
@@ -880,7 +892,10 @@ function formatShortDate(value: string) {
   }).format(date);
 }
 
-function formatCurrency(value: string | null | undefined, currency?: string | null) {
+function formatCurrency(
+  value: string | null | undefined,
+  currency?: string | null,
+) {
   if (!hasText(value)) {
     return null;
   }
