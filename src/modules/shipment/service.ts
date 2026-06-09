@@ -12,20 +12,22 @@ import {
   type CreateCarrierShipmentInput,
 } from "@/modules/carrier";
 import { AppError } from "@/shared/errors";
+import { createSafeTimingLogger } from "@/shared/timing";
 import {
   countShipments,
-  createInternalShipmentForOrder,
+  cancelDirectYunShipmentRecords,
+  createDirectShipmentSuccessRecords,
   createDraftShipmentRecord,
   findOrderForDraftShipment,
+  getDirectCancelYunPreparation,
+  getDirectShipOrderPreparation,
   getLatestShipmentForOrder,
   getOrderWorkflowState,
-  getOrderShipmentPreparation,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
   updateOrderWorkflowStatus,
-  updateShipmentCancelled,
   updateShipmentExecutionFailed,
   updateShipmentExecutionStarted,
   updateShipmentExecutionSucceeded,
@@ -61,35 +63,6 @@ const DIRECT_SHIP_ORDER_STATUSES = ["FULFILLED", "READY_TO_SHIP"] as const;
 const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
 const YUN_TEST_BASE_URL = "http://omsapi.uat.yunexpress.com/";
 const YUN_LIVE_BASE_URL = "http://oms.api.yunexpress.com/";
-
-function createShipmentTimingLogger(
-  action: string,
-  context: Record<string, string | number | boolean | null | undefined>,
-) {
-  const enabled = process.env.SHIPMENT_TIMING_LOGS === "true";
-  const startedAt = Date.now();
-  let previousAt = startedAt;
-
-  return (
-    step: string,
-    metadata: Record<string, string | number | boolean | null | undefined> = {},
-  ) => {
-    if (!enabled) {
-      return;
-    }
-
-    const now = Date.now();
-    console.info("[shipment-timing]", {
-      action,
-      step,
-      elapsedMs: now - startedAt,
-      stepMs: now - previousAt,
-      ...context,
-      ...metadata,
-    });
-    previousAt = now;
-  };
-}
 
 export async function createDraftShipment(
   tenantId: string,
@@ -195,10 +168,10 @@ export async function shipOrderWithYun(
   input: ShipOrderInput,
   actor: ShipmentActor,
 ): Promise<ShipOrderResult> {
-  const timing = createShipmentTimingLogger("shipOrderWithYun", {
+  const timing = createSafeTimingLogger("shipOrderWithYun", {
     orderId: input.orderId,
   });
-  const order = await getOrderShipmentPreparation(tenantId, input.orderId);
+  const order = await getDirectShipOrderPreparation(tenantId, input.orderId);
   timing("orderLoaded", {
     found: Boolean(order),
     itemCount: order?.items.length ?? 0,
@@ -224,50 +197,96 @@ export async function shipOrderWithYun(
     throw new AppError("CONFLICT", "Order must have items.", 409);
   }
 
-  const shipment = await createInternalShipmentForOrder({
+  const adapter = getCarrierAdapter("YUNEXPRESS_OMS");
+  const runtimeCredentials = applyYunEnvironmentOverride(
+    await resolveCarrierRuntimeCredentials(tenantId, "YUNEXPRESS_OMS", null),
+    input.environment,
+  );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+  });
+
+  const carrierInput = buildCreateCarrierShipmentInputFromDirectOrder(
+    tenantId,
+    order,
+    "YUNEXPRESS_OMS",
+    runtimeCredentials.carrierAccountId ?? null,
+    input.options,
+  );
+  timing("carrierInputBuilt", {
+    itemCount: carrierInput.items.length,
+  });
+
+  let carrierResult;
+  try {
+    carrierResult = await adapter.createShipment(carrierInput, {
+      tenantId,
+      credentials: runtimeCredentials,
+    });
+    timing("carrierCreateCompleted", {
+      trackingPresent: Boolean(carrierResult.trackingNumber),
+      labelPresent: Boolean(carrierResult.labelUrl),
+    });
+  } catch (error) {
+    throw mapCarrierErrorToAppError(error);
+  }
+
+  const successStatus = carrierResult.labelUrl
+    ? "LABEL_READY"
+    : carrierResult.trackingNumber
+      ? "TRACKING_PENDING"
+      : "CREATED";
+  const shipment = await createDirectShipmentSuccessRecords({
     tenantId,
     orderId: order.id,
     items: order.items.map((item) => ({
       orderItemId: item.id,
       quantity: item.quantity,
     })),
+    status: successStatus,
+    carrierCode: carrierResult.carrierCode,
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+    carrierShipmentId: carrierResult.carrierShipmentId,
+    trackingNumber: carrierResult.trackingNumber ?? null,
+    labelUrl: carrierResult.labelUrl ?? null,
+    metadata: carrierResult.metadata?.safe
+      ? {
+          carrier: {
+            ...carrierResult.metadata.safe,
+            environmentMode: input.environment,
+          },
+        }
+      : undefined,
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
-  timing("internalShipmentCreated", {
+  timing("directShipmentRecordsCreated", {
     shipmentStatus: shipment.status,
-    itemCount: shipment.items.length,
+    trackingPresent: Boolean(shipment.trackingNumber),
+    labelPresent: Boolean(shipment.labelUrl),
   });
 
-  const result = await executeShipment(
-    tenantId,
-    shipment.id,
-    {
-      carrierCode: "YUNEXPRESS_OMS",
-      carrierAccountId: null,
-      environment: input.environment,
-      options: input.options,
-    },
-    actor,
-  );
-  timing("carrierExecutionCompleted", {
-    shipmentStatus: result.shipment.status,
-    trackingPresent: Boolean(result.shipment.trackingNumber),
-    labelPresent: Boolean(result.shipment.labelUrl),
-  });
-
-  await updateOrderWorkflowStatus({
-    tenantId,
-    orderId: order.id,
-    status: "IN_PROCESSING",
-    note: "YunExpress shipment created. Waiting for ship confirmation.",
-    actorType: actor.actorType,
-    actorId: actor.actorId,
-  });
-  timing("orderStatusUpdated", { orderStatus: "IN_PROCESSING" });
+  if (actor.actorType === "USER" && actor.actorId) {
+    await recordUserAuditLog({
+      tenantId,
+      actorUserId: actor.actorId,
+      action: "SHIPMENT_EXECUTED",
+      resourceType: "Shipment",
+      resourceId: shipment.id,
+      metadata: {
+        shipmentId: shipment.id,
+        carrierCode: carrierResult.carrierCode,
+        carrierShipmentId: carrierResult.carrierShipmentId,
+        trackingNumber: carrierResult.trackingNumber ?? null,
+      },
+    });
+    timing("auditRecorded", { action: "SHIPMENT_EXECUTED" });
+  }
 
   return {
-    ...result,
+    shipment,
+    carrierCode: "YUNEXPRESS_OMS",
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
     orderId: order.id,
     orderStatus: "IN_PROCESSING",
     environment: input.environment,
@@ -352,27 +371,23 @@ export async function cancelOrderYunShipment(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<CancelOrderYunResult> {
-  const timing = createShipmentTimingLogger("cancelOrderYunShipment", {
+  const timing = createSafeTimingLogger("cancelOrderYunShipment", {
     orderId,
   });
-  const orderState = await getOrderWorkflowState(tenantId, orderId);
-  timing("orderStateLoaded", {
-    found: Boolean(orderState),
-    orderStatus: orderState?.status ?? null,
+  const preparation = await getDirectCancelYunPreparation(tenantId, orderId);
+  timing("cancelPreparationLoaded", {
+    found: Boolean(preparation),
+    orderStatus: preparation?.status ?? null,
+    shipmentStatus: preparation?.shipment?.status ?? null,
+    carrierCode: preparation?.shipment?.carrierCode ?? null,
   });
 
-  if (!orderState) {
+  if (!preparation) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
   }
 
-  assertOrderCanBeCancelled(orderState);
-
-  const shipment = await getLatestShipmentForOrder(tenantId, orderId);
-  timing("latestShipmentLoaded", {
-    found: Boolean(shipment),
-    shipmentStatus: shipment?.status ?? null,
-    carrierCode: shipment?.carrierCode ?? null,
-  });
+  assertOrderCanBeCancelled(preparation);
+  const shipment = preparation.shipment;
 
   if (!shipment) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
@@ -405,8 +420,9 @@ export async function cancelOrderYunShipment(
     environmentMode: environment,
   });
 
+  let carrierResult;
   try {
-    await adapter.cancelShipment(
+    carrierResult = await adapter.cancelShipment(
       {
         tenantId,
         shipmentId: shipment.id,
@@ -424,11 +440,13 @@ export async function cancelOrderYunShipment(
     throw mapCarrierErrorToAppError(error);
   }
 
-  const updatedShipment = await updateShipmentCancelled({
+  const updatedShipment = await cancelDirectYunShipmentRecords({
     tenantId,
+    orderId,
     shipmentId: shipment.id,
     metadata: {
       carrier: {
+        ...(carrierResult.metadata?.safe ?? {}),
         environmentMode: environment,
         cancelled: true,
       },
@@ -436,19 +454,9 @@ export async function cancelOrderYunShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
-  timing("shipmentMarkedCancelled", {
+  timing("directCancelRecordsUpdated", {
     shipmentStatus: updatedShipment.status,
   });
-
-  await updateOrderWorkflowStatus({
-    tenantId,
-    orderId,
-    status: "CANCELLED",
-    note: "YunExpress shipment cancelled.",
-    actorType: actor.actorType,
-    actorId: actor.actorId,
-  });
-  timing("orderStatusUpdated", { orderStatus: "CANCELLED" });
 
   return {
     orderId,
@@ -462,7 +470,7 @@ export async function resetCancelledOrder(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<ResetCancelledOrderResult> {
-  const timing = createShipmentTimingLogger("resetCancelledOrder", {
+  const timing = createSafeTimingLogger("resetCancelledOrder", {
     orderId,
   });
   const result = await resetCancelledOrderRecords({
@@ -603,7 +611,7 @@ export async function executeShipment(
   input: ExecuteShipmentInput,
   actor: ShipmentActor,
 ): Promise<ExecuteShipmentResult> {
-  const timing = createShipmentTimingLogger("executeShipment", {
+  const timing = createSafeTimingLogger("executeShipment", {
     shipmentId,
     carrierCode: input.carrierCode,
     environmentMode: input.environment ?? null,
@@ -1154,6 +1162,87 @@ function buildCreateCarrierShipmentInputFromPreparation(
   };
 }
 
+function buildCreateCarrierShipmentInputFromDirectOrder(
+  tenantId: string,
+  order: NonNullable<Awaited<ReturnType<typeof getDirectShipOrderPreparation>>>,
+  carrierCode: string,
+  carrierAccountId: string | null,
+  options?: ExecuteShipmentInput["options"],
+): CreateCarrierShipmentInput {
+  const parcelOverrideByOrderItemId = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.orderItemId)
+      .map((parcel) => [parcel.orderItemId as string, parcel]) ?? [],
+  );
+  const parcelOverrideBySku = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.sku)
+      .map((parcel) => [parcel.sku as string, parcel]) ?? [],
+  );
+
+  return {
+    tenantId,
+    shipmentId: order.id,
+    orderId: order.id,
+    externalOrderId: order.externalOrderId,
+    orderNumber: order.orderNumber,
+    carrierCode,
+    carrierAccountId,
+    recipient: {
+      name: order.recipientName ?? undefined,
+      phone: order.recipientPhone ?? undefined,
+      email: order.recipientEmail ?? undefined,
+      line1: jsonString(order.recipientAddress, "line1"),
+      line2: jsonString(order.recipientAddress, "line2"),
+      city: jsonString(order.recipientAddress, "city"),
+      state: jsonString(order.recipientAddress, "state"),
+      postalCode: jsonString(order.recipientAddress, "postalCode"),
+      country:
+        jsonString(order.recipientAddress, "country") ??
+        order.destinationCountry ??
+        undefined,
+    },
+    destinationCountry: order.destinationCountry,
+    items: order.items.map((item) =>
+      buildCarrierShipmentItemInputFromOrderItem(
+        item,
+        parcelOverrideByOrderItemId.get(item.id) ??
+          (item.sku ? parcelOverrideBySku.get(item.sku) : undefined),
+      ),
+    ),
+    metadata: {
+      source: "direct_order_ship",
+      ...(options?.shippingMethodCode
+        ? { shippingMethodCode: options.shippingMethodCode }
+        : {}),
+      ...(options?.sourceCode ? { sourceCode: options.sourceCode } : {}),
+      ...(options?.receiverCompany
+        ? { receiverCompany: options.receiverCompany }
+        : {}),
+      ...(options?.weight !== undefined ? { weight: options.weight } : {}),
+      ...(options?.length !== undefined ? { length: options.length } : {}),
+      ...(options?.width !== undefined ? { width: options.width } : {}),
+      ...(options?.height !== undefined ? { height: options.height } : {}),
+      ...(options?.sizeUnits ? { sizeUnits: options.sizeUnits } : {}),
+      ...(options?.packageCount !== undefined
+        ? { packageCount: options.packageCount }
+        : {}),
+      ...(options?.applicationType !== undefined
+        ? { applicationType: options.applicationType }
+        : {}),
+      ...(options?.returnOption !== undefined
+        ? { returnOption: options.returnOption }
+        : {}),
+      ...(options?.tariffPrepay !== undefined
+        ? { tariffPrepay: options.tariffPrepay }
+        : {}),
+      ...(options?.insuranceOption !== undefined
+        ? { insuranceOption: options.insuranceOption }
+        : {}),
+    },
+  };
+}
+
 function buildCarrierShipmentItemInput(
   item: NonNullable<
     Awaited<ReturnType<typeof getShipmentCarrierPreparation>>
@@ -1170,6 +1259,30 @@ function buildCarrierShipmentItemInput(
     weight: override?.unitWeight ?? decimalToNumber(item.orderItem.weight),
     declaredValue:
       override?.unitPrice ?? decimalToNumber(item.orderItem.declaredValue),
+    eName: override?.eName,
+    cName: override?.cName,
+    currencyCode: override?.currencyCode,
+    invoicePart: override?.invoicePart,
+    invoiceUsage: override?.invoiceUsage,
+    remark: override?.remark,
+  };
+}
+
+function buildCarrierShipmentItemInputFromOrderItem(
+  item: NonNullable<
+    Awaited<ReturnType<typeof getDirectShipOrderPreparation>>
+  >["items"][number],
+  override: ShipParcelOverride | undefined,
+) {
+  return {
+    shipmentItemId: item.id,
+    orderItemId: item.id,
+    externalItemId: item.externalItemId,
+    sku: item.sku,
+    name: item.title ?? item.name,
+    quantity: item.quantity,
+    weight: override?.unitWeight ?? decimalToNumber(item.weight),
+    declaredValue: override?.unitPrice ?? decimalToNumber(item.declaredValue),
     eName: override?.eName,
     cName: override?.cName,
     currencyCode: override?.currencyCode,

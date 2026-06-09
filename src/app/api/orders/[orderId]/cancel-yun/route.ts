@@ -1,7 +1,7 @@
 import type { TenantRole } from "@prisma/client";
 import { cancelOrderYunShipment } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
-import { getCurrentUserWithTenants } from "@/shared/auth/context";
+import { requireTenantActor } from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
 import {
   RATE_LIMIT_POLICIES,
@@ -10,6 +10,7 @@ import {
   getClientIp,
   rateLimitOrThrow,
 } from "@/shared/security";
+import { createSafeTimingLogger } from "@/shared/timing";
 
 const ORDER_CANCEL_ROLES: TenantRole[] = ["OWNER", "ADMIN", "OPERATOR"];
 
@@ -17,8 +18,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ orderId: string }> },
 ) {
+  const timing = createSafeTimingLogger("orderCancelYunRoute");
   try {
-    const context = await requireCurrentTenantContext(ORDER_CANCEL_ROLES);
+    const context = await requireTenantActor(ORDER_CANCEL_ROLES);
+    timing("contextLoaded");
     assertSameOriginRequest(request);
     rateLimitOrThrow({
       key: buildRateLimitKey(
@@ -29,42 +32,27 @@ export async function POST(
       ),
       ...RATE_LIMIT_POLICIES.dashboardMutation,
     });
+    timing("guardsPassed");
 
     const { orderId } = await params;
+    timing("paramsResolved");
     const result = await cancelOrderYunShipment(context.tenantId, orderId, {
       actorType: "USER",
       actorId: context.actorUserId,
     });
+    timing("serviceCompleted", {
+      shipmentStatus: result.shipment.status,
+      orderStatus: result.orderStatus,
+    });
 
     return ok(result);
   } catch (error) {
+    timing("failed", {
+      code: error instanceof AppError ? error.code : "INTERNAL_ERROR",
+      status: error instanceof AppError ? error.status : 500,
+    });
     return handleOrderShipmentActionError(error);
   }
-}
-
-async function requireCurrentTenantContext(allowedRoles: TenantRole[]) {
-  const context = await getCurrentUserWithTenants();
-
-  if (!context) {
-    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
-  }
-
-  const tenant = context.tenants.find(
-    (membership) => membership.membershipStatus === "ACTIVE",
-  );
-
-  if (!tenant) {
-    throw new AppError("FORBIDDEN", "Tenant access denied.", 403);
-  }
-
-  if (!allowedRoles.includes(tenant.role)) {
-    throw new AppError("FORBIDDEN", "Insufficient tenant role.", 403);
-  }
-
-  return {
-    actorUserId: context.user.id,
-    tenantId: tenant.tenantId,
-  };
 }
 
 function handleOrderShipmentActionError(error: unknown) {

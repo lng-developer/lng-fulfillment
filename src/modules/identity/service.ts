@@ -1,3 +1,4 @@
+import type { TenantRole } from "@prisma/client";
 import { AppError } from "@/shared/errors";
 import {
   generateSessionToken,
@@ -12,6 +13,7 @@ import {
   createSession,
   deleteSessionByTokenHash,
   findSessionContextByTokenHash,
+  findTenantAccessSessionByTokenHash,
   findUserByEmail,
   findUserWithPasswordById,
   getUserPlatformAdmin,
@@ -214,6 +216,54 @@ export async function getCurrentSession(
       }),
     ),
     platformAdmin: session.user.platformAdmin,
+  };
+}
+
+export async function getCurrentTenantAccessSession(
+  rawToken: string | undefined,
+  allowedRoles?: TenantRole[],
+): Promise<{
+  actorUserId: string;
+  tenantId: string;
+  role: TenantRole;
+}> {
+  if (!rawToken) {
+    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
+  }
+
+  const tokenHash = hashSessionToken(rawToken);
+  const session = await findTenantAccessSessionByTokenHash(tokenHash);
+
+  if (!session) {
+    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
+  }
+
+  if (session.expiresAt.getTime() <= Date.now()) {
+    await deleteSessionByTokenHash(tokenHash);
+    throw new AppError("UNAUTHORIZED", "Session expired.", 401);
+  }
+
+  if (session.user.status === "DISABLED") {
+    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
+  }
+
+  if (shouldUpdateSessionLastUsed(session.lastUsedAt)) {
+    await updateSessionLastUsed(tokenHash);
+  }
+
+  const membership = session.user.memberships[0];
+  if (!membership) {
+    throw new AppError("FORBIDDEN", "Tenant access denied.", 403);
+  }
+
+  if (allowedRoles?.length && !allowedRoles.includes(membership.role)) {
+    throw new AppError("FORBIDDEN", "Insufficient tenant role.", 403);
+  }
+
+  return {
+    actorUserId: session.user.id,
+    tenantId: membership.tenantId,
+    role: membership.role,
   };
 }
 

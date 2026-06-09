@@ -1,12 +1,9 @@
 "use client";
 
-import { Loader2, Package, Truck, UserRound, X } from "lucide-react";
+import { Package, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getErrorMessage } from "@/lib/api/base";
-import { shipOrder } from "@/lib/api/orders";
-import { toastError, toastSuccess } from "@/lib/toast";
 import type {
   OrderDetail,
   OrderDetailItem,
@@ -75,24 +72,23 @@ export type ShipmentPreview = {
   >;
 };
 
-type ShipOrderMutationResult = Awaited<ReturnType<typeof shipOrder>> & {
-  orderId: string;
-  orderStatus: string;
+export type ShipOrderSubmitInput = {
+  environment: ShipEnvironment;
+  options: ShipOrderOptions;
 };
 
 export function ShipOrderModal({
   order,
   detail,
   onClose,
-  onSuccess,
+  onSubmit,
 }: {
   order: OrderListItem;
   detail: OrderDetail | null;
   onClose: () => void;
-  onSuccess: (result: ShipOrderMutationResult) => void;
+  onSubmit: (input: ShipOrderSubmitInput) => void;
 }) {
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const preview = useMemo(() => buildShipmentPreview(order, detail), [detail, order]);
   const [shippingMethodCode, setShippingMethodCode] = useState(
@@ -100,6 +96,7 @@ export function ShipOrderModal({
   );
   const [packageValues, setPackageValues] = useState(preview.package);
   const [parcels, setParcels] = useState(preview.parcels);
+  const controlsDisabled = hasSubmitted;
 
   useEffect(() => {
     setShippingMethodCode(preview.shippingMethodCode);
@@ -107,8 +104,8 @@ export function ShipOrderModal({
     setParcels(preview.parcels);
   }, [preview]);
 
-  const handleSubmit = async () => {
-    if (isSubmitting || hasSubmitted) {
+  const handleSubmit = () => {
+    if (hasSubmitted) {
       return;
     }
 
@@ -120,27 +117,8 @@ export function ShipOrderModal({
     );
 
     setHasSubmitted(true);
-    setIsSubmitting(true);
-    try {
-      const result = await shipOrder(order.id, environment, options);
-      toastSuccess("Shipment created successfully.");
-      onSuccess({
-        ...result,
-        orderId: order.id,
-        orderStatus: result.orderStatus ?? "IN_PROCESSING",
-      });
-      onClose();
-    } catch (error) {
-      toastError(getErrorMessage(error));
-      setIsSubmitting(false);
-    }
+    onSubmit({ environment, options });
   };
-
-  const closeIfAllowed = useCallback(() => {
-    if (!isSubmitting) {
-      onClose();
-    }
-  }, [isSubmitting, onClose]);
 
   function updateParcel(index: number, patch: Partial<(typeof parcels)[number]>) {
     setParcels((current) =>
@@ -160,7 +138,7 @@ export function ShipOrderModal({
       className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          closeIfAllowed();
+          onClose();
         }
       }}
       role="dialog"
@@ -183,7 +161,6 @@ export function ShipOrderModal({
           <button
             aria-label="Close shipment modal"
             className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:opacity-50"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -203,7 +180,7 @@ export function ShipOrderModal({
                   <div>
                     <select
                       className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 font-mono text-[11px] text-[var(--text-primary)]"
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       onChange={(event) => setShippingMethodCode(event.target.value)}
                       value={shippingMethodCode}
                     >
@@ -241,61 +218,61 @@ export function ShipOrderModal({
             <ModalSection icon={<Package />} title="Package">
               <div className="grid gap-2 md:grid-cols-5">
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="Weight"
                   onChange={(value) => updatePackage({ weight: value ?? 0 })}
                   value={packageValues.weight}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="Length"
                   onChange={(value) => updatePackage({ length: value ?? 0 })}
                   value={packageValues.length}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="Width"
                   onChange={(value) => updatePackage({ width: value ?? 0 })}
                   value={packageValues.width}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="Height"
                   onChange={(value) => updatePackage({ height: value ?? 0 })}
                   value={packageValues.height}
                 />
                 <TextInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="SizeUnits"
                   onChange={(value) => updatePackage({ sizeUnits: value })}
                   value={packageValues.sizeUnits}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="PackageCount"
                   onChange={(value) => updatePackage({ packageCount: value ?? 1 })}
                   value={packageValues.packageCount}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="ApplicationType"
                   onChange={(value) => updatePackage({ applicationType: value ?? 0 })}
                   value={packageValues.applicationType}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="ReturnOption"
                   onChange={(value) => updatePackage({ returnOption: value ?? 0 })}
                   value={packageValues.returnOption}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="TariffPrepay"
                   onChange={(value) => updatePackage({ tariffPrepay: value ?? 0 })}
                   value={packageValues.tariffPrepay}
                 />
                 <NumberInput
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   label="InsuranceOption"
                   onChange={(value) =>
                     updatePackage({ insuranceOption: value ?? 0 })
@@ -321,7 +298,7 @@ export function ShipOrderModal({
                       </label>
                       <select
                         className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 text-[11px]"
-                        disabled={isSubmitting}
+                        disabled={controlsDisabled}
                         onChange={(event) => {
                           const option = PRODUCT_OPTIONS.find(
                             (item) => item.eName === event.target.value,
@@ -347,19 +324,19 @@ export function ShipOrderModal({
                   <div className="grid gap-2 md:grid-cols-4">
                     <Field label="Quantity" mono value={parcel.quantity} />
                     <NumberInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="UnitPrice"
                       onChange={(value) => updateParcel(index, { unitPrice: value })}
                       value={parcel.unitPrice}
                     />
                     <NumberInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="UnitWeight"
                       onChange={(value) => updateParcel(index, { unitWeight: value })}
                       value={parcel.unitWeight}
                     />
                     <TextInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="CurrencyCode"
                       onChange={(value) =>
                         updateParcel(index, { currencyCode: value.toUpperCase() })
@@ -367,19 +344,19 @@ export function ShipOrderModal({
                       value={parcel.currencyCode}
                     />
                     <TextInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="InvoicePart"
                       onChange={(value) => updateParcel(index, { invoicePart: value })}
                       value={parcel.invoicePart ?? ""}
                     />
                     <TextInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="InvoiceUsage"
                       onChange={(value) => updateParcel(index, { invoiceUsage: value })}
                       value={parcel.invoiceUsage ?? ""}
                     />
                     <TextInput
-                      disabled={isSubmitting}
+                      disabled={controlsDisabled}
                       label="Remark"
                       onChange={(value) => updateParcel(index, { remark: value })}
                       value={parcel.remark}
@@ -392,7 +369,7 @@ export function ShipOrderModal({
 
           <ModalSection className="mt-3" icon={<Truck />} title="Environment">
             <EnvironmentSelector
-              disabled={isSubmitting}
+              disabled={controlsDisabled}
               onChange={setEnvironment}
               value={environment}
             />
@@ -402,7 +379,6 @@ export function ShipOrderModal({
         <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
           <button
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] disabled:opacity-50"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -410,13 +386,9 @@ export function ShipOrderModal({
           </button>
           <button
             className="inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isSubmitting || hasSubmitted}
             onClick={handleSubmit}
             type="button"
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
             Create shipment
           </button>
         </div>

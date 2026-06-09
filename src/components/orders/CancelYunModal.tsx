@@ -1,53 +1,27 @@
 "use client";
 
 import type React from "react";
-import { AlertTriangle, Loader2, X } from "lucide-react";
-import { useCallback, useState } from "react";
-import { getErrorMessage } from "@/lib/api/base";
-import { cancelYunShipment } from "@/lib/api/orders";
-import { toastError, toastSuccess } from "@/lib/toast";
+import { AlertTriangle, X } from "lucide-react";
+import { useState } from "react";
 import type { OrderDetail, OrderListItem } from "@/types/orders";
 
 export function CancelYunModal({
   order,
   detail,
   onClose,
-  onSuccess,
+  onConfirm,
 }: {
   order: OrderListItem;
   detail: OrderDetail | null;
   onClose: () => void;
-  onSuccess: (result: Awaited<ReturnType<typeof cancelYunShipment>>) => void;
+  onConfirm: () => void;
 }) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasConfirmed, setHasConfirmed] = useState(false);
   const latestShipment = detail?.shipments?.[0] ?? null;
   const trackingNumber =
     order.trackingNumber ?? order.latestTrackingNumber ?? latestShipment?.trackingNumber ?? null;
   const waybill =
     order.carrierShipmentId ?? latestShipment?.carrierShipmentId ?? trackingNumber ?? "-";
-
-  const closeIfAllowed = useCallback(() => {
-    if (!isSubmitting) {
-      onClose();
-    }
-  }, [isSubmitting, onClose]);
-
-  async function handleCancel() {
-    if (isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await cancelYunShipment(order.id);
-      toastSuccess("YunExpress shipment cancelled.");
-      onSuccess(result);
-      onClose();
-    } catch (error) {
-      toastError(getErrorMessage(error));
-      setIsSubmitting(false);
-    }
-  }
 
   return (
     <div
@@ -55,7 +29,7 @@ export function CancelYunModal({
       className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          closeIfAllowed();
+          onClose();
         }
       }}
       role="dialog"
@@ -78,7 +52,6 @@ export function CancelYunModal({
           <button
             aria-label="Close cancel YunExpress modal"
             className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:opacity-50"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -102,7 +75,6 @@ export function CancelYunModal({
             autoFocus
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] disabled:opacity-50"
             data-autofocus="true"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -110,13 +82,17 @@ export function CancelYunModal({
           </button>
           <button
             className="inline-flex h-9 items-center gap-2 rounded-sm border border-[#b91c1c] bg-[var(--danger)] px-3 text-xs font-medium text-white hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isSubmitting}
-            onClick={handleCancel}
+            disabled={hasConfirmed}
+            onClick={() => {
+              if (hasConfirmed) {
+                return;
+              }
+
+              setHasConfirmed(true);
+              onConfirm();
+            }}
             type="button"
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
             Cancel Yun shipment
           </button>
         </div>

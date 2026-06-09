@@ -4,6 +4,7 @@ import type { TenantRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import {
   getCurrentSession,
+  getCurrentTenantAccessSession,
   getTenantMembershipsForUser,
   type AuthResponseData,
   type SafeUser,
@@ -16,6 +17,12 @@ import { SESSION_COOKIE_NAME } from "./session-cookie";
 export type TenantAccessContext = {
   user: SafeUser;
   tenant: TenantMembershipSummary;
+};
+
+export type TenantActorContext = {
+  actorUserId: string;
+  tenantId: string;
+  role: TenantRole;
 };
 
 export async function getSessionTokenFromCookies(): Promise<
@@ -83,6 +90,13 @@ export async function requireTenantAccess(
     user: context.user,
     tenant: membership,
   };
+}
+
+export async function requireTenantActor(
+  allowedRoles?: TenantRole[],
+): Promise<TenantActorContext> {
+  const token = await getSessionTokenFromCookies();
+  return getCurrentTenantAccessSession(token, allowedRoles);
 }
 
 export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {

@@ -9,6 +9,7 @@ import {
   Copy,
   ExternalLink,
   Inbox,
+  Loader2,
   RotateCcw,
   Search,
   Truck,
@@ -20,7 +21,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { getOrder, getOrders } from "@/lib/api/orders";
+import { cancelYunShipment, getOrder, getOrders, shipOrder } from "@/lib/api/orders";
 import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -32,7 +33,7 @@ import { ConfirmShipModal } from "./ConfirmShipModal";
 import { OrderExpandPanel } from "./OrderExpandPanel";
 import { OrderStatusSummary } from "./OrderStatusSummary";
 import { ResetOrderModal } from "./ResetOrderModal";
-import { ShipOrderModal } from "./ShipOrderModal";
+import { ShipOrderModal, type ShipOrderSubmitInput } from "./ShipOrderModal";
 
 const ORDER_STATUSES = [
   { label: "All statuses", value: "" },
@@ -71,6 +72,8 @@ type OrderMutationResult = {
   shipment?: OrderMutationShipment;
 };
 
+type PendingOrderAction = "ship" | "cancel";
+
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
   const role = roleProp ?? membership?.role ?? "VIEWER";
@@ -103,6 +106,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [confirmTarget, setConfirmTarget] = useState<OrderListItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
+  const [pendingOrderActions, setPendingOrderActions] = useState<
+    Record<string, PendingOrderAction>
+  >({});
   const detailCacheRef = useRef(detailCache);
   const detailLoadingRef = useRef(new Set<string>());
 
@@ -337,6 +343,63 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
 
   function handleOrderMutation(result: OrderMutationResult) {
     applyOrderMutation(result);
+  }
+
+  function clearPendingOrderAction(orderId: string) {
+    setPendingOrderActions((current) => {
+      if (!current[orderId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[orderId];
+      return next;
+    });
+  }
+
+  async function runShipOrderInBackground(
+    order: OrderListItem,
+    input: ShipOrderSubmitInput,
+  ) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setShipTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "ship" }));
+
+    try {
+      const result = await shipOrder(order.id, input.environment, input.options);
+      toastSuccess("Shipment created successfully.");
+      applyOrderMutation({
+        ...result,
+        orderId: result.orderId ?? order.id,
+        orderStatus: result.orderStatus ?? "IN_PROCESSING",
+      });
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
+  }
+
+  async function runCancelYunInBackground(order: OrderListItem) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setCancelTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "cancel" }));
+
+    try {
+      const result = await cancelYunShipment(order.id);
+      toastSuccess("YunExpress shipment cancelled.");
+      applyOrderMutation(result);
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
   }
 
   function applyOrderMutation(result: OrderMutationResult) {
@@ -608,6 +671,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         setShipTarget(target);
                       }}
                       order={order}
+                      pendingAction={pendingOrderActions[order.id] ?? null}
                       role={role}
                       selected={selectedIds.has(order.id)}
                       toggleRow={toggleRow}
@@ -663,7 +727,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <ShipOrderModal
           detail={detailCache[shipTarget.id] ?? null}
           onClose={() => setShipTarget(null)}
-          onSuccess={handleOrderMutation}
+          onSubmit={(input) => {
+            void runShipOrderInBackground(shipTarget, input);
+          }}
           order={shipTarget}
         />
       ) : null}
@@ -690,7 +756,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <CancelYunModal
           detail={detailCache[cancelTarget.id] ?? null}
           onClose={() => setCancelTarget(null)}
-          onSuccess={handleOrderMutation}
+          onConfirm={() => {
+            void runCancelYunInBackground(cancelTarget);
+          }}
           order={cancelTarget}
         />
       ) : null}
@@ -719,6 +787,7 @@ function OrderRows({
   onConfirm,
   onCancel,
   onReset,
+  pendingAction,
 }: {
   order: OrderListItem;
   detail: OrderDetail | null;
@@ -732,6 +801,7 @@ function OrderRows({
   onConfirm: (order: OrderListItem) => void;
   onCancel: (order: OrderListItem) => void;
   onReset: (order: OrderListItem) => void;
+  pendingAction: PendingOrderAction | null;
 }) {
   const orderIdentifier = order.orderNumber ?? order.externalOrderId;
   const shipment = getLatestShipmentInfo(order, detail);
@@ -772,7 +842,7 @@ function OrderRows({
               aria-label={`Select order ${orderIdentifier}`}
               checked={Boolean(selected)}
               className="cursor-pointer accent-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-30"
-              disabled={!can.shipOrder(role)}
+              disabled={!can.shipOrder(role) || Boolean(pendingAction)}
               onChange={() => toggleSelect(order.id)}
               type="checkbox"
             />
@@ -899,6 +969,7 @@ function OrderRows({
             onReset={() => onReset(order)}
             onShip={() => onShip(order)}
             order={order}
+            pendingAction={pendingAction}
             role={role}
           />
         </td>
@@ -925,6 +996,7 @@ function OrderActions({
   role,
   labelUrl,
   canCancelShipped,
+  pendingAction,
   onShip,
   onConfirm,
   onCancel,
@@ -934,6 +1006,7 @@ function OrderActions({
   role: Role;
   labelUrl: string | null;
   canCancelShipped: boolean;
+  pendingAction: PendingOrderAction | null;
   onShip: () => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -941,6 +1014,19 @@ function OrderActions({
 }) {
   if (!can.shipOrder(role)) {
     return null;
+  }
+
+  if (pendingAction) {
+    return (
+      <button
+        className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface2)] px-2.5 text-xs font-medium text-[var(--text-secondary)]"
+        disabled
+        type="button"
+      >
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+        {pendingAction === "ship" ? "Creating..." : "Cancelling..."}
+      </button>
+    );
   }
 
   switch (order.status) {
