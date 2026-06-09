@@ -23,6 +23,7 @@ export {
   changePassword,
   loginWithEmailPassword,
   getCurrentSession,
+  getCurrentTenantAccessSession,
   getTenantMembershipsForUser,
   logout,
   validateChangePasswordInput,

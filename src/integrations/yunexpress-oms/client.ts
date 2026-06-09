@@ -3,6 +3,7 @@ import {
   CarrierIntegrationError,
   createCarrierError,
 } from "@/modules/carrier/errors";
+import { createSafeTimingLogger } from "@/shared/timing";
 import type {
   YunExpressCreateOrderLabelPayload,
   YunExpressCreateOrderLabelResponse,
@@ -203,23 +204,39 @@ async function yunFetchJson<T>(input: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
   const fetchImpl = input.fetchImpl ?? fetch;
+  const timing = createSafeTimingLogger("yunExpressOmsClient", {
+    carrierAction: input.action,
+    method: input.init.method ?? "GET",
+    timeoutMs: input.timeoutMs,
+  });
 
   try {
+    timing("fetchStarted");
     const response = await fetchImpl(input.url, {
       ...input.init,
       signal: controller.signal,
     });
+    timing("httpResponseReceived", {
+      httpStatus: response.status,
+      ok: response.ok,
+    });
 
     if (!response.ok) {
       const carrierError = mapYunHttpFailure(input.action, response);
+      timing("httpFailureMapped", {
+        httpStatus: response.status,
+      });
       throw new CarrierIntegrationError(
         createCarrierError(carrierError),
       );
     }
 
     try {
-      return (await response.json()) as T;
+      const parsed = (await response.json()) as T;
+      timing("jsonParsed");
+      return parsed;
     } catch {
+      timing("jsonParseFailed");
       throw new CarrierIntegrationError(
         createCarrierError({
           carrierCode: "YUNEXPRESS_OMS",
@@ -238,10 +255,22 @@ async function yunFetchJson<T>(input: {
       throw error;
     }
 
+    timing("fetchFailed", {
+      errorName: getErrorName(error),
+    });
     throw mapYunFetchFailure(error, input.action, input.timeoutMs);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function getErrorName(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    typeof error.name === "string"
+    ? error.name
+    : "unknown";
 }
 
 function mapYunHttpFailure(

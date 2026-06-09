@@ -88,10 +88,12 @@ export async function shipOrder(
 ) {
   const response = await apiFetch<
     ApiSuccess<{
+      orderId: string;
       orderStatus: string;
       shipment?: {
         id?: string;
         status?: string;
+        carrierCode?: string | null;
         carrierShipmentId?: string | null;
         trackingNumber?: string | null;
         labelUrl?: string | null;
@@ -187,6 +189,16 @@ export async function shipOrdersBatch(
       results: Array<{
         orderId: string;
         success: boolean;
+        shipment?: {
+          id?: string;
+          status?: string;
+          carrierCode?: string | null;
+          carrierShipmentId?: string | null;
+          trackingNumber?: string | null;
+          labelUrl?: string | null;
+          createdAt?: string;
+          updatedAt?: string;
+        };
         error?: { message?: string; details?: unknown } | null;
       }>;
     }>
@@ -202,7 +214,10 @@ export async function shipOrdersBatch(
   return {
     succeeded: response.data.results
       .filter((item) => item.success)
-      .map((item) => item.orderId),
+      .map((item) => ({
+        orderId: item.orderId,
+        shipment: item.shipment,
+      })),
     failed: response.data.results
       .filter((item) => !item.success)
       .map((item) => ({

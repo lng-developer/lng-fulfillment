@@ -118,6 +118,37 @@ export async function findSessionContextByTokenHash(tokenHash: string) {
   });
 }
 
+export async function findTenantAccessSessionByTokenHash(tokenHash: string) {
+  return prisma.session.findUnique({
+    where: { tokenHash },
+    select: {
+      id: true,
+      expiresAt: true,
+      lastUsedAt: true,
+      user: {
+        select: {
+          id: true,
+          status: true,
+          memberships: {
+            where: {
+              status: "ACTIVE",
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+            take: 1,
+            select: {
+              tenantId: true,
+              role: true,
+              status: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 export async function deleteSessionByTokenHash(tokenHash: string) {
   await prisma.session.deleteMany({
     where: { tokenHash },

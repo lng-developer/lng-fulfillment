@@ -12,20 +12,22 @@ import {
   type CreateCarrierShipmentInput,
 } from "@/modules/carrier";
 import { AppError } from "@/shared/errors";
+import { createSafeTimingLogger } from "@/shared/timing";
 import {
   countShipments,
-  createInternalShipmentForOrder,
+  cancelDirectYunShipmentRecords,
+  createDirectShipmentSuccessRecords,
   createDraftShipmentRecord,
   findOrderForDraftShipment,
+  getDirectCancelYunPreparation,
+  getDirectShipOrderPreparation,
   getLatestShipmentForOrder,
   getOrderWorkflowState,
-  getOrderShipmentPreparation,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
   updateOrderWorkflowStatus,
-  updateShipmentCancelled,
   updateShipmentExecutionFailed,
   updateShipmentExecutionStarted,
   updateShipmentExecutionSucceeded,
@@ -166,7 +168,14 @@ export async function shipOrderWithYun(
   input: ShipOrderInput,
   actor: ShipmentActor,
 ): Promise<ShipOrderResult> {
-  const order = await getOrderShipmentPreparation(tenantId, input.orderId);
+  const timing = createSafeTimingLogger("shipOrderWithYun", {
+    orderId: input.orderId,
+  });
+  const order = await getDirectShipOrderPreparation(tenantId, input.orderId);
+  timing("orderLoaded", {
+    found: Boolean(order),
+    itemCount: order?.items.length ?? 0,
+  });
 
   if (!order) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
@@ -188,40 +197,97 @@ export async function shipOrderWithYun(
     throw new AppError("CONFLICT", "Order must have items.", 409);
   }
 
-  const shipment = await createInternalShipmentForOrder({
+  const adapter = getCarrierAdapter("YUNEXPRESS_OMS");
+  const runtimeCredentials = applyYunEnvironmentOverride(
+    await resolveCarrierRuntimeCredentials(tenantId, "YUNEXPRESS_OMS", null),
+    input.environment,
+  );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+  });
+
+  const carrierInput = buildCreateCarrierShipmentInputFromDirectOrder(
+    tenantId,
+    order,
+    "YUNEXPRESS_OMS",
+    runtimeCredentials.carrierAccountId ?? null,
+    input.options,
+  );
+  timing("carrierInputBuilt", {
+    itemCount: carrierInput.items.length,
+  });
+
+  let carrierResult;
+  try {
+    carrierResult = await adapter.createShipment(carrierInput, {
+      tenantId,
+      credentials: runtimeCredentials,
+    });
+    timing("carrierCreateCompleted", {
+      trackingPresent: Boolean(carrierResult.trackingNumber),
+      labelPresent: Boolean(carrierResult.labelUrl),
+    });
+  } catch (error) {
+    throw mapCarrierErrorToAppError(error);
+  }
+
+  const successStatus = carrierResult.labelUrl
+    ? "LABEL_READY"
+    : carrierResult.trackingNumber
+      ? "TRACKING_PENDING"
+      : "CREATED";
+  const shipment = await createDirectShipmentSuccessRecords({
     tenantId,
     orderId: order.id,
     items: order.items.map((item) => ({
       orderItemId: item.id,
       quantity: item.quantity,
     })),
+    status: successStatus,
+    carrierCode: carrierResult.carrierCode,
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+    carrierShipmentId: carrierResult.carrierShipmentId,
+    trackingNumber: carrierResult.trackingNumber ?? null,
+    labelUrl: carrierResult.labelUrl ?? null,
+    metadata: carrierResult.metadata?.safe
+      ? {
+          carrier: {
+            ...carrierResult.metadata.safe,
+            environmentMode: input.environment,
+          },
+        }
+      : undefined,
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
-
-  const result = await executeShipment(
-    tenantId,
-    shipment.id,
-    {
-      carrierCode: "YUNEXPRESS_OMS",
-      carrierAccountId: null,
-      environment: input.environment,
-      options: input.options,
-    },
-    actor,
-  );
-
-  await updateOrderWorkflowStatus({
-    tenantId,
-    orderId: order.id,
-    status: "IN_PROCESSING",
-    note: "YunExpress shipment created. Waiting for ship confirmation.",
-    actorType: actor.actorType,
-    actorId: actor.actorId,
+  timing("directShipmentRecordsCreated", {
+    shipmentStatus: shipment.status,
+    trackingPresent: Boolean(shipment.trackingNumber),
+    labelPresent: Boolean(shipment.labelUrl),
   });
+
+  if (actor.actorType === "USER" && actor.actorId) {
+    await recordUserAuditLog({
+      tenantId,
+      actorUserId: actor.actorId,
+      action: "SHIPMENT_EXECUTED",
+      resourceType: "Shipment",
+      resourceId: shipment.id,
+      metadata: {
+        shipmentId: shipment.id,
+        carrierCode: carrierResult.carrierCode,
+        carrierShipmentId: carrierResult.carrierShipmentId,
+        trackingNumber: carrierResult.trackingNumber ?? null,
+      },
+    });
+    timing("auditRecorded", { action: "SHIPMENT_EXECUTED" });
+  }
 
   return {
-    ...result,
+    shipment,
+    carrierCode: "YUNEXPRESS_OMS",
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+    orderId: order.id,
     orderStatus: "IN_PROCESSING",
     environment: input.environment,
   };
@@ -305,15 +371,23 @@ export async function cancelOrderYunShipment(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<CancelOrderYunResult> {
-  const orderState = await getOrderWorkflowState(tenantId, orderId);
+  const timing = createSafeTimingLogger("cancelOrderYunShipment", {
+    orderId,
+  });
+  const preparation = await getDirectCancelYunPreparation(tenantId, orderId);
+  timing("cancelPreparationLoaded", {
+    found: Boolean(preparation),
+    orderStatus: preparation?.status ?? null,
+    shipmentStatus: preparation?.shipment?.status ?? null,
+    carrierCode: preparation?.shipment?.carrierCode ?? null,
+  });
 
-  if (!orderState) {
+  if (!preparation) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
   }
 
-  assertOrderCanBeCancelled(orderState);
-
-  const shipment = await getLatestShipmentForOrder(tenantId, orderId);
+  assertOrderCanBeCancelled(preparation);
+  const shipment = preparation.shipment;
 
   if (!shipment) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
@@ -341,9 +415,14 @@ export async function cancelOrderYunShipment(
     ),
     environment,
   );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+    environmentMode: environment,
+  });
 
+  let carrierResult;
   try {
-    await adapter.cancelShipment(
+    carrierResult = await adapter.cancelShipment(
       {
         tenantId,
         shipmentId: shipment.id,
@@ -356,15 +435,18 @@ export async function cancelOrderYunShipment(
         credentials: runtimeCredentials,
       },
     );
+    timing("carrierCancelCompleted");
   } catch (error) {
     throw mapCarrierErrorToAppError(error);
   }
 
-  const updatedShipment = await updateShipmentCancelled({
+  const updatedShipment = await cancelDirectYunShipmentRecords({
     tenantId,
+    orderId,
     shipmentId: shipment.id,
     metadata: {
       carrier: {
+        ...(carrierResult.metadata?.safe ?? {}),
         environmentMode: environment,
         cancelled: true,
       },
@@ -372,14 +454,8 @@ export async function cancelOrderYunShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
-
-  await updateOrderWorkflowStatus({
-    tenantId,
-    orderId,
-    status: "CANCELLED",
-    note: "YunExpress shipment cancelled.",
-    actorType: actor.actorType,
-    actorId: actor.actorId,
+  timing("directCancelRecordsUpdated", {
+    shipmentStatus: updatedShipment.status,
   });
 
   return {
@@ -394,11 +470,18 @@ export async function resetCancelledOrder(
   orderId: string,
   actor: ShipmentActor,
 ): Promise<ResetCancelledOrderResult> {
+  const timing = createSafeTimingLogger("resetCancelledOrder", {
+    orderId,
+  });
   const result = await resetCancelledOrderRecords({
     tenantId,
     orderId,
     actorType: actor.actorType,
     actorId: actor.actorId,
+  });
+  timing("resetRecordsUpdated", {
+    success: Boolean(result),
+    shipmentCleared: Boolean(result?.shipment),
   });
 
   if (!result) {
@@ -432,6 +515,7 @@ export async function resetCancelledOrder(
         nextStatus: "FULFILLED",
       },
     });
+    timing("auditRecorded", { action: "ORDER_RESET_AFTER_CANCEL" });
   }
 
   return {
@@ -527,7 +611,13 @@ export async function executeShipment(
   input: ExecuteShipmentInput,
   actor: ShipmentActor,
 ): Promise<ExecuteShipmentResult> {
+  const timing = createSafeTimingLogger("executeShipment", {
+    shipmentId,
+    carrierCode: input.carrierCode,
+    environmentMode: input.environment ?? null,
+  });
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
+  timing("shipmentLoaded", { shipmentStatus: shipment.status });
 
   if (!EXECUTABLE_SHIPMENT_STATUSES.includes(shipment.status as never)) {
     throw new AppError(
@@ -545,6 +635,10 @@ export async function executeShipment(
     shipmentId,
     carrierCode: input.carrierCode,
     carrierAccountId: input.carrierAccountId,
+  });
+  timing("carrierPrepared", {
+    carrierCode: prepared.carrierCode,
+    adapterRegistered: prepared.adapterRegistered,
   });
 
   if (!prepared.adapterRegistered) {
@@ -568,9 +662,13 @@ export async function executeShipment(
     ),
     input.environment,
   );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+  });
   const resolvedCarrierAccountId =
     runtimeCredentials.carrierAccountId ?? prepared.carrierAccountId;
   const carrierPreparation = await getShipmentCarrierPreparation(tenantId, shipmentId);
+  timing("carrierPreparationLoaded", { found: Boolean(carrierPreparation) });
   if (!carrierPreparation) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
   }
@@ -591,6 +689,7 @@ export async function executeShipment(
 
   try {
     await adapter.assertCanCreateShipment?.(carrierInput, carrierContext);
+    timing("carrierCreateAsserted");
   } catch (error) {
     throw mapCarrierErrorToAppError(error);
   }
@@ -603,9 +702,14 @@ export async function executeShipment(
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
+  timing("shipmentMarkedCreating");
 
   try {
     const result = await adapter.createShipment(carrierInput, carrierContext);
+    timing("carrierCreateCompleted", {
+      trackingPresent: Boolean(result.trackingNumber),
+      labelPresent: Boolean(result.labelUrl),
+    });
     const successStatus = result.labelUrl
       ? "LABEL_READY"
       : result.trackingNumber
@@ -631,6 +735,11 @@ export async function executeShipment(
       actorType: actor.actorType,
       actorId: actor.actorId,
     });
+    timing("shipmentExecutionSucceeded", {
+      shipmentStatus: updatedShipment.status,
+      trackingPresent: Boolean(updatedShipment.trackingNumber),
+      labelPresent: Boolean(updatedShipment.labelUrl),
+    });
 
     if (actor.actorType === "USER" && actor.actorId) {
       await recordUserAuditLog({
@@ -646,6 +755,7 @@ export async function executeShipment(
           trackingNumber: result.trackingNumber ?? null,
         },
       });
+      timing("auditRecorded", { action: "SHIPMENT_EXECUTED" });
     }
 
     return {
@@ -655,6 +765,10 @@ export async function executeShipment(
     };
   } catch (error) {
     const appError = mapCarrierErrorToAppError(error);
+    timing("carrierCreateFailed", {
+      errorCode: appError.code,
+      status: appError.status,
+    });
 
     await updateShipmentExecutionFailed({
       tenantId,
@@ -674,6 +788,7 @@ export async function executeShipment(
       actorType: actor.actorType,
       actorId: actor.actorId,
     });
+    timing("shipmentExecutionFailed");
 
     if (actor.actorType === "USER" && actor.actorId) {
       await recordUserAuditLog({
@@ -688,6 +803,7 @@ export async function executeShipment(
           errorCode: appError.code,
         },
       });
+      timing("auditRecorded", { action: "SHIPMENT_EXECUTION_FAILED" });
     }
 
     throw appError;
@@ -1046,6 +1162,87 @@ function buildCreateCarrierShipmentInputFromPreparation(
   };
 }
 
+function buildCreateCarrierShipmentInputFromDirectOrder(
+  tenantId: string,
+  order: NonNullable<Awaited<ReturnType<typeof getDirectShipOrderPreparation>>>,
+  carrierCode: string,
+  carrierAccountId: string | null,
+  options?: ExecuteShipmentInput["options"],
+): CreateCarrierShipmentInput {
+  const parcelOverrideByOrderItemId = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.orderItemId)
+      .map((parcel) => [parcel.orderItemId as string, parcel]) ?? [],
+  );
+  const parcelOverrideBySku = new Map(
+    options?.parcels
+      ?.filter((parcel) => parcel.sku)
+      .map((parcel) => [parcel.sku as string, parcel]) ?? [],
+  );
+
+  return {
+    tenantId,
+    shipmentId: order.id,
+    orderId: order.id,
+    externalOrderId: order.externalOrderId,
+    orderNumber: order.orderNumber,
+    carrierCode,
+    carrierAccountId,
+    recipient: {
+      name: order.recipientName ?? undefined,
+      phone: order.recipientPhone ?? undefined,
+      email: order.recipientEmail ?? undefined,
+      line1: jsonString(order.recipientAddress, "line1"),
+      line2: jsonString(order.recipientAddress, "line2"),
+      city: jsonString(order.recipientAddress, "city"),
+      state: jsonString(order.recipientAddress, "state"),
+      postalCode: jsonString(order.recipientAddress, "postalCode"),
+      country:
+        jsonString(order.recipientAddress, "country") ??
+        order.destinationCountry ??
+        undefined,
+    },
+    destinationCountry: order.destinationCountry,
+    items: order.items.map((item) =>
+      buildCarrierShipmentItemInputFromOrderItem(
+        item,
+        parcelOverrideByOrderItemId.get(item.id) ??
+          (item.sku ? parcelOverrideBySku.get(item.sku) : undefined),
+      ),
+    ),
+    metadata: {
+      source: "direct_order_ship",
+      ...(options?.shippingMethodCode
+        ? { shippingMethodCode: options.shippingMethodCode }
+        : {}),
+      ...(options?.sourceCode ? { sourceCode: options.sourceCode } : {}),
+      ...(options?.receiverCompany
+        ? { receiverCompany: options.receiverCompany }
+        : {}),
+      ...(options?.weight !== undefined ? { weight: options.weight } : {}),
+      ...(options?.length !== undefined ? { length: options.length } : {}),
+      ...(options?.width !== undefined ? { width: options.width } : {}),
+      ...(options?.height !== undefined ? { height: options.height } : {}),
+      ...(options?.sizeUnits ? { sizeUnits: options.sizeUnits } : {}),
+      ...(options?.packageCount !== undefined
+        ? { packageCount: options.packageCount }
+        : {}),
+      ...(options?.applicationType !== undefined
+        ? { applicationType: options.applicationType }
+        : {}),
+      ...(options?.returnOption !== undefined
+        ? { returnOption: options.returnOption }
+        : {}),
+      ...(options?.tariffPrepay !== undefined
+        ? { tariffPrepay: options.tariffPrepay }
+        : {}),
+      ...(options?.insuranceOption !== undefined
+        ? { insuranceOption: options.insuranceOption }
+        : {}),
+    },
+  };
+}
+
 function buildCarrierShipmentItemInput(
   item: NonNullable<
     Awaited<ReturnType<typeof getShipmentCarrierPreparation>>
@@ -1062,6 +1259,30 @@ function buildCarrierShipmentItemInput(
     weight: override?.unitWeight ?? decimalToNumber(item.orderItem.weight),
     declaredValue:
       override?.unitPrice ?? decimalToNumber(item.orderItem.declaredValue),
+    eName: override?.eName,
+    cName: override?.cName,
+    currencyCode: override?.currencyCode,
+    invoicePart: override?.invoicePart,
+    invoiceUsage: override?.invoiceUsage,
+    remark: override?.remark,
+  };
+}
+
+function buildCarrierShipmentItemInputFromOrderItem(
+  item: NonNullable<
+    Awaited<ReturnType<typeof getDirectShipOrderPreparation>>
+  >["items"][number],
+  override: ShipParcelOverride | undefined,
+) {
+  return {
+    shipmentItemId: item.id,
+    orderItemId: item.id,
+    externalItemId: item.externalItemId,
+    sku: item.sku,
+    name: item.title ?? item.name,
+    quantity: item.quantity,
+    weight: override?.unitWeight ?? decimalToNumber(item.weight),
+    declaredValue: override?.unitPrice ?? decimalToNumber(item.declaredValue),
     eName: override?.eName,
     cName: override?.cName,
     currencyCode: override?.currencyCode,

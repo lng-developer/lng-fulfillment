@@ -6,11 +6,10 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  ChevronsDown,
-  ChevronsUp,
   Copy,
   ExternalLink,
   Inbox,
+  Loader2,
   RotateCcw,
   Search,
   Truck,
@@ -22,19 +21,19 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { getOrder, getOrders } from "@/lib/api/orders";
+import { cancelYunShipment, getOrder, getOrders, shipOrder } from "@/lib/api/orders";
 import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { OrderDetail, OrderListItem } from "@/types/orders";
+import type { BatchShipResult, OrderDetail, OrderListItem } from "@/types/orders";
 import { BatchShipModal } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
 import { ConfirmShipModal } from "./ConfirmShipModal";
 import { OrderExpandPanel } from "./OrderExpandPanel";
 import { OrderStatusSummary } from "./OrderStatusSummary";
 import { ResetOrderModal } from "./ResetOrderModal";
-import { ShipOrderModal } from "./ShipOrderModal";
+import { ShipOrderModal, type ShipOrderSubmitInput } from "./ShipOrderModal";
 
 const ORDER_STATUSES = [
   { label: "All statuses", value: "" },
@@ -73,6 +72,8 @@ type OrderMutationResult = {
   shipment?: OrderMutationShipment;
 };
 
+type PendingOrderAction = "ship" | "cancel";
+
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
   const role = roleProp ?? membership?.role ?? "VIEWER";
@@ -105,6 +106,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [confirmTarget, setConfirmTarget] = useState<OrderListItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
+  const [pendingOrderActions, setPendingOrderActions] = useState<
+    Record<string, PendingOrderAction>
+  >({});
   const detailCacheRef = useRef(detailCache);
   const detailLoadingRef = useRef(new Set<string>());
 
@@ -255,6 +259,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     [selectedIds, sortedOrders],
   );
   const overLimit = selectedIds.size > BATCH_LIMIT;
+  const allRowsExpanded =
+    sortedOrders.length > 0 &&
+    sortedOrders.every((order) => expandedRows[order.id] ?? false);
 
   const expandAll = useCallback(() => {
     setExpandedRows(Object.fromEntries(sortedOrders.map((order) => [order.id, true])));
@@ -312,26 +319,87 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     );
   }
 
-  function handleBatchSuccess(result: { succeeded: string[] }) {
+  function handleBatchSuccess(result: BatchShipResult) {
     const now = new Date().toISOString();
-    selectedOrders
-      .filter((order) => result.succeeded.includes(order.id))
-      .forEach((order) => {
-        applyOrderMutation({
-          orderId: order.id,
-          orderStatus: "IN_PROCESSING",
-          shipment: {
-            status: "CREATED",
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
+    const selectedById = new Map(selectedOrders.map((order) => [order.id, order]));
+
+    result.succeeded.forEach((success) => {
+      if (!selectedById.has(success.orderId)) {
+        return;
+      }
+
+      applyOrderMutation({
+        orderId: success.orderId,
+        orderStatus: "IN_PROCESSING",
+        shipment: success.shipment ?? {
+          status: "CREATED",
+          createdAt: now,
+          updatedAt: now,
+        },
       });
+    });
     clearSelection();
   }
 
   function handleOrderMutation(result: OrderMutationResult) {
     applyOrderMutation(result);
+  }
+
+  function clearPendingOrderAction(orderId: string) {
+    setPendingOrderActions((current) => {
+      if (!current[orderId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[orderId];
+      return next;
+    });
+  }
+
+  async function runShipOrderInBackground(
+    order: OrderListItem,
+    input: ShipOrderSubmitInput,
+  ) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setShipTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "ship" }));
+
+    try {
+      const result = await shipOrder(order.id, input.environment, input.options);
+      toastSuccess("Shipment created successfully.");
+      applyOrderMutation({
+        ...result,
+        orderId: result.orderId ?? order.id,
+        orderStatus: result.orderStatus ?? "IN_PROCESSING",
+      });
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
+  }
+
+  async function runCancelYunInBackground(order: OrderListItem) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setCancelTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "cancel" }));
+
+    try {
+      const result = await cancelYunShipment(order.id);
+      toastSuccess("YunExpress shipment cancelled.");
+      applyOrderMutation(result);
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
   }
 
   function applyOrderMutation(result: OrderMutationResult) {
@@ -492,24 +560,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <section className="overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
           {sortedOrders.length ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs text-[var(--text-secondary)]">
-              <button
-                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-                onClick={expandAll}
-                type="button"
-              >
-                <ChevronsDown className="h-[13px] w-[13px]" aria-hidden />
-                Mở tất cả
-              </button>
-              <button
-                className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-                onClick={collapseAll}
-                type="button"
-              >
-                <ChevronsUp className="h-[13px] w-[13px]" aria-hidden />
-                Đóng tất cả
-              </button>
-              <div className="mx-1 h-4 w-px bg-[var(--border)]" />
-
               {selectedIds.size > 0 ? (
                 <span>
                   Selected <strong>{selectedIds.size}</strong>/{BATCH_LIMIT}
@@ -557,7 +607,26 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                       type="checkbox"
                     />
                   </th>
-                  <th className="w-9 border-b border-[var(--border)] px-2 py-2.5" />
+                  <th className="w-9 border-b border-[var(--border)] px-2 py-2.5">
+                    <button
+                      aria-label={
+                        allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                      }
+                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] transition-colors hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!sortedOrders.length}
+                      onClick={allRowsExpanded ? collapseAll : expandAll}
+                      title={allRowsExpanded ? "Collapse all" : "Expand all"}
+                      type="button"
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "h-[13px] w-[13px] transition-transform duration-150",
+                          allRowsExpanded ? "rotate-180" : "",
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                  </th>
                   <TableHeader className="w-[180px]">Order #</TableHeader>
                   <SortableHeader
                     active={sort.key === "status"}
@@ -567,7 +636,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     Status
                   </SortableHeader>
                   <TableHeader className="w-[180px]">Recipient</TableHeader>
-                  <TableHeader className="w-[170px]">Items</TableHeader>
                   <TableHeader className="w-[150px]">Tracking</TableHeader>
                   <TableHeader className="w-[150px]">Shipment</TableHeader>
                   <SortableHeader
@@ -603,6 +671,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         setShipTarget(target);
                       }}
                       order={order}
+                      pendingAction={pendingOrderActions[order.id] ?? null}
                       role={role}
                       selected={selectedIds.has(order.id)}
                       toggleRow={toggleRow}
@@ -658,7 +727,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <ShipOrderModal
           detail={detailCache[shipTarget.id] ?? null}
           onClose={() => setShipTarget(null)}
-          onSuccess={handleOrderMutation}
+          onSubmit={(input) => {
+            void runShipOrderInBackground(shipTarget, input);
+          }}
           order={shipTarget}
         />
       ) : null}
@@ -685,7 +756,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <CancelYunModal
           detail={detailCache[cancelTarget.id] ?? null}
           onClose={() => setCancelTarget(null)}
-          onSuccess={handleOrderMutation}
+          onConfirm={() => {
+            void runCancelYunInBackground(cancelTarget);
+          }}
           order={cancelTarget}
         />
       ) : null}
@@ -714,6 +787,7 @@ function OrderRows({
   onConfirm,
   onCancel,
   onReset,
+  pendingAction,
 }: {
   order: OrderListItem;
   detail: OrderDetail | null;
@@ -727,6 +801,7 @@ function OrderRows({
   onConfirm: (order: OrderListItem) => void;
   onCancel: (order: OrderListItem) => void;
   onReset: (order: OrderListItem) => void;
+  pendingAction: PendingOrderAction | null;
 }) {
   const orderIdentifier = order.orderNumber ?? order.externalOrderId;
   const shipment = getLatestShipmentInfo(order, detail);
@@ -767,7 +842,7 @@ function OrderRows({
               aria-label={`Select order ${orderIdentifier}`}
               checked={Boolean(selected)}
               className="cursor-pointer accent-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-30"
-              disabled={!can.shipOrder(role)}
+              disabled={!can.shipOrder(role) || Boolean(pendingAction)}
               onChange={() => toggleSelect(order.id)}
               type="checkbox"
             />
@@ -833,17 +908,6 @@ function OrderRows({
           </div>
         </td>
         <td className="px-3.5 py-2.5 align-middle">
-          <span className="block truncate text-xs text-[var(--text-secondary)]">
-            {order.itemCount} items
-            {order.firstSku ? ` · ${order.firstSku}` : ""}
-          </span>
-          {order.firstItemName ? (
-            <span className="block max-w-[160px] truncate text-[10px] text-[var(--text-muted)]">
-              {order.firstItemName}
-            </span>
-          ) : null}
-        </td>
-        <td className="px-3.5 py-2.5 align-middle">
           {shipment.trackingNumber ? (
             <div className="flex items-center gap-1">
               <span className="font-mono text-[11px] text-[var(--text-secondary)]">
@@ -905,13 +969,14 @@ function OrderRows({
             onReset={() => onReset(order)}
             onShip={() => onShip(order)}
             order={order}
+            pendingAction={pendingAction}
             role={role}
           />
         </td>
       </tr>
       {isExpanded ? (
         <tr>
-          <td className="border-b border-[var(--border)] p-0" colSpan={10}>
+          <td className="border-b border-[var(--border)] p-0" colSpan={9}>
             {detailError ? (
               <div className="bg-[var(--brand-light)] px-12 py-4">
                 <ErrorState message={detailError} />
@@ -931,6 +996,7 @@ function OrderActions({
   role,
   labelUrl,
   canCancelShipped,
+  pendingAction,
   onShip,
   onConfirm,
   onCancel,
@@ -940,6 +1006,7 @@ function OrderActions({
   role: Role;
   labelUrl: string | null;
   canCancelShipped: boolean;
+  pendingAction: PendingOrderAction | null;
   onShip: () => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -947,6 +1014,19 @@ function OrderActions({
 }) {
   if (!can.shipOrder(role)) {
     return null;
+  }
+
+  if (pendingAction) {
+    return (
+      <button
+        className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface2)] px-2.5 text-xs font-medium text-[var(--text-secondary)]"
+        disabled
+        type="button"
+      >
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+        {pendingAction === "ship" ? "Creating..." : "Cancelling..."}
+      </button>
+    );
   }
 
   switch (order.status) {

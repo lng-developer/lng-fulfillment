@@ -4,6 +4,7 @@ import type { TenantRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import {
   getCurrentSession,
+  getCurrentTenantAccessSession,
   getTenantMembershipsForUser,
   type AuthResponseData,
   type SafeUser,
@@ -11,11 +12,18 @@ import {
 } from "@/modules/identity";
 import type { PlatformAdminContext } from "@/modules/platform";
 import { AppError } from "@/shared/errors";
+import { createSafeTimingLogger } from "@/shared/timing";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 
 export type TenantAccessContext = {
   user: SafeUser;
   tenant: TenantMembershipSummary;
+};
+
+export type TenantActorContext = {
+  actorUserId: string;
+  tenantId: string;
+  role: TenantRole;
 };
 
 export async function getSessionTokenFromCookies(): Promise<
@@ -83,6 +91,23 @@ export async function requireTenantAccess(
     user: context.user,
     tenant: membership,
   };
+}
+
+export async function requireTenantActor(
+  allowedRoles?: TenantRole[],
+): Promise<TenantActorContext> {
+  const timing = createSafeTimingLogger("requireTenantActor", {
+    allowedRoleCount: allowedRoles?.length ?? 0,
+  });
+  const token = await getSessionTokenFromCookies();
+  timing("cookieRead", {
+    tokenPresent: Boolean(token),
+  });
+  const context = await getCurrentTenantAccessSession(token, allowedRoles);
+  timing("tenantAccessSessionLoaded", {
+    role: context.role,
+  });
+  return context;
 }
 
 export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {

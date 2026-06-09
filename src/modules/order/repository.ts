@@ -597,13 +597,13 @@ function appendCustomizationOption(
     readOptionalString(optionSelection, "label") ??
     readOptionalString(optionSelection, "name");
 
-  if (!label && !optionValue) {
+  if (!label || !optionValue) {
     return;
   }
 
   options.push({
-    label: label ?? "",
-    value: optionValue ?? "",
+    label,
+    value: optionValue,
   });
 }
 

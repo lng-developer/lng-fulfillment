@@ -5,6 +5,7 @@ import type {
   ShipmentDetail,
   ShipmentListItem,
   ShipmentListQuery,
+  ShipmentMutationSummary,
 } from "./types";
 
 export async function findOrderForDraftShipment(
@@ -108,6 +109,119 @@ export async function getOrderShipmentPreparation(
   });
 }
 
+export async function getDirectShipOrderPreparation(
+  tenantId: string,
+  orderId: string,
+) {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      tenantId,
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      externalOrderId: true,
+      orderNumber: true,
+      status: true,
+      recipientName: true,
+      recipientPhone: true,
+      recipientEmail: true,
+      recipientAddress: true,
+      destinationCountry: true,
+      items: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        select: {
+          id: true,
+          externalItemId: true,
+          sku: true,
+          name: true,
+          title: true,
+          quantity: true,
+          weight: true,
+          declaredValue: true,
+        },
+      },
+    },
+  });
+}
+
+export async function createDirectShipmentSuccessRecords(input: {
+  tenantId: string;
+  orderId: string;
+  items: Array<{ orderItemId: string; quantity: number }>;
+  status: Extract<ShipmentStatus, "CREATED" | "LABEL_READY" | "TRACKING_PENDING">;
+  carrierCode: string;
+  carrierAccountId: string | null;
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  labelUrl: string | null;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}): Promise<ShipmentMutationSummary> {
+  const row = await prisma.$transaction(async (tx) => {
+    const shipment = await tx.shipment.create({
+      data: {
+        tenantId: input.tenantId,
+        orderId: input.orderId,
+        status: input.status,
+        carrierCode: input.carrierCode,
+        carrierAccountId: input.carrierAccountId,
+        carrierShipmentId: input.carrierShipmentId,
+        trackingNumber: input.trackingNumber,
+        labelUrl: input.labelUrl,
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+        items: {
+          create: input.items.map((item) => ({
+            tenantId: input.tenantId,
+            orderItemId: item.orderItemId,
+            quantity: item.quantity,
+          })),
+        },
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: input.status,
+            note: "YunExpress shipment created.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
+        },
+      },
+      select: shipmentMutationSummarySelect,
+    });
+
+    await tx.order.update({
+      where: {
+        id: input.orderId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: "IN_PROCESSING",
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: "IN_PROCESSING",
+            note: "YunExpress shipment created. Waiting for ship confirmation.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return shipment;
+  });
+
+  return toShipmentMutationSummary(row);
+}
+
 export async function getOrderWorkflowState(
   tenantId: string,
   orderId: string,
@@ -134,6 +248,117 @@ export async function getOrderWorkflowState(
       },
     },
   });
+}
+
+export async function getDirectCancelYunPreparation(
+  tenantId: string,
+  orderId: string,
+) {
+  const order = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      tenantId,
+    },
+    select: {
+      id: true,
+      status: true,
+      statusHistory: {
+        where: {
+          status: "SHIPPED",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+        select: {
+          createdAt: true,
+        },
+      },
+      shipments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+        select: {
+          ...shipmentDetailSelect,
+          metadata: true,
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    return null;
+  }
+
+  const shipment = order.shipments[0] ?? null;
+
+  return {
+    id: order.id,
+    status: order.status,
+    statusHistory: order.statusHistory,
+    shipment: shipment
+      ? { ...toShipmentDetail(shipment), metadata: shipment.metadata }
+      : null,
+  };
+}
+
+export async function cancelDirectYunShipmentRecords(input: {
+  tenantId: string;
+  orderId: string;
+  shipmentId: string;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}): Promise<ShipmentMutationSummary> {
+  const row = await prisma.$transaction(async (tx) => {
+    const shipment = await tx.shipment.update({
+      where: {
+        id: input.shipmentId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: "CANCELLED",
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: "CANCELLED",
+            note: "Shipment cancelled in YunExpress.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
+        },
+      },
+      select: shipmentMutationSummarySelect,
+    });
+
+    await tx.order.update({
+      where: {
+        id: input.orderId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: "CANCELLED",
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: "CANCELLED",
+            note: "YunExpress shipment cancelled.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return shipment;
+  });
+
+  return toShipmentMutationSummary(row);
 }
 
 export async function createInternalShipmentForOrder(input: {
@@ -700,6 +925,19 @@ const shipmentDetailSelect = {
   },
 } satisfies Prisma.ShipmentSelect;
 
+const shipmentMutationSummarySelect = {
+  id: true,
+  orderId: true,
+  status: true,
+  carrierCode: true,
+  carrierAccountId: true,
+  carrierShipmentId: true,
+  trackingNumber: true,
+  labelUrl: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ShipmentSelect;
+
 function toShipmentDetail(row: {
   id: string;
   orderId: string;
@@ -763,6 +1001,32 @@ function toShipmentDetail(row: {
       updatedAt: item.updatedAt,
     })),
     statusHistory: row.statusHistory,
+  };
+}
+
+function toShipmentMutationSummary(row: {
+  id: string;
+  orderId: string;
+  status: ShipmentStatus;
+  carrierCode: string | null;
+  carrierAccountId: string | null;
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  labelUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): ShipmentMutationSummary {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    status: row.status,
+    carrierCode: row.carrierCode,
+    carrierAccountId: row.carrierAccountId,
+    carrierShipmentId: row.carrierShipmentId,
+    trackingNumber: row.trackingNumber,
+    labelUrl: row.labelUrl,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 

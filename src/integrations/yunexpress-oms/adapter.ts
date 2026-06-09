@@ -13,6 +13,7 @@ import {
   type YunExpressOmsConfig,
 } from "./config";
 import { createYunExpressOmsAuthorizationHeader } from "./auth";
+import { createSafeTimingLogger } from "@/shared/timing";
 import {
   callYunExpressCreateOrderLabel,
   callYunExpressDeleteOrder,
@@ -133,10 +134,17 @@ export function createYunExpressOmsAdapter(
       input: CreateCarrierShipmentInput,
       context: CarrierAdapterContext,
     ) {
+      const timing = createSafeTimingLogger("yunExpressOmsAdapter.createShipment", {
+        carrierCode: "YUNEXPRESS_OMS",
+      });
       await assertCanCreateShipment(input, context);
+      timing("asserted");
 
       const config = getConfig(context);
       const missing = validateYunExpressLiveConfig(config);
+      timing("configResolved", {
+        missingCount: missing.length,
+      });
       if (missing.length > 0 || !config.baseUrl || !config.customerNo || !config.apiSecret) {
         throw new CarrierIntegrationError(
           createCarrierError({
@@ -153,6 +161,14 @@ export function createYunExpressOmsAdapter(
       }
 
       const payload = mapCreateShipmentToYunExpressPayload(input, config);
+      timing("payloadMapped", {
+        parcelCount: payload.Parcels.length,
+      });
+      const authorizationHeader = createYunExpressOmsAuthorizationHeader({
+        customerNo: config.customerNo,
+        apiSecret: config.apiSecret,
+      });
+      timing("authorizationPrepared");
       const response = await callYunExpressCreateOrderLabel({
         config: {
           ...config,
@@ -160,15 +176,18 @@ export function createYunExpressOmsAdapter(
           customerNo: config.customerNo,
           apiSecret: config.apiSecret,
         },
-        authorizationHeader: createYunExpressOmsAuthorizationHeader({
-          customerNo: config.customerNo,
-          apiSecret: config.apiSecret,
-        }),
+        authorizationHeader,
         payload: [payload],
         fetchImpl: options.fetchImpl,
       });
+      timing("clientReturned");
 
-      return normalizeCreateOrderLabelResponse(response);
+      const normalized = normalizeCreateOrderLabelResponse(response);
+      timing("responseNormalized", {
+        trackingPresent: Boolean(normalized.trackingNumber),
+        labelPresent: Boolean(normalized.labelUrl),
+      });
+      return normalized;
     },
     async getLabel() {
       throw new CarrierIntegrationError(
@@ -308,8 +327,14 @@ export function createYunExpressOmsAdapter(
       return tracking;
     },
     async cancelShipment(input, context) {
+      const timing = createSafeTimingLogger("yunExpressOmsAdapter.cancelShipment", {
+        carrierCode: "YUNEXPRESS_OMS",
+      });
       const config = getConfig(context);
       const missing = validateYunExpressLiveConfig(config);
+      timing("configResolved", {
+        missingCount: missing.length,
+      });
       if (missing.length > 0 || !config.baseUrl || !config.customerNo || !config.apiSecret) {
         throw new CarrierIntegrationError(
           createCarrierError({
@@ -326,6 +351,11 @@ export function createYunExpressOmsAdapter(
         );
       }
 
+      const authorizationHeader = createYunExpressOmsAuthorizationHeader({
+        customerNo: config.customerNo,
+        apiSecret: config.apiSecret,
+      });
+      timing("authorizationPrepared");
       const response = await callYunExpressDeleteOrder({
         config: {
           baseUrl: config.baseUrl,
@@ -334,16 +364,18 @@ export function createYunExpressOmsAdapter(
           lang: config.lang,
           timeoutMs: config.timeoutMs,
         },
-        authorizationHeader: createYunExpressOmsAuthorizationHeader({
-          customerNo: config.customerNo,
-          apiSecret: config.apiSecret,
-        }),
+        authorizationHeader,
         orderNumber: input.carrierShipmentId,
         orderType: 1,
         fetchImpl: options.fetchImpl,
       });
+      timing("clientReturned");
 
-      return normalizeDeleteOrderResponse(response);
+      const normalized = normalizeDeleteOrderResponse(response);
+      timing("responseNormalized", {
+        carrierShipmentIdPresent: Boolean(normalized.carrierShipmentId),
+      });
+      return normalized;
     },
     async updateWeight() {
       throw new CarrierIntegrationError(
