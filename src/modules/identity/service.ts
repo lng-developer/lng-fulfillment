@@ -9,6 +9,7 @@ import {
   SESSION_TTL_SECONDS,
   verifyPassword,
 } from "@/shared/security";
+import { createSafeTimingLogger } from "@/shared/timing";
 import {
   createSession,
   deleteSessionByTokenHash,
@@ -231,8 +232,16 @@ export async function getCurrentTenantAccessSession(
     throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
   }
 
+  const timing = createSafeTimingLogger("getCurrentTenantAccessSession", {
+    allowedRoleCount: allowedRoles?.length ?? 0,
+  });
   const tokenHash = hashSessionToken(rawToken);
+  timing("tokenHashed");
   const session = await findTenantAccessSessionByTokenHash(tokenHash);
+  timing("sessionQueried", {
+    found: Boolean(session),
+    activeMembershipCount: session?.user.memberships.length ?? 0,
+  });
 
   if (!session) {
     throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
@@ -249,6 +258,9 @@ export async function getCurrentTenantAccessSession(
 
   if (shouldUpdateSessionLastUsed(session.lastUsedAt)) {
     await updateSessionLastUsed(tokenHash);
+    timing("lastUsedUpdated");
+  } else {
+    timing("lastUsedSkipped");
   }
 
   const membership = session.user.memberships[0];

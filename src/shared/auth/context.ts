@@ -12,6 +12,7 @@ import {
 } from "@/modules/identity";
 import type { PlatformAdminContext } from "@/modules/platform";
 import { AppError } from "@/shared/errors";
+import { createSafeTimingLogger } from "@/shared/timing";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
 
 export type TenantAccessContext = {
@@ -95,8 +96,18 @@ export async function requireTenantAccess(
 export async function requireTenantActor(
   allowedRoles?: TenantRole[],
 ): Promise<TenantActorContext> {
+  const timing = createSafeTimingLogger("requireTenantActor", {
+    allowedRoleCount: allowedRoles?.length ?? 0,
+  });
   const token = await getSessionTokenFromCookies();
-  return getCurrentTenantAccessSession(token, allowedRoles);
+  timing("cookieRead", {
+    tokenPresent: Boolean(token),
+  });
+  const context = await getCurrentTenantAccessSession(token, allowedRoles);
+  timing("tenantAccessSessionLoaded", {
+    role: context.role,
+  });
+  return context;
 }
 
 export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {

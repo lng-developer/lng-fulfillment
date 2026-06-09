@@ -5,6 +5,7 @@ import type {
   ShipmentDetail,
   ShipmentListItem,
   ShipmentListQuery,
+  ShipmentMutationSummary,
 } from "./types";
 
 export async function findOrderForDraftShipment(
@@ -160,7 +161,7 @@ export async function createDirectShipmentSuccessRecords(input: {
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
-}): Promise<ShipmentDetail> {
+}): Promise<ShipmentMutationSummary> {
   const row = await prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.create({
       data: {
@@ -190,7 +191,7 @@ export async function createDirectShipmentSuccessRecords(input: {
           },
         },
       },
-      select: shipmentDetailSelect,
+      select: shipmentMutationSummarySelect,
     });
 
     await tx.order.update({
@@ -218,7 +219,7 @@ export async function createDirectShipmentSuccessRecords(input: {
     return shipment;
   });
 
-  return toShipmentDetail(row);
+  return toShipmentMutationSummary(row);
 }
 
 export async function getOrderWorkflowState(
@@ -309,7 +310,7 @@ export async function cancelDirectYunShipmentRecords(input: {
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
-}): Promise<ShipmentDetail> {
+}): Promise<ShipmentMutationSummary> {
   const row = await prisma.$transaction(async (tx) => {
     const shipment = await tx.shipment.update({
       where: {
@@ -329,7 +330,7 @@ export async function cancelDirectYunShipmentRecords(input: {
           },
         },
       },
-      select: shipmentDetailSelect,
+      select: shipmentMutationSummarySelect,
     });
 
     await tx.order.update({
@@ -357,7 +358,7 @@ export async function cancelDirectYunShipmentRecords(input: {
     return shipment;
   });
 
-  return toShipmentDetail(row);
+  return toShipmentMutationSummary(row);
 }
 
 export async function createInternalShipmentForOrder(input: {
@@ -924,6 +925,19 @@ const shipmentDetailSelect = {
   },
 } satisfies Prisma.ShipmentSelect;
 
+const shipmentMutationSummarySelect = {
+  id: true,
+  orderId: true,
+  status: true,
+  carrierCode: true,
+  carrierAccountId: true,
+  carrierShipmentId: true,
+  trackingNumber: true,
+  labelUrl: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ShipmentSelect;
+
 function toShipmentDetail(row: {
   id: string;
   orderId: string;
@@ -987,6 +1001,32 @@ function toShipmentDetail(row: {
       updatedAt: item.updatedAt,
     })),
     statusHistory: row.statusHistory,
+  };
+}
+
+function toShipmentMutationSummary(row: {
+  id: string;
+  orderId: string;
+  status: ShipmentStatus;
+  carrierCode: string | null;
+  carrierAccountId: string | null;
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  labelUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): ShipmentMutationSummary {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    status: row.status,
+    carrierCode: row.carrierCode,
+    carrierAccountId: row.carrierAccountId,
+    carrierShipmentId: row.carrierShipmentId,
+    trackingNumber: row.trackingNumber,
+    labelUrl: row.labelUrl,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 

@@ -72,6 +72,19 @@ export type ShipmentDetail = {
   statusHistory: ShipmentDetailStatusHistory[];
 };
 
+export type ShipmentMutationSummary = {
+  id: string;
+  orderId: string;
+  status: ShipmentStatus;
+  carrierCode: string | null;
+  carrierAccountId?: string | null;
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  labelUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type ShipmentDetailItem = {
   id: string;
   orderItemId: string;
@@ -186,7 +199,10 @@ export type ExecuteShipmentResult = {
   carrierAccountId: string | null;
 };
 
-export type ShipOrderResult = ExecuteShipmentResult & {
+export type ShipOrderResult = {
+  shipment: ShipmentMutationSummary;
+  carrierCode: CarrierCode;
+  carrierAccountId: string | null;
   orderId: string;
   orderStatus: "IN_PROCESSING";
   environment: ShipmentYunEnvironment;
@@ -196,7 +212,7 @@ export type ShipOrdersBatchResult = {
   results: Array<{
     orderId: string;
     success: boolean;
-    shipment?: ShipmentDetail;
+    shipment?: ShipmentMutationSummary;
     error?: {
       code: string;
       message: string;
@@ -215,7 +231,7 @@ export type ConfirmOrderShippedResult = {
 export type CancelOrderYunResult = {
   orderId: string;
   orderStatus: "CANCELLED";
-  shipment: ShipmentDetail;
+  shipment: ShipmentMutationSummary;
 };
 
 export type ResetCancelledOrderResult = {

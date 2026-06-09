@@ -41,6 +41,7 @@ export type {
   ShipmentDetail,
   ShipmentDetailItem,
   ShipmentDetailStatusHistory,
+  ShipmentMutationSummary,
   ShipmentExecutionPreflightResult,
   ShipmentListItem,
   ShipmentListQuery,
