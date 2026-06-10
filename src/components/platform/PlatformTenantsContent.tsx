@@ -31,22 +31,36 @@ import type {
 } from "@/types/platform";
 import { usePlatformAuth } from "./PlatformAuthContext";
 
-export function PlatformTenantsContent({ canManage: canManageProp }: { canManage?: boolean }) {
+type PlatformTenantsInitialData = {
+  tenants: PlatformTenantSummary[];
+  pagination: PlatformPagination;
+};
+
+export function PlatformTenantsContent({
+  canManage: canManageProp,
+  initialData,
+}: {
+  canManage?: boolean;
+  initialData?: PlatformTenantsInitialData;
+}) {
   const platformAuth = usePlatformAuth();
   const canManage = canManageProp ?? platformAuth.canManage;
   const router = useRouter();
-  const [tenants, setTenants] = useState<PlatformTenantSummary[]>([]);
+  const skipInitialFetchRef = useRef(Boolean(initialData));
+  const [tenants, setTenants] = useState<PlatformTenantSummary[]>(
+    () => initialData?.tenants ?? [],
+  );
   const [pagination, setPagination] = useState<PlatformPagination>({
-    page: 1,
-    pageSize: 20,
-    totalItems: 0,
-    totalPages: 0,
+    page: initialData?.pagination.page ?? 1,
+    pageSize: initialData?.pagination.pageSize ?? 20,
+    totalItems: initialData?.pagination.totalItems ?? 0,
+    totalPages: initialData?.pagination.totalPages ?? 0,
   });
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<PlatformTenantStatus | "">("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -60,7 +74,7 @@ export function PlatformTenantsContent({ canManage: canManageProp }: { canManage
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const fetchTenants = useCallback(async () => {
+  const fetchTenants = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -69,19 +83,33 @@ export function PlatformTenantsContent({ canManage: canManageProp }: { canManage
         pageSize: 20,
         search,
         status,
-      });
+      }, { signal });
       setTenants(result.data);
       setPagination(result.pagination);
     } catch (fetchError) {
+      if (isAbortError(fetchError)) {
+        return;
+      }
+
       setTenants([]);
       setError(getErrorMessage(fetchError));
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [page, search, status]);
 
   useEffect(() => {
-    void fetchTenants();
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetchTenants(controller.signal);
+
+    return () => controller.abort();
   }, [fetchTenants, reloadKey]);
 
   return (
@@ -693,4 +721,8 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(date);
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }

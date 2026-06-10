@@ -107,6 +107,11 @@ export async function findTenantApiKeyByHash(keyHash: string) {
       scopes: true,
       status: true,
       expiresAt: true,
+      tenant: {
+        select: {
+          status: true,
+        },
+      },
     },
   });
 }

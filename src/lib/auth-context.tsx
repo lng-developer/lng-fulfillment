@@ -20,6 +20,7 @@ type AuthMembership = {
   tenantSlug: string;
   role: Role;
   status: string;
+  tenantStatus?: string;
 };
 
 type AuthPlatformAdmin = {
@@ -57,9 +58,9 @@ export function AuthProvider({
     try {
       const result = await getMe();
       const activeMembership =
-        result.tenantMemberships.find((item) => item.status === "ACTIVE") ??
-        result.tenantMemberships[0] ??
-        null;
+        result.tenantMemberships.find(
+          (item) => item.status === "ACTIVE" && item.tenantStatus === "ACTIVE",
+        ) ?? null;
 
       setUser(result.user);
       setPlatformAdmin(result.platformAdmin);
@@ -71,6 +72,7 @@ export function AuthProvider({
               tenantSlug: activeMembership.tenantSlug,
               role: activeMembership.role,
               status: activeMembership.status,
+              tenantStatus: activeMembership.tenantStatus,
             }
           : null,
       );

@@ -2,6 +2,7 @@ import type {
   MembershipStatus,
   PlatformAdminRole,
   PlatformAdminStatus,
+  TenantStatus,
   TenantRole,
   UserStatus,
 } from "@prisma/client";
@@ -19,6 +20,7 @@ export type TenantMembershipSummary = {
   tenantSlug: string;
   role: TenantRole;
   membershipStatus: MembershipStatus;
+  tenantStatus: TenantStatus;
 };
 
 export type AuthResponseData = {

@@ -102,6 +102,7 @@ export async function findSessionContextByTokenHash(tokenHash: string) {
                 select: {
                   name: true,
                   slug: true,
+                  status: true,
                 },
               },
             },
@@ -132,6 +133,9 @@ export async function findTenantAccessSessionByTokenHash(tokenHash: string) {
           memberships: {
             where: {
               status: "ACTIVE",
+              tenant: {
+                status: "ACTIVE",
+              },
             },
             orderBy: {
               createdAt: "asc",
@@ -173,6 +177,7 @@ export async function getUserTenantMemberships(userId: string) {
         select: {
           name: true,
           slug: true,
+          status: true,
         },
       },
     },

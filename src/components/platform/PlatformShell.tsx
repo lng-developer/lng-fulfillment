@@ -54,12 +54,12 @@ export function PlatformShell({
                 );
               })}
               <div className="mx-2 my-3 border-t border-[var(--border)]" />
-              <Link
+              {/* <Link
                 className="flex h-9 items-center gap-3 rounded-sm border border-transparent px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--brand-light)] hover:text-[var(--brand)]"
                 href="/orders"
               >
                 Back to tenant app
-              </Link>
+              </Link> */}
             </nav>
           </aside>
           <main className="min-w-0 flex-1 px-4 py-5 md:px-6 md:py-6">
