@@ -13,7 +13,9 @@ import type {
   YunExpressCarrierItem,
   YunExpressDeleteOrderResponse,
   YunExpressGetCarrierResponse,
+  YunExpressGetOrderResponse,
   YunExpressGetTrackingNumberResponse,
+  YunExpressPrintLabelResponse,
   YunExpressTrackInfoEvent,
   YunExpressTrackInfoResponse,
 } from "./types";
@@ -84,6 +86,108 @@ export function normalizeCreateOrderLabelResponse(
         remark: item.Remark ?? null,
       },
       rawResponse: response,
+    },
+  };
+}
+
+export function isExistingOrderCreateOrderLabelResponse(
+  response: YunExpressCreateOrderLabelResponse,
+) {
+  const items = response.Item ?? [];
+  const allItemsSuccessful =
+    items.length > 0 && items.every((item) => isSuccessfulItem(item));
+
+  if (response.Code === "0000" && allItemsSuccessful) {
+    return false;
+  }
+
+  const searchableText = [
+    response.Message,
+    ...items.flatMap((item) => [
+      item.Remark,
+      item.CustomerOrderNumber,
+      ...(item.Label?.OrderInfos?.flatMap((orderInfo) => [
+        orderInfo.Error,
+        stringifyNullable(orderInfo.Code),
+      ]) ?? []),
+    ]),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    /\balready\s+exists?\b/.test(searchableText) ||
+    /\bexisting\s+order\b/.test(searchableText) ||
+    /\bduplicat(?:e|ed|ion)\b/.test(searchableText) ||
+    searchableText.includes("已存在") ||
+    searchableText.includes("已经存在") ||
+    searchableText.includes("重複") ||
+    searchableText.includes("重复")
+  );
+}
+
+export function normalizeExistingOrderRecoveryResult(input: {
+  createOrderLabelResponse: YunExpressCreateOrderLabelResponse;
+  getOrderResponse: YunExpressGetOrderResponse;
+  printLabelResponse?: YunExpressPrintLabelResponse | null;
+}): CreateCarrierShipmentResult {
+  const item = input.getOrderResponse.Item ?? null;
+  const carrierShipmentId =
+    safeString(item?.WayBillNumber) ??
+    safeString(item?.OrderNumber) ??
+    safeString(item?.TrackingNumber) ??
+    safeString(item?.CustomerOrderNumber);
+  const trackingNumber = safeString(item?.TrackingNumber);
+
+  if (!item || (!carrierShipmentId && !trackingNumber)) {
+    throw createCarrierError({
+      carrierCode: "YUNEXPRESS_OMS",
+      reason: "REMOTE_REJECTED",
+      message:
+        "YunExpress OMS reports the order already exists, but lookup did not return a usable shipment.",
+      retryable: false,
+      statusCode: 502,
+      safeMetadata: {
+        code: input.getOrderResponse.Code ?? null,
+        message: input.getOrderResponse.Message ?? null,
+        createOrderLabelCode: input.createOrderLabelResponse.Code ?? null,
+        createOrderLabelMessage: input.createOrderLabelResponse.Message ?? null,
+      },
+      rawResponse: {
+        createOrderLabel: input.createOrderLabelResponse,
+        getOrder: input.getOrderResponse,
+      },
+    });
+  }
+
+  const labelItem = input.printLabelResponse?.Item?.[0] ?? null;
+  const labelUrl = safeString(labelItem?.Url);
+
+  return {
+    carrierCode: "YUNEXPRESS_OMS",
+    carrierShipmentId: carrierShipmentId ?? trackingNumber ?? "",
+    trackingNumber,
+    labelUrl,
+    metadata: {
+      safe: {
+        recoveredFromExistingYunOrder: true,
+        createOrderLabelCode: input.createOrderLabelResponse.Code ?? null,
+        createOrderLabelMessage: input.createOrderLabelResponse.Message ?? null,
+        customerOrderNumber: safeString(item.CustomerOrderNumber),
+        wayBillNumber: safeString(item.WayBillNumber),
+        yunOrderNumber: safeString(item.OrderNumber),
+        yunStatus: safeScalarString(item.Status),
+        labelType: safeString(labelItem?.LabelType),
+        hasLabelUrl: Boolean(labelUrl),
+        printLabelCode: input.printLabelResponse?.Code ?? null,
+        printLabelMessage: input.printLabelResponse?.Message ?? null,
+      },
+      rawResponse: {
+        createOrderLabel: input.createOrderLabelResponse,
+        getOrder: input.getOrderResponse,
+        printLabel: input.printLabelResponse ?? null,
+      },
     },
   };
 }
@@ -513,4 +617,16 @@ function safeString(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed || null;
+}
+
+function safeScalarString(value: unknown): string | null {
+  if (typeof value === "string") {
+    return safeString(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return null;
 }

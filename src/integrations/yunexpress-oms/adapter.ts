@@ -18,18 +18,27 @@ import {
   callYunExpressCreateOrderLabel,
   callYunExpressDeleteOrder,
   callYunExpressGetCarrier,
+  callYunExpressGetOrder,
   callYunExpressGetTrackingNumber,
   callYunExpressGetTrackInfo,
+  callYunExpressPrintLabel,
 } from "./client";
 import { mapCreateShipmentToYunExpressPayload } from "./mapping";
 import {
+  isExistingOrderCreateOrderLabelResponse,
   mergeCarrierProvider,
   normalizeCreateOrderLabelResponse,
   normalizeDeleteOrderResponse,
+  normalizeExistingOrderRecoveryResult,
   normalizeGetCarrierResponse,
   normalizeGetTrackingNumberResponse,
   normalizeTrackInfoResponse,
 } from "./normalize";
+import type {
+  YunExpressCreateOrderLabelResponse,
+  YunExpressOrderItem,
+  YunExpressPrintLabelResponse,
+} from "./types";
 
 type AdapterOptions = {
   config?: YunExpressOmsConfig;
@@ -182,7 +191,21 @@ export function createYunExpressOmsAdapter(
       });
       timing("clientReturned");
 
-      const normalized = normalizeCreateOrderLabelResponse(response);
+      const normalized = isExistingOrderCreateOrderLabelResponse(response)
+        ? await recoverExistingYunOrder({
+            config: {
+              ...config,
+              baseUrl: config.baseUrl,
+              customerNo: config.customerNo,
+              apiSecret: config.apiSecret,
+            },
+            response,
+            customerOrderNumber: payload.CustomerOrderNumber,
+            authorizationHeader,
+            fetchImpl: options.fetchImpl,
+            timing,
+          })
+        : normalizeCreateOrderLabelResponse(response);
       timing("responseNormalized", {
         trackingPresent: Boolean(normalized.trackingNumber),
         labelPresent: Boolean(normalized.labelUrl),
@@ -388,6 +411,107 @@ export function createYunExpressOmsAdapter(
       );
     },
   };
+}
+
+async function recoverExistingYunOrder(input: {
+  config: YunExpressOmsConfig & {
+    baseUrl: string;
+    customerNo: string;
+    apiSecret: string;
+  };
+  response: YunExpressCreateOrderLabelResponse;
+  customerOrderNumber: string;
+  authorizationHeader: string;
+  fetchImpl?: typeof fetch;
+  timing: ReturnType<typeof createSafeTimingLogger>;
+}) {
+  input.timing("existingOrderRecoveryStarted");
+  const getOrderResponse = await callYunExpressGetOrder({
+    config: {
+      baseUrl: input.config.baseUrl,
+      lang: input.config.lang,
+      timeoutMs: input.config.timeoutMs,
+    },
+    orderNumber: input.customerOrderNumber,
+    authorizationHeader: input.authorizationHeader,
+    fetchImpl: input.fetchImpl,
+  });
+  input.timing("existingOrderLookupCompleted", {
+    found: Boolean(getOrderResponse.Item),
+  });
+
+  const labelLookupNumber = getLabelLookupNumber(
+    getOrderResponse.Item ?? null,
+    input.customerOrderNumber,
+  );
+  const printLabelResponse = labelLookupNumber
+    ? await printExistingYunLabelSafely({
+        config: input.config,
+        orderNumber: labelLookupNumber,
+        authorizationHeader: input.authorizationHeader,
+        fetchImpl: input.fetchImpl,
+        timing: input.timing,
+      })
+    : null;
+
+  const normalized = normalizeExistingOrderRecoveryResult({
+    createOrderLabelResponse: input.response,
+    getOrderResponse,
+    printLabelResponse,
+  });
+  input.timing("existingOrderRecovered", {
+    trackingPresent: Boolean(normalized.trackingNumber),
+    labelPresent: Boolean(normalized.labelUrl),
+  });
+
+  return normalized;
+}
+
+async function printExistingYunLabelSafely(input: {
+  config: YunExpressOmsConfig & { baseUrl: string };
+  orderNumber: string;
+  authorizationHeader: string;
+  fetchImpl?: typeof fetch;
+  timing: ReturnType<typeof createSafeTimingLogger>;
+}): Promise<YunExpressPrintLabelResponse | null> {
+  try {
+    const response = await callYunExpressPrintLabel({
+      config: {
+        baseUrl: input.config.baseUrl,
+        lang: input.config.lang,
+        timeoutMs: input.config.timeoutMs,
+      },
+      orderNumbers: [input.orderNumber],
+      authorizationHeader: input.authorizationHeader,
+      fetchImpl: input.fetchImpl,
+    });
+    input.timing("existingLabelLookupCompleted", {
+      labelPresent: Boolean(response.Item?.[0]?.Url),
+    });
+    return response;
+  } catch (error) {
+    input.timing("existingLabelLookupFailed", {
+      errorName: error instanceof Error ? error.name : "unknown",
+    });
+    return null;
+  }
+}
+
+function getLabelLookupNumber(
+  item: YunExpressOrderItem | null,
+  fallback: string,
+) {
+  return (
+    safeString(item?.WayBillNumber) ??
+    safeString(item?.TrackingNumber) ??
+    safeString(item?.OrderNumber) ??
+    safeString(item?.CustomerOrderNumber) ??
+    fallback
+  );
+}
+
+function safeString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function notSupported(message: string) {

@@ -67,7 +67,10 @@ export function OrderExpandPanel({
 
         {hasSellerOrScaler ? <StatusHistoryCard order={order} /> : null}
 
-        <PanelCard icon={<ShoppingCart />} title={`Items (${order.items.length})`}>
+        <PanelCard
+          icon={<ShoppingCart />}
+          title={`Items (${order.items.length})`}
+        >
           <div className="grid gap-3">
             {order.items.map((item, index) => (
               <ItemCard item={item} itemIndex={index} key={item.id} />
@@ -374,9 +377,9 @@ function ItemCard({
             <CostCenterInfo costCenter={item.costCenter} />
           ) : null}
           {item.listing ? <ListingInfoPanel listing={item.listing} /> : null}
-          {item.trackingInfo ? (
+          {/* {item.trackingInfo ? (
             <PortalTrackingInfo info={item.trackingInfo} />
-          ) : null}
+          ) : null} */}
         </ItemContentBox>
 
         <CustomizationOptions options={item.customizationOptions ?? []} />
