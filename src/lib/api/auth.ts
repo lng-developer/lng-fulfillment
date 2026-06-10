@@ -12,7 +12,8 @@ export interface MeResponse {
     tenantName: string;
     tenantSlug: string;
     role: Role;
-    status: "ACTIVE" | "DISABLED";
+    status: "ACTIVE" | "INVITED" | "DISABLED";
+    tenantStatus: "ACTIVE" | "DISABLED";
   }[];
 }
 
@@ -27,7 +28,8 @@ type AuthContextResponse = {
     tenantName: string;
     tenantSlug: string;
     role: Role;
-    membershipStatus: "ACTIVE" | "DISABLED";
+    membershipStatus: "ACTIVE" | "INVITED" | "DISABLED";
+    tenantStatus: "ACTIVE" | "DISABLED";
   }[];
 };
 
@@ -64,6 +66,7 @@ export async function getMe(): Promise<MeResponse> {
       tenantSlug: tenant.tenantSlug,
       role: tenant.role,
       status: tenant.membershipStatus,
+      tenantStatus: tenant.tenantStatus,
     })),
   };
 }

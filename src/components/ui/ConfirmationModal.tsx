@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 import { WarningBox } from "./WarningBox";
@@ -28,6 +28,7 @@ export function ConfirmationModal({
   const [typedValue, setTypedValue] = useState("");
   const [checked, setChecked] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const pendingRef = useRef(false);
   const canConfirm =
     (!requireTypedConfirmation ||
       typedValue === requireTypedConfirmation) &&
@@ -39,14 +40,16 @@ export function ConfirmationModal({
   );
 
   async function confirm() {
-    if (!canConfirm) {
+    if (!canConfirm || pendingRef.current) {
       return;
     }
 
+    pendingRef.current = true;
     setIsPending(true);
     try {
       await onConfirm();
     } finally {
+      pendingRef.current = false;
       setIsPending(false);
     }
   }

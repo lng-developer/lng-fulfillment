@@ -213,7 +213,9 @@ export async function getCurrentSession(
         tenantName: membership.tenant.name,
         tenantSlug: membership.tenant.slug,
         role: membership.role,
-        membershipStatus: membership.status,
+        membershipStatus:
+          membership.tenant.status === "ACTIVE" ? membership.status : "DISABLED",
+        tenantStatus: membership.tenant.status,
       }),
     ),
     platformAdmin: session.user.platformAdmin,
@@ -340,7 +342,9 @@ export async function getTenantMembershipsForUser(
       tenantName: membership.tenant.name,
       tenantSlug: membership.tenant.slug,
       role: membership.role,
-      membershipStatus: membership.status,
+      membershipStatus:
+        membership.tenant.status === "ACTIVE" ? membership.status : "DISABLED",
+      tenantStatus: membership.tenant.status,
     }),
   );
 }

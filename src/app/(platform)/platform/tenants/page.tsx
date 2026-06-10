@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
 import { PlatformTenantsContent } from "@/components/platform/PlatformTenantsContent";
+import { listPlatformTenants, type PlatformTenantSummary } from "@/modules/platform";
+import type {
+  PlatformTenantSummary as PublicPlatformTenantSummary,
+} from "@/types/platform";
 
 export const metadata: Metadata = {
   title: "Platform Tenants | Fulfillment Platform",
 };
 
-export default function PlatformTenantsPage() {
+export default async function PlatformTenantsPage() {
+  const initialTenants = await listPlatformTenants({
+    page: 1,
+    pageSize: 20,
+  });
+
   return (
     <div className="grid gap-5">
       <header>
@@ -19,7 +28,22 @@ export default function PlatformTenantsPage() {
           Create and manage customer tenant workspaces.
         </p>
       </header>
-      <PlatformTenantsContent />
+      <PlatformTenantsContent
+        initialData={{
+          tenants: initialTenants.data.map(toPublicTenantSummary),
+          pagination: initialTenants.pagination,
+        }}
+      />
     </div>
   );
+}
+
+function toPublicTenantSummary(
+  tenant: PlatformTenantSummary,
+): PublicPlatformTenantSummary {
+  return {
+    ...tenant,
+    createdAt: tenant.createdAt.toISOString(),
+    updatedAt: tenant.updatedAt.toISOString(),
+  };
 }

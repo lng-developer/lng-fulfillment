@@ -8,6 +8,7 @@ export type AuthRedirectContext = {
   tenants?: Array<{
     role: Role;
     membershipStatus?: "ACTIVE" | "DISABLED" | string;
+    tenantStatus?: "ACTIVE" | "DISABLED" | string;
     status?: "ACTIVE" | "DISABLED" | string;
   }>;
 };
@@ -18,7 +19,9 @@ export function getPostLoginRedirect(context: AuthRedirectContext) {
   }
 
   const activeTenant = context.tenants?.find(
-    (tenant) => (tenant.membershipStatus ?? tenant.status) === "ACTIVE",
+    (tenant) =>
+      (tenant.membershipStatus ?? tenant.status) === "ACTIVE" &&
+      (tenant.tenantStatus ?? "ACTIVE") === "ACTIVE",
   );
 
   if (activeTenant) {

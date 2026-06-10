@@ -57,6 +57,9 @@ SSO hoặc OAuth có thể thêm sau nhưng không được phá vỡ tenant iso
 
 ## Tenant Isolation Rule
 
+- Tenant `DISABLED` is a runtime access lock: dashboard tenant access and tenant API key auth must treat it as no active tenant access.
+- Platform Admin may still view and manage disabled tenants through platform-scoped routes.
+
 - Mọi business data phải có tenant scope.
 - API request phải resolve tenant context trước khi truy cập data.
 - Repository method cho business data phải nhận `tenantId`.
@@ -142,6 +145,8 @@ Implementation requirements:
 - Tenant API key management chỉ cho `OWNER` và `ADMIN`; `OPERATOR` và `VIEWER` không được manage API keys.
 
 ## Portal API Key Tenant Resolution
+
+- Tenant API key verification must require both the key and owning tenant to be `ACTIVE`; disabled tenants must return the same safe unauthorized behavior as invalid keys.
 
 - V2-020 `POST /api/portal/orders` authenticate bằng tenant API key.
 - API key có thể được gửi qua `Authorization: Bearer <key>` hoặc `X-Tenant-API-Key`.

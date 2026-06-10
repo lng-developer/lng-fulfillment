@@ -126,7 +126,12 @@ export function PlatformAuditLogsContent() {
     if (to) query.set("to", to);
 
     const nextUrl = query.toString() ? `${pathname}?${query}` : pathname;
-    router.replace(nextUrl, { scroll: false });
+    const currentQuery = searchParams.toString();
+    const currentUrl = currentQuery ? `${pathname}?${currentQuery}` : pathname;
+
+    if (nextUrl !== currentUrl) {
+      router.replace(nextUrl, { scroll: false });
+    }
   }, [
     action,
     actorType,
@@ -136,11 +141,12 @@ export function PlatformAuditLogsContent() {
     preset,
     resourceType,
     router,
+    searchParams,
     tenantId,
     to,
   ]);
 
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -159,19 +165,28 @@ export function PlatformAuditLogsContent() {
         pageSize: PAGE_SIZE,
         action: groupedActions.length === 1 ? groupedActions[0] : "",
         actions: groupedActions.length > 1 ? groupedActions : undefined,
-      });
+      }, { signal });
       setLogs(result.data);
       setPagination(result.pagination);
     } catch (fetchError) {
+      if (isAbortError(fetchError)) {
+        return;
+      }
+
       setLogs([]);
       setError(getErrorMessage(fetchError));
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [actorType, from, groupedActions, page, resourceType, tenantId, to]);
 
   useEffect(() => {
-    void fetchLogs();
+    const controller = new AbortController();
+    void fetchLogs(controller.signal);
+
+    return () => controller.abort();
   }, [fetchLogs]);
 
   const hasFilters =
@@ -533,4 +548,8 @@ function parsePositivePage(value: string | null) {
 function parsePreset(value: string | null): ActionPreset {
   if (value === "mutations" || value === "denied") return value;
   return "all";
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BackToLoginButton } from "@/components/layout/BackToLoginButton";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import type { Role } from "@/lib/rbac";
 import { getCurrentUserWithTenants } from "@/shared/auth/context";
@@ -17,7 +17,11 @@ export default async function DashboardLayout({
   }
 
   const defaultTenant =
-    context.tenants.find((tenant) => tenant.membershipStatus === "ACTIVE") ??
+    context.tenants.find(
+      (tenant) =>
+        tenant.membershipStatus === "ACTIVE" &&
+        tenant.tenantStatus === "ACTIVE",
+    ) ??
     null;
 
   if (!defaultTenant) {
@@ -30,12 +34,7 @@ export default async function DashboardLayout({
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Your account does not have an active tenant membership.
           </p>
-          <Link
-            className="mt-5 inline-flex h-9 items-center justify-center rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-4 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
-            href="/login"
-          >
-            Back to login
-          </Link>
+          <BackToLoginButton />
         </section>
       </main>
     );

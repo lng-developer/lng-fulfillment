@@ -145,7 +145,7 @@ export async function verifyTenantApiKeyForRequest(
     return null;
   }
 
-  if (record.status !== "ACTIVE") {
+  if (record.status !== "ACTIVE" || record.tenant.status !== "ACTIVE") {
     return null;
   }
 

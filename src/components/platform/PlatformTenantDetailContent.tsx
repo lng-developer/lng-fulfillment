@@ -82,25 +82,34 @@ export function PlatformTenantDetailContent({
     setReloadKey((value) => value + 1);
   }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
       const [tenantResult, memberResult] = await Promise.all([
-        getPlatformTenant(tenantId),
-        getPlatformTenantMembers(tenantId),
+        getPlatformTenant(tenantId, { signal }),
+        getPlatformTenantMembers(tenantId, { signal }),
       ]);
       setTenant(tenantResult);
       setMembers(memberResult);
     } catch (fetchError) {
+      if (isAbortError(fetchError)) {
+        return;
+      }
+
       setError(getErrorMessage(fetchError));
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [tenantId]);
 
   useEffect(() => {
-    void fetchData();
+    const controller = new AbortController();
+    void fetchData(controller.signal);
+
+    return () => controller.abort();
   }, [fetchData, reloadKey]);
 
   if (isLoading) return <TenantDetailSkeleton />;
@@ -118,7 +127,7 @@ export function PlatformTenantDetailContent({
       {!canManage ? <ReadOnlyNotice /> : null}
       <TenantProfileCard
         canManage={canManage}
-        onUpdated={refetch}
+        onUpdated={setTenant}
         tenant={tenant}
       />
       <MembersSection
@@ -138,7 +147,7 @@ function TenantProfileCard({
 }: {
   canManage: boolean;
   tenant: PlatformTenantDetail;
-  onUpdated: () => void;
+  onUpdated: (tenant: PlatformTenantDetail) => void;
 }) {
   const [name, setName] = useState(tenant.name);
   const [type, setType] = useState<PlatformTenantType>(tenant.type);
@@ -202,9 +211,9 @@ function TenantProfileCard({
 
     setIsPending(true);
     try {
-      await updatePlatformTenant(tenant.id, payload);
+      const updatedTenant = await updatePlatformTenant(tenant.id, payload);
       toastSuccess("Tenant updated.");
-      onUpdated();
+      onUpdated(updatedTenant);
       setPendingUpdate(null);
     } catch (error) {
       toastError(getPlatformMutationMessage(error, "tenant"));
@@ -980,6 +989,10 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function fieldId(label: string) {

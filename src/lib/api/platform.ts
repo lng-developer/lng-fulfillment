@@ -30,14 +30,17 @@ export type PlatformAuditLogParams = {
   sortOrder?: "asc" | "desc";
 };
 
-export async function getPlatformTenants(params: PlatformTenantListParams) {
+export async function getPlatformTenants(
+  params: PlatformTenantListParams,
+  options?: RequestInit,
+) {
   const query = buildQuery(params);
   const response = await apiFetch<
     ApiSuccessEnvelope<
       { tenants: PlatformTenantSummary[] },
       { pagination: PlatformPagination }
     >
-  >(`/api/platform/tenants?${query}`);
+  >(`/api/platform/tenants?${query}`, options);
 
   return {
     data: response.data.tenants,
@@ -69,10 +72,13 @@ export async function createPlatformTenant(payload: {
   return response.data.tenant;
 }
 
-export async function getPlatformTenant(tenantId: string) {
+export async function getPlatformTenant(
+  tenantId: string,
+  options?: RequestInit,
+) {
   const response = await apiFetch<
     ApiSuccessEnvelope<{ tenant: PlatformTenantDetail }>
-  >(`/api/platform/tenants/${tenantId}`);
+  >(`/api/platform/tenants/${tenantId}`, options);
 
   return response.data.tenant;
 }
@@ -95,9 +101,13 @@ export async function updatePlatformTenant(
   return response.data.tenant;
 }
 
-export async function getPlatformTenantMembers(tenantId: string) {
+export async function getPlatformTenantMembers(
+  tenantId: string,
+  options?: RequestInit,
+) {
   const response = await apiFetch<ApiSuccessEnvelope<{ members: PlatformMember[] }>>(
     `/api/platform/tenants/${tenantId}/members`,
+    options,
   );
 
   return response.data.members;
@@ -143,14 +153,17 @@ export async function updatePlatformTenantMember(
   return response.data.member;
 }
 
-export async function getPlatformAuditLogs(params: PlatformAuditLogParams) {
+export async function getPlatformAuditLogs(
+  params: PlatformAuditLogParams,
+  options?: RequestInit,
+) {
   const query = buildQuery(params);
   const response = await apiFetch<
     ApiSuccessEnvelope<
       { auditLogs: PlatformAuditLog[] },
       { pagination: PlatformPagination }
     >
-  >(`/api/platform/audit-logs?${query}`);
+  >(`/api/platform/audit-logs?${query}`, options);
 
   return {
     data: response.data.auditLogs,
