@@ -78,11 +78,13 @@ export async function callYunExpressGetTrackingNumber(input: {
     baseUrl: string;
   };
   customerOrderNumber: string;
+  authorizationHeader?: string;
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressGetTrackingNumberResponse> {
   return callYunExpressGet({
     config: input.config,
     url: buildTrackingNumberUrl(input.config.baseUrl, input.customerOrderNumber),
+    authorizationHeader: input.authorizationHeader,
     fetchImpl: input.fetchImpl,
   }) as Promise<YunExpressGetTrackingNumberResponse>;
 }
@@ -220,6 +222,13 @@ async function yunFetchJson<T>(input: {
       httpStatus: response.status,
       ok: response.ok,
     });
+    const responseText = await response.text();
+    logRawYunResponse({
+      action: input.action,
+      httpStatus: response.status,
+      ok: response.ok,
+      body: responseText,
+    });
 
     if (!response.ok) {
       const carrierError = mapYunHttpFailure(input.action, response);
@@ -232,7 +241,7 @@ async function yunFetchJson<T>(input: {
     }
 
     try {
-      const parsed = (await response.json()) as T;
+      const parsed = JSON.parse(responseText) as T;
       timing("jsonParsed");
       return parsed;
     } catch {
@@ -262,6 +271,21 @@ async function yunFetchJson<T>(input: {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function logRawYunResponse(input: {
+  action: string;
+  httpStatus: number;
+  ok: boolean;
+  body: string;
+}) {
+  if (process.env.YUN_OMS_DEBUG_RAW_RESPONSE !== "true") {
+    return;
+  }
+
+  console.info(
+    `[yun-raw-response:${input.action}] status=${input.httpStatus} ok=${input.ok}\n${input.body}`,
+  );
 }
 
 function getErrorName(error: unknown) {

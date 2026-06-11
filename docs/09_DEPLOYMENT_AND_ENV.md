@@ -123,6 +123,7 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 
 - `TENANT_API_KEY_PEPPER` nếu implementation chọn pepper.
 - Webhook signing secrets nếu callback signing được triển khai.
+- `PORTAL_TRACKING_UPDATE_URL`: server-side Portal tracking update endpoint. Defaults to `https://api.lngmerch.co/api/order/update-tracking` if omitted; shipment creation with a tracking number sends `{ orderId, tracking }` to this endpoint after local shipment records are saved.
 
 ### Carrier Integration
 
@@ -171,6 +172,8 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 - Automated tracking tests must use mocked/no-live calls only. Staging/production tracking lookups require explicit approved runtime/API/UI flow and must not expose raw carrier responses or credentials.
 - V2-102 tracking sync uses the same credential resolver/env fallback and adds no new environment variables.
 - Tracking sync is user/operator-triggered and must not call `CreateOrderLabel`, create shipments, or expose raw carrier responses. Automated checks must keep using mocked/no-live adapter behavior.
+- `SHIPMENT_TRACKING_FLOW_DEBUG=true` enables temporary safe debug logs for the ship-to-tracking-to-Portal flow. It must remain `false` by default and must not log Authorization, carrier credentials, raw label strings, cookies, session tokens, DB URLs, API keys, or raw carrier payloads.
+- `YUN_OMS_DEBUG_RAW_RESPONSE=true` temporarily prints the exact YunExpress HTTP response body in the local/server console for carrier debugging. Keep it `false` by default and remove/disable it after debugging.
 
 ### Observability
 

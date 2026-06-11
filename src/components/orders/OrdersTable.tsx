@@ -22,6 +22,7 @@ import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
 import { cancelYunShipment, getOrder, getOrders, shipOrder } from "@/lib/api/orders";
+import { syncTracking } from "@/lib/api/shipments";
 import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -72,7 +73,7 @@ type OrderMutationResult = {
   shipment?: OrderMutationShipment;
 };
 
-type PendingOrderAction = "ship" | "cancel";
+type PendingOrderAction = "ship" | "cancel" | "sync";
 
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
@@ -402,6 +403,40 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
+  async function runSyncTrackingInBackground(order: OrderListItem, shipmentId: string) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "sync" }));
+
+    try {
+      const result = await syncTracking(shipmentId);
+      applyOrderMutation({
+        orderId: order.id,
+        orderStatus: order.status,
+        shipment: {
+          id: result.shipment.id,
+          status: result.shipment.status,
+          carrierCode: result.shipment.carrierCode,
+          carrierShipmentId: result.shipment.carrierShipmentId,
+          trackingNumber: result.shipment.trackingNumber,
+          updatedAt: result.shipment.updatedAt,
+        },
+      });
+
+      if (result.shipment.trackingNumber) {
+        toastSuccess("Tracking synced.");
+      } else {
+        toastSuccess("Tracking is still pending.");
+      }
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
+  }
+
   function applyOrderMutation(result: OrderMutationResult) {
     const now = new Date().toISOString();
     const shipmentPatch = result.shipment;
@@ -664,6 +699,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                       onCancel={setCancelTarget}
                       onConfirm={setConfirmTarget}
                       onReset={setResetTarget}
+                      onSyncTracking={runSyncTrackingInBackground}
                       onShip={(target) => {
                         if (!detailCacheRef.current[target.id]) {
                           void ensureDetail(target.id);
@@ -787,6 +823,7 @@ function OrderRows({
   onConfirm,
   onCancel,
   onReset,
+  onSyncTracking,
   pendingAction,
 }: {
   order: OrderListItem;
@@ -801,10 +838,16 @@ function OrderRows({
   onConfirm: (order: OrderListItem) => void;
   onCancel: (order: OrderListItem) => void;
   onReset: (order: OrderListItem) => void;
+  onSyncTracking: (order: OrderListItem, shipmentId: string) => void;
   pendingAction: PendingOrderAction | null;
 }) {
   const orderIdentifier = order.orderNumber ?? order.externalOrderId;
   const shipment = getLatestShipmentInfo(order, detail);
+  const canSyncTracking =
+    can.shipOrder(role) &&
+    !shipment.trackingNumber &&
+    shipment.status === "TRACKING_PENDING" &&
+    Boolean(shipment.id);
 
   async function copyOrderIdentifier() {
     try {
@@ -923,7 +966,28 @@ function OrderRows({
               </button>
             </div>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">-</span>
+            <div className="grid gap-1">
+              <span className="text-[11px] text-[var(--text-muted)]">-</span>
+              {canSyncTracking ? (
+                <button
+                  className="inline-flex h-7 w-fit items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 text-[11px] font-medium text-[var(--brand)] hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={pendingAction === "sync"}
+                  onClick={() => {
+                    if (shipment.id) {
+                      onSyncTracking(order, shipment.id);
+                    }
+                  }}
+                  type="button"
+                >
+                  {pendingAction === "sync" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  ) : (
+                    <RotateCcw className="h-3 w-3" aria-hidden />
+                  )}
+                  Sync tracking
+                </button>
+              ) : null}
+            </div>
           )}
         </td>
         <td className="px-3.5 py-2.5 align-middle">
@@ -1024,7 +1088,11 @@ function OrderActions({
         type="button"
       >
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-        {pendingAction === "ship" ? "Creating..." : "Cancelling..."}
+        {pendingAction === "ship"
+          ? "Creating..."
+          : pendingAction === "cancel"
+            ? "Cancelling..."
+            : "Syncing..."}
       </button>
     );
   }
@@ -1179,6 +1247,7 @@ function getLatestShipmentInfo(order: OrderListItem, detail: OrderDetail | null)
   const latestShipment = detail?.shipments?.[0] ?? null;
 
   return {
+    id: latestShipment?.id ?? null,
     trackingNumber:
       order.trackingNumber ??
       order.latestTrackingNumber ??
