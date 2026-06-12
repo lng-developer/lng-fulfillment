@@ -38,7 +38,9 @@ export function mapCreateShipmentToYunExpressPayload(
     InsuranceOption: metadataNumber(input.metadata, "insuranceOption", 0),
     SourceCode: sourceCode,
     Receiver: {
-      CountryCode: input.recipient?.country ?? input.destinationCountry ?? undefined,
+      CountryCode: normalizeCountryCode(
+        input.recipient?.country ?? input.destinationCountry,
+      ),
       FirstName: receiverName.firstName,
       LastName: receiverName.lastName,
       Company: metadataString(input.metadata, "receiverCompany", ""),
@@ -140,6 +142,49 @@ function normalizeReceiverPhone(phone: string | undefined) {
   const digits = withoutExtension.replace(/\D/g, "");
 
   return digits || trimmed;
+}
+
+function normalizeCountryCode(country: string | undefined | null) {
+  const trimmed = country?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const upper = trimmed
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  if (/^[A-Z]{2}$/.test(upper)) {
+    return upper;
+  }
+
+  const compact = upper.replace(/[^A-Z]/g, "");
+  const countryNameMap: Record<string, string> = {
+    AMERICA: "US",
+    UNITEDSTATES: "US",
+    UNITEDSTATESOFAMERICA: "US",
+    USA: "US",
+    US: "US",
+    VIETNAM: "VN",
+    VN: "VN",
+    UNITEDKINGDOM: "GB",
+    UK: "GB",
+    GREATBRITAIN: "GB",
+    ENGLAND: "GB",
+    CANADA: "CA",
+    AUSTRALIA: "AU",
+    GERMANY: "DE",
+    FRANCE: "FR",
+    ITALY: "IT",
+    SPAIN: "ES",
+    JAPAN: "JP",
+    KOREA: "KR",
+    SOUTHKOREA: "KR",
+    REPUBLICOFKOREA: "KR",
+    CHINA: "CN",
+  };
+
+  return countryNameMap[compact] ?? upper;
 }
 
 function round(value: number) {

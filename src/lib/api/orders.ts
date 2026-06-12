@@ -13,6 +13,7 @@ export interface OrderListParams {
   page?: number;
   pageSize?: number;
   status?: string;
+  sourceChannel?: string;
   search?: string;
   from?: string;
   to?: string;

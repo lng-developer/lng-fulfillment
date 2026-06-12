@@ -6,6 +6,7 @@ import type {
   CarrierAdapter,
   CarrierAdapterContext,
   CreateCarrierShipmentInput,
+  CreateCarrierShipmentResult,
 } from "@/modules/carrier/types";
 import {
   getYunExpressOmsConfig,
@@ -36,6 +37,8 @@ import {
 } from "./normalize";
 import type {
   YunExpressCreateOrderLabelResponse,
+  YunExpressGetOrderResponse,
+  YunExpressGetTrackingNumberResponse,
   YunExpressOrderItem,
   YunExpressPrintLabelResponse,
 } from "./types";
@@ -44,6 +47,9 @@ type AdapterOptions = {
   config?: YunExpressOmsConfig;
   fetchImpl?: typeof fetch;
 };
+
+const TRACKING_POLL_ATTEMPTS = 2;
+const TRACKING_POLL_DELAY_MS = 5000;
 
 export function createYunExpressOmsAdapter(
   options: AdapterOptions = {},
@@ -189,6 +195,7 @@ export function createYunExpressOmsAdapter(
         payload: [payload],
         fetchImpl: options.fetchImpl,
       });
+      logSafeCreateOrderLabelResponse(response);
       timing("clientReturned");
 
       const normalized = isExistingOrderCreateOrderLabelResponse(response)
@@ -206,11 +213,24 @@ export function createYunExpressOmsAdapter(
             timing,
           })
         : normalizeCreateOrderLabelResponse(response);
+      const normalizedWithTracking = await enrichCreateResultWithTrackingNumber({
+        config: {
+          ...config,
+          baseUrl: config.baseUrl,
+          customerNo: config.customerNo,
+          apiSecret: config.apiSecret,
+        },
+        result: normalized,
+        customerOrderNumber: payload.CustomerOrderNumber,
+        authorizationHeader,
+        fetchImpl: options.fetchImpl,
+      });
+      logSafeCarrierCreateResult(normalizedWithTracking);
       timing("responseNormalized", {
-        trackingPresent: Boolean(normalized.trackingNumber),
+        trackingPresent: Boolean(normalizedWithTracking.trackingNumber),
         labelPresent: Boolean(normalized.labelUrl),
       });
-      return normalized;
+      return normalizedWithTracking;
     },
     async getLabel() {
       throw new CarrierIntegrationError(
@@ -242,7 +262,14 @@ export function createYunExpressOmsAdapter(
         | ReturnType<typeof normalizeGetTrackingNumberResponse>
         | undefined;
 
-      if (!orderNumber && input.customerOrderNumber) {
+      if (!trackingNumber && input.customerOrderNumber) {
+        const authorizationHeader =
+          config.customerNo && config.apiSecret
+            ? createYunExpressOmsAuthorizationHeader({
+                customerNo: config.customerNo,
+                apiSecret: config.apiSecret,
+              })
+            : undefined;
         const trackingNumberResponse = await callYunExpressGetTrackingNumber({
           config: {
             baseUrl: config.baseUrl,
@@ -250,6 +277,7 @@ export function createYunExpressOmsAdapter(
             timeoutMs: config.timeoutMs,
           },
           customerOrderNumber: input.customerOrderNumber,
+          authorizationHeader,
           fetchImpl: options.fetchImpl,
         });
         trackingNumberStatus = normalizeGetTrackingNumberResponse(
@@ -258,6 +286,37 @@ export function createYunExpressOmsAdapter(
         carrierShipmentId = trackingNumberStatus.carrierShipmentId ?? carrierShipmentId;
         trackingNumber = trackingNumberStatus.trackingNumber ?? trackingNumber;
         orderNumber = carrierShipmentId ?? trackingNumber ?? null;
+
+        if (!trackingNumber) {
+          try {
+            const getOrderResponse = await callYunExpressGetOrder({
+              config: {
+                baseUrl: config.baseUrl,
+                lang: config.lang,
+                timeoutMs: config.timeoutMs,
+              },
+              orderNumber: input.customerOrderNumber,
+              authorizationHeader,
+              fetchImpl: options.fetchImpl,
+            });
+            logSafeGetOrderResponse(getOrderResponse);
+            carrierShipmentId =
+              carrierShipmentId ??
+              safeString(getOrderResponse.Item?.WayBillNumber) ??
+              safeString(getOrderResponse.Item?.OrderNumber);
+            trackingNumber =
+              safeString(getOrderResponse.Item?.TrackingNumber) ?? trackingNumber;
+            orderNumber = carrierShipmentId ?? trackingNumber ?? null;
+          } catch {
+            trackingNumberStatus = {
+              ...trackingNumberStatus,
+              safeMetadata: {
+                ...(trackingNumberStatus?.safeMetadata ?? {}),
+                getOrderTrackingLookupFailed: true,
+              },
+            } as typeof trackingNumberStatus;
+          }
+        }
       }
 
       if (!orderNumber) {
@@ -512,6 +571,293 @@ function getLabelLookupNumber(
 
 function safeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function logSafeCreateOrderLabelResponse(
+  response: YunExpressCreateOrderLabelResponse,
+) {
+  if (!isShipmentTrackingFlowDebugEnabled()) {
+    return;
+  }
+
+  console.info("[yun-create-order-label-response]", {
+    Code: response.Code ?? null,
+    Message: response.Message ?? null,
+    Item: (response.Item ?? []).map((item) => ({
+      CustomerOrderNumber: item.CustomerOrderNumber ?? null,
+      Success: item.Success ?? null,
+      TrackType: item.TrackType ?? null,
+      Remark: item.Remark ?? null,
+      WayBillNumber: item.WayBillNumber ?? null,
+      TrackingNumber: item.TrackingNumber ?? null,
+      Label: item.Label
+        ? {
+            LabelType: item.Label.LabelType ?? null,
+            UrlPresent: Boolean(item.Label.Url),
+            LabelStringPresent: Boolean(item.Label.LabelString),
+            OrderInfos: (item.Label.OrderInfos ?? []).map((orderInfo) => ({
+              CustomerOrderNumber: orderInfo.CustomerOrderNumber ?? null,
+              Code: orderInfo.Code ?? null,
+              Error: orderInfo.Error ?? null,
+            })),
+          }
+        : null,
+    })),
+  });
+}
+
+function logSafeGetTrackingNumberResponse(
+  response: YunExpressGetTrackingNumberResponse,
+) {
+  if (!isShipmentTrackingFlowDebugEnabled()) {
+    return;
+  }
+
+  console.info("[yun-get-tracking-number-response]", {
+    Code: response.Code ?? null,
+    Message: response.Message ?? null,
+    Items: (response.Items ?? []).map((item) => ({
+      CustomerOrderNumber: item.CustomerOrderNumber ?? null,
+      WayBillNumber: item.WayBillNumber ?? null,
+      TrackingNumber: item.TrackingNumber ?? null,
+      Status: item.Status ?? null,
+      Remark: item.Remark ?? null,
+      ChildTrackingCount: Array.isArray(item.ChildTrackings)
+        ? item.ChildTrackings.length
+        : null,
+    })),
+  });
+}
+
+function logSafeGetOrderResponse(response: YunExpressGetOrderResponse) {
+  if (!isShipmentTrackingFlowDebugEnabled()) {
+    return;
+  }
+
+  console.info("[yun-get-order-response]", {
+    Code: response.Code ?? null,
+    Message: response.Message ?? null,
+    Item: response.Item
+      ? {
+          OrderNumber: response.Item.OrderNumber ?? null,
+          CustomerOrderNumber: response.Item.CustomerOrderNumber ?? null,
+          WayBillNumber: response.Item.WayBillNumber ?? null,
+          TrackingNumber: response.Item.TrackingNumber ?? null,
+          Status: response.Item.Status ?? null,
+        }
+      : null,
+  });
+}
+
+function logSafeCarrierCreateResult(result: CreateCarrierShipmentResult) {
+  if (!isShipmentTrackingFlowDebugEnabled()) {
+    return;
+  }
+
+  console.info("[yun-create-shipment-normalized-result]", {
+    carrierCode: result.carrierCode,
+    carrierShipmentId: result.carrierShipmentId,
+    trackingNumber: result.trackingNumber ?? null,
+    labelUrlPresent: Boolean(result.labelUrl),
+    safeMetadata: result.metadata?.safe ?? null,
+  });
+}
+
+function isShipmentTrackingFlowDebugEnabled() {
+  return (
+    process.env.SHIPMENT_TRACKING_FLOW_DEBUG === "true" ||
+    process.env.YUN_OMS_DEBUG_CREATE_ORDER_LABEL_RESPONSE === "true"
+  );
+}
+
+async function enrichCreateResultWithTrackingNumber(input: {
+  config: YunExpressOmsConfig & {
+    baseUrl: string;
+    customerNo: string;
+    apiSecret: string;
+  };
+  result: CreateCarrierShipmentResult;
+  customerOrderNumber: string;
+  authorizationHeader: string;
+  fetchImpl?: typeof fetch;
+}): Promise<CreateCarrierShipmentResult> {
+  if (input.result.trackingNumber) {
+    return input.result;
+  }
+
+  let result = input.result;
+
+  for (let attempt = 1; attempt <= TRACKING_POLL_ATTEMPTS; attempt += 1) {
+    await sleep(TRACKING_POLL_DELAY_MS);
+
+    result = await lookupTrackingNumberAfterCreate({
+      ...input,
+      result,
+      attempt,
+    });
+
+    if (result.trackingNumber) {
+      return result;
+    }
+
+    result = await lookupOrderTrackingAfterCreate({
+      ...input,
+      result,
+      attempt,
+    });
+
+    if (result.trackingNumber) {
+      return result;
+    }
+  }
+
+  return {
+    ...result,
+    metadata: {
+      ...result.metadata,
+      safe: {
+        ...(result.metadata?.safe ?? {}),
+        trackingPendingAfterPoll: true,
+        trackingPollAttempts: TRACKING_POLL_ATTEMPTS,
+      },
+    },
+  };
+}
+
+async function lookupTrackingNumberAfterCreate(input: {
+  config: YunExpressOmsConfig & { baseUrl: string };
+  result: CreateCarrierShipmentResult;
+  customerOrderNumber: string;
+  authorizationHeader: string;
+  fetchImpl?: typeof fetch;
+  attempt: number;
+}): Promise<CreateCarrierShipmentResult> {
+  try {
+    const response = await callYunExpressGetTrackingNumber({
+      config: {
+        baseUrl: input.config.baseUrl,
+        lang: input.config.lang,
+        timeoutMs: input.config.timeoutMs,
+      },
+      customerOrderNumber: input.customerOrderNumber,
+      authorizationHeader: input.authorizationHeader,
+      fetchImpl: input.fetchImpl,
+    });
+    logSafeGetTrackingNumberResponse(response);
+    const trackingNumberStatus = normalizeGetTrackingNumberResponse(response);
+
+    return {
+      ...input.result,
+      carrierShipmentId:
+        input.result.carrierShipmentId ||
+        trackingNumberStatus.carrierShipmentId ||
+        "",
+      trackingNumber: trackingNumberStatus.trackingNumber ?? null,
+      metadata: {
+        ...input.result.metadata,
+        safe: {
+          ...(input.result.metadata?.safe ?? {}),
+          trackingNumberLookupAttempted: true,
+          trackingNumberLookupAttempt: input.attempt,
+          trackingNumberLookupStatus:
+            trackingNumberStatus.safeMetadata.trackingNumberStatus ?? null,
+          trackingNumberLookupRemark:
+            trackingNumberStatus.safeMetadata.trackingNumberRemark ?? null,
+        },
+      },
+    };
+  } catch {
+    return {
+      ...input.result,
+      metadata: {
+        ...input.result.metadata,
+        safe: {
+          ...(input.result.metadata?.safe ?? {}),
+          trackingNumberLookupAttempted: true,
+          trackingNumberLookupAttempt: input.attempt,
+          trackingNumberLookupFailed: true,
+        },
+      },
+    };
+  }
+}
+
+async function lookupOrderTrackingAfterCreate(input: {
+  config: YunExpressOmsConfig & { baseUrl: string };
+  result: CreateCarrierShipmentResult;
+  customerOrderNumber: string;
+  authorizationHeader: string;
+  fetchImpl?: typeof fetch;
+  attempt: number;
+}): Promise<CreateCarrierShipmentResult> {
+  try {
+    const response = await callYunExpressGetOrder({
+      config: {
+        baseUrl: input.config.baseUrl,
+        lang: input.config.lang,
+        timeoutMs: input.config.timeoutMs,
+      },
+      orderNumber: input.customerOrderNumber,
+      authorizationHeader: input.authorizationHeader,
+      fetchImpl: input.fetchImpl,
+    });
+    logSafeGetOrderResponse(response);
+
+    const item = response.Item ?? null;
+    const trackingNumber = safeString(item?.TrackingNumber);
+    const carrierShipmentId =
+      input.result.carrierShipmentId ||
+      safeString(item?.WayBillNumber) ||
+      safeString(item?.OrderNumber) ||
+      "";
+
+    return {
+      ...input.result,
+      carrierShipmentId,
+      trackingNumber,
+      metadata: {
+        ...input.result.metadata,
+        safe: {
+          ...(input.result.metadata?.safe ?? {}),
+          getOrderTrackingLookupAttempted: true,
+          getOrderTrackingLookupAttempt: input.attempt,
+          getOrderTrackingLookupFound: Boolean(trackingNumber),
+          getOrderCode: response.Code ?? null,
+          getOrderMessage: response.Message ?? null,
+          getOrderStatus: safeScalarString(item?.Status),
+        },
+      },
+    };
+  } catch {
+    return {
+      ...input.result,
+      metadata: {
+        ...input.result.metadata,
+        safe: {
+          ...(input.result.metadata?.safe ?? {}),
+          getOrderTrackingLookupAttempted: true,
+          getOrderTrackingLookupAttempt: input.attempt,
+          getOrderTrackingLookupFailed: true,
+        },
+      },
+    };
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeScalarString(value: unknown) {
+  if (typeof value === "string") {
+    return safeString(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return null;
 }
 
 function notSupported(message: string) {

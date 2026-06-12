@@ -143,6 +143,7 @@ function toOrderListItem(order: OrderDetail): OrderListItem {
     externalOrderId: order.externalOrderId,
     orderNumber: order.orderNumber,
     source: order.source,
+    sourceChannel: order.sourceChannel,
     shopName: order.shopName,
     marketplace: order.marketplace,
     status: order.status,

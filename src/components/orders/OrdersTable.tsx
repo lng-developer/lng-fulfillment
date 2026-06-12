@@ -21,12 +21,22 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { cancelYunShipment, getOrder, getOrders, shipOrder } from "@/lib/api/orders";
+import {
+  cancelYunShipment,
+  getOrder,
+  getOrders,
+  shipOrder,
+} from "@/lib/api/orders";
+import { syncTracking } from "@/lib/api/shipments";
 import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { BatchShipResult, OrderDetail, OrderListItem } from "@/types/orders";
+import type {
+  BatchShipResult,
+  OrderDetail,
+  OrderListItem,
+} from "@/types/orders";
 import { BatchShipModal } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
 import { ConfirmShipModal } from "./ConfirmShipModal";
@@ -44,6 +54,14 @@ const ORDER_STATUSES = [
   { label: "On hold", value: "ON_HOLD" },
   { label: "Ready to ship", value: "READY_TO_SHIP" },
   { label: "Received", value: "RECEIVED" },
+];
+
+const SOURCE_CHANNELS = [
+  { label: "All sources", value: "" },
+  { label: "Amazon", value: "AMAZON" },
+  { label: "Etsy", value: "ETSY" },
+  { label: "Manual", value: "MANUAL" },
+  { label: "Unknown", value: "UNKNOWN" },
 ];
 
 const BATCH_LIMIT = 10;
@@ -72,7 +90,7 @@ type OrderMutationResult = {
   shipment?: OrderMutationShipment;
 };
 
-type PendingOrderAction = "ship" | "cancel";
+type PendingOrderAction = "ship" | "cancel" | "sync";
 
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
@@ -88,11 +106,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [sourceChannel, setSourceChannel] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detailCache, setDetailCache] = useState<Record<string, OrderDetail>>({});
+  const [detailCache, setDetailCache] = useState<Record<string, OrderDetail>>(
+    {},
+  );
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +124,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   });
   const [shipTarget, setShipTarget] = useState<OrderListItem | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [confirmTarget, setConfirmTarget] = useState<OrderListItem | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<OrderListItem | null>(
+    null,
+  );
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
   const [pendingOrderActions, setPendingOrderActions] = useState<
@@ -117,7 +140,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   }, [detailCache]);
 
   const ensureDetail = useCallback(async (orderId: string) => {
-    if (detailCacheRef.current[orderId] || detailLoadingRef.current.has(orderId)) {
+    if (
+      detailCacheRef.current[orderId] ||
+      detailLoadingRef.current.has(orderId)
+    ) {
       return;
     }
 
@@ -175,6 +201,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             sortOrder: "desc",
             search,
             status,
+            sourceChannel,
             from: from ? new Date(from).toISOString() : undefined,
             to: to ? new Date(to).toISOString() : undefined,
           },
@@ -219,7 +246,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     loadOrders();
 
     return () => controller.abort();
-  }, [from, page, reloadKey, search, status, to]);
+  }, [from, page, reloadKey, search, sourceChannel, status, to]);
 
   useEffect(() => {
     if (!orders.length) {
@@ -228,7 +255,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       return;
     }
 
-    setExpandedRows(Object.fromEntries(orders.map((order) => [order.id, true])));
+    setExpandedRows(
+      Object.fromEntries(orders.map((order) => [order.id, true])),
+    );
     setSelectedIds(new Set());
   }, [orders]);
 
@@ -264,7 +293,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     sortedOrders.every((order) => expandedRows[order.id] ?? false);
 
   const expandAll = useCallback(() => {
-    setExpandedRows(Object.fromEntries(sortedOrders.map((order) => [order.id, true])));
+    setExpandedRows(
+      Object.fromEntries(sortedOrders.map((order) => [order.id, true])),
+    );
     sortedOrders.forEach((order) => {
       if (!detailCacheRef.current[order.id]) {
         void ensureDetail(order.id);
@@ -273,7 +304,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   }, [ensureDetail, sortedOrders]);
 
   const collapseAll = useCallback(() => {
-    setExpandedRows(Object.fromEntries(sortedOrders.map((order) => [order.id, false])));
+    setExpandedRows(
+      Object.fromEntries(sortedOrders.map((order) => [order.id, false])),
+    );
   }, [sortedOrders]);
 
   const toggleRow = useCallback(
@@ -321,7 +354,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
 
   function handleBatchSuccess(result: BatchShipResult) {
     const now = new Date().toISOString();
-    const selectedById = new Map(selectedOrders.map((order) => [order.id, order]));
+    const selectedById = new Map(
+      selectedOrders.map((order) => [order.id, order]),
+    );
 
     result.succeeded.forEach((success) => {
       if (!selectedById.has(success.orderId)) {
@@ -369,7 +404,11 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     setPendingOrderActions((current) => ({ ...current, [order.id]: "ship" }));
 
     try {
-      const result = await shipOrder(order.id, input.environment, input.options);
+      const result = await shipOrder(
+        order.id,
+        input.environment,
+        input.options,
+      );
       toastSuccess("Shipment created successfully.");
       applyOrderMutation({
         ...result,
@@ -402,6 +441,43 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
+  async function runSyncTrackingInBackground(
+    order: OrderListItem,
+    shipmentId: string,
+  ) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "sync" }));
+
+    try {
+      const result = await syncTracking(shipmentId);
+      applyOrderMutation({
+        orderId: order.id,
+        orderStatus: order.status,
+        shipment: {
+          id: result.shipment.id,
+          status: result.shipment.status,
+          carrierCode: result.shipment.carrierCode,
+          carrierShipmentId: result.shipment.carrierShipmentId,
+          trackingNumber: result.shipment.trackingNumber,
+          updatedAt: result.shipment.updatedAt,
+        },
+      });
+
+      if (result.shipment.trackingNumber) {
+        toastSuccess("Tracking synced.");
+      } else {
+        toastSuccess("Tracking is still pending.");
+      }
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
+  }
+
   function applyOrderMutation(result: OrderMutationResult) {
     const now = new Date().toISOString();
     const shipmentPatch = result.shipment;
@@ -417,26 +493,26 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           status: result.orderStatus,
           updatedAt: now,
           latestShipmentStatus: hasOwn(shipmentPatch, "status")
-            ? shipmentPatch.status ?? null
+            ? (shipmentPatch.status ?? null)
             : order.latestShipmentStatus,
           latestTrackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-            ? shipmentPatch.trackingNumber ?? null
+            ? (shipmentPatch.trackingNumber ?? null)
             : order.latestTrackingNumber,
           latestLabelUrl: hasOwn(shipmentPatch, "labelUrl")
-            ? shipmentPatch.labelUrl ?? null
-            : result.labelUrl ?? order.latestLabelUrl,
+            ? (shipmentPatch.labelUrl ?? null)
+            : (result.labelUrl ?? order.latestLabelUrl),
           trackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-            ? shipmentPatch.trackingNumber ?? null
-            : order.trackingNumber ?? null,
+            ? (shipmentPatch.trackingNumber ?? null)
+            : (order.trackingNumber ?? null),
           carrierShipmentId: hasOwn(shipmentPatch, "carrierShipmentId")
-            ? shipmentPatch.carrierShipmentId ?? null
-            : order.carrierShipmentId ?? null,
+            ? (shipmentPatch.carrierShipmentId ?? null)
+            : (order.carrierShipmentId ?? null),
           labelUrl: hasOwn(shipmentPatch, "labelUrl")
-            ? shipmentPatch.labelUrl ?? null
-            : result.labelUrl ?? order.labelUrl ?? null,
+            ? (shipmentPatch.labelUrl ?? null)
+            : (result.labelUrl ?? order.labelUrl ?? null),
           latestShipmentCarrier: hasOwn(shipmentPatch, "carrierCode")
-            ? shipmentPatch.carrierCode ?? null
-            : order.latestShipmentCarrier ?? null,
+            ? (shipmentPatch.carrierCode ?? null)
+            : (order.latestShipmentCarrier ?? null),
         };
       });
 
@@ -529,6 +605,20 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
               </option>
             ))}
           </select>
+          <select
+            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
+            onChange={(event) => {
+              setSourceChannel(event.target.value);
+              setPage(1);
+            }}
+            value={sourceChannel}
+          >
+            {SOURCE_CHANNELS.map((option) => (
+              <option key={option.label} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <input
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
             onChange={(event) => {
@@ -597,7 +687,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                       aria-label="Select all eligible orders"
                       checked={Boolean(
                         eligibleOrders.length > 0 &&
-                          eligibleOrders.every((order) => selectedIds.has(order.id)),
+                        eligibleOrders.every((order) =>
+                          selectedIds.has(order.id),
+                        ),
                       )}
                       className="cursor-pointer accent-[var(--brand)]"
                       disabled={!eligibleOrders.length || !can.shipOrder(role)}
@@ -610,7 +702,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                   <th className="w-9 border-b border-[var(--border)] px-2 py-2.5">
                     <button
                       aria-label={
-                        allRowsExpanded ? "Collapse all rows" : "Expand all rows"
+                        allRowsExpanded
+                          ? "Collapse all rows"
+                          : "Expand all rows"
                       }
                       className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] transition-colors hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={!sortedOrders.length}
@@ -630,11 +724,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                   <TableHeader className="w-[180px]">Order #</TableHeader>
                   <SortableHeader
                     active={sort.key === "status"}
+                    className="w-[130px]"
                     direction={sort.direction}
                     onClick={() => changeSort("status")}
                   >
                     Status
                   </SortableHeader>
+                  <TableHeader className="w-[120px]">Source</TableHeader>
                   <TableHeader className="w-[180px]">Recipient</TableHeader>
                   <TableHeader className="w-[150px]">Tracking</TableHeader>
                   <TableHeader className="w-[150px]">Shipment</TableHeader>
@@ -664,6 +760,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                       onCancel={setCancelTarget}
                       onConfirm={setConfirmTarget}
                       onReset={setResetTarget}
+                      onSyncTracking={runSyncTrackingInBackground}
                       onShip={(target) => {
                         if (!detailCacheRef.current[target.id]) {
                           void ensureDetail(target.id);
@@ -739,7 +836,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           detailsByOrderId={detailCache}
           onClose={() => setShowBatchModal(false)}
           onSuccess={handleBatchSuccess}
-          orders={selectedOrders.filter(isEligibleForShip).slice(0, BATCH_LIMIT)}
+          orders={selectedOrders
+            .filter(isEligibleForShip)
+            .slice(0, BATCH_LIMIT)}
         />
       ) : null}
 
@@ -787,6 +886,7 @@ function OrderRows({
   onConfirm,
   onCancel,
   onReset,
+  onSyncTracking,
   pendingAction,
 }: {
   order: OrderListItem;
@@ -801,10 +901,16 @@ function OrderRows({
   onConfirm: (order: OrderListItem) => void;
   onCancel: (order: OrderListItem) => void;
   onReset: (order: OrderListItem) => void;
+  onSyncTracking: (order: OrderListItem, shipmentId: string) => void;
   pendingAction: PendingOrderAction | null;
 }) {
   const orderIdentifier = order.orderNumber ?? order.externalOrderId;
   const shipment = getLatestShipmentInfo(order, detail);
+  const canSyncTracking =
+    can.shipOrder(role) &&
+    !shipment.trackingNumber &&
+    shipment.status === "TRACKING_PENDING" &&
+    Boolean(shipment.id);
 
   async function copyOrderIdentifier() {
     try {
@@ -881,7 +987,7 @@ function OrderRows({
             />
           </button>
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           <button
             aria-label={`Copy order ID ${orderIdentifier}`}
             className="inline-flex max-w-[170px] items-center gap-1 truncate font-mono text-[11px] font-semibold text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
@@ -893,23 +999,42 @@ function OrderRows({
             <Copy className="h-3 w-3 shrink-0" aria-hidden />
           </button>
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           <StatusBadge status={order.status} />
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
+          <div className="grid place-items-center gap-1">
+            <span
+              className={cn(
+                "w-fit rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em]",
+                sourceChannelBadgeClass(order.sourceChannel),
+              )}
+            >
+              {sourceChannelLabel(order.sourceChannel)}
+            </span>
+            {order.source ? (
+              <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                {order.source}
+              </span>
+            ) : null}
+          </div>
+        </td>
+        <td className="px-3.5 py-2.5 text-center align-middle">
           <div className="min-w-0">
             <p className="truncate text-xs font-medium text-[var(--text-primary)]">
               {order.recipientName ?? "Not provided"}
             </p>
             <p className="truncate text-[11px] text-[var(--text-muted)]">
               {countryFlag(order.destinationCountry)}{" "}
-              {order.destinationCity ?? order.destinationCountry ?? "No address"}
+              {order.destinationCity ??
+                order.destinationCountry ??
+                "No address"}
             </p>
           </div>
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           {shipment.trackingNumber ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center justify-center gap-1">
               <span className="font-mono text-[11px] text-[var(--text-secondary)]">
                 {shipment.trackingNumber}
               </span>
@@ -923,12 +1048,33 @@ function OrderRows({
               </button>
             </div>
           ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">-</span>
+            <div className="grid place-items-center gap-1">
+              <span className="text-[11px] text-[var(--text-muted)]">-</span>
+              {canSyncTracking ? (
+                <button
+                  className="inline-flex h-7 w-fit items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 text-[11px] font-medium text-[var(--brand)] hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={pendingAction === "sync"}
+                  onClick={() => {
+                    if (shipment.id) {
+                      onSyncTracking(order, shipment.id);
+                    }
+                  }}
+                  type="button"
+                >
+                  {pendingAction === "sync" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  ) : (
+                    <RotateCcw className="h-3 w-3" aria-hidden />
+                  )}
+                  Sync tracking
+                </button>
+              ) : null}
+            </div>
           )}
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           {shipment.status ? (
-            <div className="grid gap-1">
+            <div className="grid place-items-center gap-1">
               <StatusBadge status={shipment.status} />
               {shipment.carrier ? (
                 <div className="font-mono text-[9px] text-[var(--text-muted)]">
@@ -937,7 +1083,7 @@ function OrderRows({
               ) : null}
               {shipment.labelUrl ? (
                 <a
-                  className="inline-flex items-center gap-0.5 text-[10px] text-[var(--brand)] hover:underline"
+                  className="inline-flex items-center justify-center gap-0.5 text-[10px] text-[var(--brand)] hover:underline"
                   href={shipment.labelUrl}
                   rel="noreferrer"
                   target="_blank"
@@ -951,7 +1097,7 @@ function OrderRows({
             <span className="text-[11px] text-[var(--text-muted)]">-</span>
           )}
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           <time
             className="text-xs text-[var(--text-secondary)]"
             dateTime={order.receivedAt}
@@ -960,7 +1106,7 @@ function OrderRows({
             {relativeTime(order.receivedAt)}
           </time>
         </td>
-        <td className="px-3.5 py-2.5 align-middle">
+        <td className="px-3.5 py-2.5 text-center align-middle">
           <OrderActions
             labelUrl={shipment.labelUrl}
             canCancelShipped={canCancelShippedOrder(order.status, detail)}
@@ -976,7 +1122,7 @@ function OrderRows({
       </tr>
       {isExpanded ? (
         <tr>
-          <td className="border-b border-[var(--border)] p-0" colSpan={9}>
+          <td className="border-b border-[var(--border)] p-0" colSpan={10}>
             {detailError ? (
               <div className="bg-[var(--brand-light)] px-12 py-4">
                 <ErrorState message={detailError} />
@@ -1024,7 +1170,11 @@ function OrderActions({
         type="button"
       >
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-        {pendingAction === "ship" ? "Creating..." : "Cancelling..."}
+        {pendingAction === "ship"
+          ? "Creating..."
+          : pendingAction === "cancel"
+            ? "Cancelling..."
+            : "Syncing..."}
       </button>
     );
   }
@@ -1045,7 +1195,7 @@ function OrderActions({
 
     case "IN_PROCESSING":
       return (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap justify-center gap-1.5">
           {can.confirmShip(role) ? (
             <button
               className="inline-flex h-8 items-center gap-1 rounded-sm border border-[#a7f3d0] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--success)] hover:bg-[var(--success-bg)]"
@@ -1071,7 +1221,7 @@ function OrderActions({
 
     case "SHIPPED":
       return (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap justify-center gap-1.5">
           {labelUrl ? (
             <a
               className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
@@ -1108,7 +1258,9 @@ function OrderActions({
           Reset order
         </button>
       ) : (
-        <span className="text-[11px] text-[var(--text-muted)]">Cancelled</span>
+        <span className="flex items-center justify-center text-[11px] text-[var(--text-muted)]">
+          Cancelled
+        </span>
       );
 
     default:
@@ -1126,7 +1278,7 @@ function TableHeader({
   return (
     <th
       className={cn(
-        "border-b border-[var(--border)] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
+        "border-b border-[var(--border)] px-3.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
         className,
       )}
     >
@@ -1151,12 +1303,12 @@ function SortableHeader({
   return (
     <th
       className={cn(
-        "border-b border-[var(--border)] px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
+        "border-b border-[var(--border)] px-3.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
         className,
       )}
     >
       <button
-        className="inline-flex items-center gap-1 hover:text-[var(--brand)]"
+        className="inline-flex w-full items-center justify-center gap-1 hover:text-[var(--brand)]"
         onClick={onClick}
         type="button"
       >
@@ -1175,10 +1327,14 @@ function SortableHeader({
   );
 }
 
-function getLatestShipmentInfo(order: OrderListItem, detail: OrderDetail | null) {
+function getLatestShipmentInfo(
+  order: OrderListItem,
+  detail: OrderDetail | null,
+) {
   const latestShipment = detail?.shipments?.[0] ?? null;
 
   return {
+    id: latestShipment?.id ?? null,
     trackingNumber:
       order.trackingNumber ??
       order.latestTrackingNumber ??
@@ -1186,7 +1342,11 @@ function getLatestShipmentInfo(order: OrderListItem, detail: OrderDetail | null)
       null,
     carrierShipmentId:
       order.carrierShipmentId ?? latestShipment?.carrierShipmentId ?? null,
-    labelUrl: order.labelUrl ?? order.latestLabelUrl ?? latestShipment?.labelUrl ?? null,
+    labelUrl:
+      order.labelUrl ??
+      order.latestLabelUrl ??
+      latestShipment?.labelUrl ??
+      null,
     status: order.latestShipmentStatus ?? latestShipment?.status ?? null,
     carrier: order.latestShipmentCarrier ?? latestShipment?.carrierCode ?? null,
   };
@@ -1215,20 +1375,20 @@ function patchDetailShipments(
     orderNumber: detail.orderNumber,
     externalOrderId: detail.externalOrderId,
     status: hasOwn(shipmentPatch, "status")
-      ? shipmentPatch.status ?? firstShipment?.status ?? "CREATED"
-      : firstShipment?.status ?? "CREATED",
+      ? (shipmentPatch.status ?? firstShipment?.status ?? "CREATED")
+      : (firstShipment?.status ?? "CREATED"),
     carrierCode: hasOwn(shipmentPatch, "carrierCode")
-      ? shipmentPatch.carrierCode ?? null
-      : firstShipment?.carrierCode ?? "YUNEXPRESS_OMS",
+      ? (shipmentPatch.carrierCode ?? null)
+      : (firstShipment?.carrierCode ?? "YUNEXPRESS_OMS"),
     carrierShipmentId: hasOwn(shipmentPatch, "carrierShipmentId")
-      ? shipmentPatch.carrierShipmentId ?? null
-      : firstShipment?.carrierShipmentId ?? null,
+      ? (shipmentPatch.carrierShipmentId ?? null)
+      : (firstShipment?.carrierShipmentId ?? null),
     trackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-      ? shipmentPatch.trackingNumber ?? null
-      : firstShipment?.trackingNumber ?? null,
+      ? (shipmentPatch.trackingNumber ?? null)
+      : (firstShipment?.trackingNumber ?? null),
     labelUrl: hasOwn(shipmentPatch, "labelUrl")
-      ? shipmentPatch.labelUrl ?? null
-      : firstShipment?.labelUrl ?? null,
+      ? (shipmentPatch.labelUrl ?? null)
+      : (firstShipment?.labelUrl ?? null),
     createdAt: shipmentPatch.createdAt ?? firstShipment?.createdAt ?? timestamp,
     updatedAt: shipmentPatch.updatedAt ?? timestamp,
     itemCount: firstShipment?.itemCount ?? detail.items.length,
@@ -1236,7 +1396,9 @@ function patchDetailShipments(
 
   if (currentShipments.some((shipment) => shipment.id === shipmentId)) {
     return currentShipments.map((shipment) =>
-      shipment.id === shipmentId ? { ...shipment, ...patchedShipment } : shipment,
+      shipment.id === shipmentId
+        ? { ...shipment, ...patchedShipment }
+        : shipment,
     );
   }
 
@@ -1274,7 +1436,8 @@ function canCancelShippedOrder(status: string, detail: OrderDetail | null) {
     ?.filter((entry) => entry.status === "SHIPPED")
     .sort(
       (first, second) =>
-        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+        new Date(second.createdAt).getTime() -
+        new Date(first.createdAt).getTime(),
     )[0]?.createdAt;
 
   if (!shippedAtValue) {
@@ -1282,7 +1445,10 @@ function canCancelShippedOrder(status: string, detail: OrderDetail | null) {
   }
 
   const shippedAt = new Date(shippedAtValue).getTime();
-  return Number.isFinite(shippedAt) && Date.now() - shippedAt <= SHIPPED_CANCEL_WINDOW_MS;
+  return (
+    Number.isFinite(shippedAt) &&
+    Date.now() - shippedAt <= SHIPPED_CANCEL_WINDOW_MS
+  );
 }
 
 function relativeTime(value: string) {
@@ -1358,6 +1524,36 @@ function countryFlag(countryCode: string | null) {
     .split("")
     .map((char) => String.fromCodePoint(char.charCodeAt(0) + base))
     .join("");
+}
+
+function sourceChannelLabel(sourceChannel: string | null) {
+  switch (sourceChannel) {
+    case "AMAZON":
+      return "Amazon";
+    case "ETSY":
+      return "Etsy";
+    case "MANUAL":
+      return "Manual";
+    case "UNKNOWN":
+      return "Unknown";
+    case null:
+      return "Unknown";
+    default:
+      return sourceChannel;
+  }
+}
+
+function sourceChannelBadgeClass(sourceChannel: string | null) {
+  switch (sourceChannel) {
+    case "AMAZON":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "ETSY":
+      return "border-orange-200 bg-orange-50 text-orange-700";
+    case "MANUAL":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+    default:
+      return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
+  }
 }
 
 function isEligibleForShip(order: OrderListItem) {

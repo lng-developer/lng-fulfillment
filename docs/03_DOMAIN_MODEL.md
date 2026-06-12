@@ -204,6 +204,7 @@ Fields dự kiến:
 - `tenantId`
 - `externalOrderId`
 - `orderNumber`
+- `sourceChannel`
 - `status`
 - `recipientName`
 - `recipientPhone`
@@ -218,6 +219,8 @@ Business rules:
 - `externalOrderId` nên unique theo tenant/source nếu được dùng.
 - Order không được truy vấn hoặc mutate khi thiếu `tenantId`.
 - Order có nhiều `OrderItem`.
+
+- `source` stores the integration path, while `sourceChannel` stores the sales channel such as `AMAZON`, `ETSY`, `MANUAL`, or `UNKNOWN`.
 
 ## OrderItem
 

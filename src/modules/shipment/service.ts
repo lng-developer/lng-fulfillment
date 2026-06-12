@@ -11,6 +11,7 @@ import {
   type GetCarrierTrackingResult,
   type CreateCarrierShipmentInput,
 } from "@/modules/carrier";
+import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
 import { AppError } from "@/shared/errors";
 import { createSafeTimingLogger } from "@/shared/timing";
 import {
@@ -227,15 +228,22 @@ export async function shipOrderWithYun(
       trackingPresent: Boolean(carrierResult.trackingNumber),
       labelPresent: Boolean(carrierResult.labelUrl),
     });
+    logShipmentTrackingFlow("carrierCreateResult", {
+      carrierCode: carrierResult.carrierCode,
+      carrierShipmentId: carrierResult.carrierShipmentId,
+      trackingNumber: carrierResult.trackingNumber ?? null,
+      labelUrlPresent: Boolean(carrierResult.labelUrl),
+      safeMetadata: carrierResult.metadata?.safe ?? null,
+    });
   } catch (error) {
     throw mapCarrierErrorToAppError(error);
   }
 
-  const successStatus = carrierResult.labelUrl
-    ? "LABEL_READY"
-    : carrierResult.trackingNumber
-      ? "TRACKING_PENDING"
-      : "CREATED";
+  const successStatus = carrierResult.trackingNumber
+    ? carrierResult.labelUrl
+      ? "LABEL_READY"
+      : "TRACKING_PENDING"
+    : "TRACKING_PENDING";
   const shipment = await createDirectShipmentSuccessRecords({
     tenantId,
     orderId: order.id,
@@ -265,6 +273,29 @@ export async function shipOrderWithYun(
     trackingPresent: Boolean(shipment.trackingNumber),
     labelPresent: Boolean(shipment.labelUrl),
   });
+  logShipmentTrackingFlow("shipmentPersisted", {
+    orderId: order.id,
+    externalOrderId: order.externalOrderId,
+    shipmentId: shipment.id,
+    shipmentStatus: shipment.status,
+    carrierShipmentId: shipment.carrierShipmentId,
+    trackingNumber: shipment.trackingNumber,
+    labelUrlPresent: Boolean(shipment.labelUrl),
+    orderStatus: "IN_PROCESSING",
+  });
+
+  const portalTrackingSync = await sendPortalTrackingUpdate({
+    orderId: order.externalOrderId,
+    tracking: shipment.trackingNumber,
+  });
+  timing("portalTrackingSyncCompleted", {
+    attempted: portalTrackingSync.attempted,
+    delivered:
+      portalTrackingSync.attempted === true
+        ? portalTrackingSync.delivered
+        : false,
+  });
+  logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
 
   if (actor.actorType === "USER" && actor.actorId) {
     await recordUserAuditLog({
@@ -710,11 +741,11 @@ export async function executeShipment(
       trackingPresent: Boolean(result.trackingNumber),
       labelPresent: Boolean(result.labelUrl),
     });
-    const successStatus = result.labelUrl
-      ? "LABEL_READY"
-      : result.trackingNumber
-        ? "TRACKING_PENDING"
-        : "CREATED";
+    const successStatus = result.trackingNumber
+      ? result.labelUrl
+        ? "LABEL_READY"
+        : "TRACKING_PENDING"
+      : "TRACKING_PENDING";
     const updatedShipment = await updateShipmentExecutionSucceeded({
       tenantId,
       shipmentId,
@@ -888,6 +919,14 @@ export async function syncShipmentTracking(
       actorId: actor.actorId,
     });
 
+    if (!shipment.trackingNumber && updatedShipment.trackingNumber) {
+      const portalTrackingSync = await sendPortalTrackingUpdate({
+        orderId: shipment.externalOrderId,
+        tracking: updatedShipment.trackingNumber,
+      });
+      logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
+    }
+
     if (actor.actorType === "USER" && actor.actorId) {
       await recordUserAuditLog({
         tenantId,
@@ -1010,6 +1049,17 @@ function chooseTrackingShipmentStatus(
     nextStatus: currentStatus,
     note: "Shipment tracking synced.",
   };
+}
+
+function logShipmentTrackingFlow(step: string, metadata: Record<string, unknown>) {
+  if (process.env.SHIPMENT_TRACKING_FLOW_DEBUG !== "true") {
+    return;
+  }
+
+  console.info("[shipment-tracking-flow]", {
+    step,
+    ...metadata,
+  });
 }
 
 function buildShipmentTrackingSyncResult(

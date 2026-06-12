@@ -68,6 +68,13 @@ enum OrderStatus {
   ON_HOLD
 }
 
+enum OrderSourceChannel {
+  AMAZON
+  ETSY
+  MANUAL
+  UNKNOWN
+}
+
 enum ShipmentStatus {
   DRAFT
   CREATING
@@ -220,6 +227,7 @@ model Order {
   externalOrderId       String
   orderNumber           String?
   source                String?
+  sourceChannel         OrderSourceChannel?
   sourceAccount         String?
   shopName              String?
   marketplace           String?
@@ -252,6 +260,7 @@ model Order {
   @@unique([tenantId, externalOrderId])
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, sourceChannel])
   @@index([tenantId, receivedAt])
   @@index([tenantId, shopName])
   @@index([tenantId, marketplace])

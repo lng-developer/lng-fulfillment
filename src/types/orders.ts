@@ -33,6 +33,8 @@ export type OrderStatus =
   | "DRAFT"
   | string;
 
+export type OrderSourceChannel = "AMAZON" | "ETSY" | "MANUAL" | "UNKNOWN" | string;
+
 export type ShipEnvironment = "test" | "live";
 
 export const YUN_ENDPOINTS: Record<ShipEnvironment, string> = {
@@ -115,6 +117,7 @@ export type OrderListItem = {
   externalOrderId: string;
   orderNumber: string | null;
   source: string | null;
+  sourceChannel: OrderSourceChannel | null;
   shopName: string | null;
   marketplace: string | null;
   status: string;
@@ -229,6 +232,7 @@ export type OrderDetail = {
   externalOrderId: string;
   orderNumber: string | null;
   source: string | null;
+  sourceChannel: OrderSourceChannel | null;
   sourceAccount: string | null;
   shopName: string | null;
   marketplace: string | null;
