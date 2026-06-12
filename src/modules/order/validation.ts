@@ -1,4 +1,4 @@
-import { OrderStatus, type Prisma } from "@prisma/client";
+import { OrderSourceChannel, OrderStatus, type Prisma } from "@prisma/client";
 import { AppError } from "@/shared/errors";
 import {
   DEFAULT_ORDER_PAGE,
@@ -90,6 +90,7 @@ export function validateOrderListQuery(
     ),
     pageSize: parsePageSize(searchParams.get("pageSize")),
     status: parseOrderStatus(searchParams.get("status")),
+    sourceChannel: parseOrderSourceChannel(searchParams.get("sourceChannel")),
     search: optionalString(searchParams.get("search")),
     from: parseOptionalDate(searchParams.get("from"), "from"),
     to: parseOptionalDate(searchParams.get("to"), "to"),
@@ -195,7 +196,8 @@ function validatePortalOrder(
     order: {
       externalOrderId,
       orderNumber: firstString(order.orderNumber, order.orderId),
-      source: firstString(order.source, order.channel, order.platform) ?? "portal",
+      source: normalizePortalSource(order),
+      sourceChannel: normalizePortalSourceChannel(order, externalOrderId),
       sourceAccount: firstString(order.sourceAccount, order.merchantId),
       shopName: optionalString(order.shopName),
       marketplace: firstString(order.marketplace, order.marketplaceId),
@@ -542,6 +544,98 @@ function parseOrderStatus(value: string | null) {
   }
 
   return status as OrderStatus;
+}
+
+function parseOrderSourceChannel(value: string | null) {
+  const sourceChannel = optionalString(value);
+  if (!sourceChannel) {
+    return undefined;
+  }
+
+  if (
+    !Object.values(OrderSourceChannel).includes(
+      sourceChannel as OrderSourceChannel,
+    )
+  ) {
+    throw new AppError("VALIDATION_ERROR", "sourceChannel is invalid.", 400);
+  }
+
+  return sourceChannel as OrderSourceChannel;
+}
+
+function normalizePortalSource(order: Record<string, unknown>) {
+  const source = firstString(order.source);
+  if (!source || normalizeSourceChannelValue(source)) {
+    return "portal";
+  }
+
+  return source;
+}
+
+function normalizePortalSourceChannel(
+  order: Record<string, unknown>,
+  externalOrderId: string,
+): OrderSourceChannel {
+  const explicit = firstString(
+    order.sourceChannel,
+    order.source_channel,
+    order.salesChannel,
+    order.sales_channel,
+    order.source,
+    order.channel,
+    order.platform,
+    order.marketplace,
+    order.marketplaceId,
+  );
+  const inferred = normalizeSourceChannelValue(explicit);
+  if (inferred) {
+    return inferred;
+  }
+
+  return inferSourceChannelFromOrderId(externalOrderId);
+}
+
+function normalizeSourceChannelValue(
+  value: string | undefined,
+): OrderSourceChannel | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "AMZ" || normalized.includes("AMAZON")) {
+    return OrderSourceChannel.AMAZON;
+  }
+
+  if (normalized.includes("ETSY")) {
+    return OrderSourceChannel.ETSY;
+  }
+
+  if (normalized.includes("MANUAL")) {
+    return OrderSourceChannel.MANUAL;
+  }
+
+  if (normalized === OrderSourceChannel.UNKNOWN) {
+    return OrderSourceChannel.UNKNOWN;
+  }
+
+  if (Object.values(OrderSourceChannel).includes(normalized as OrderSourceChannel)) {
+    return normalized as OrderSourceChannel;
+  }
+
+  return undefined;
+}
+
+function inferSourceChannelFromOrderId(externalOrderId: string): OrderSourceChannel {
+  if (/^\d{3}-\d{7}-\d{7}(?:-.+)?$/.test(externalOrderId)) {
+    return OrderSourceChannel.AMAZON;
+  }
+
+  return OrderSourceChannel.UNKNOWN;
 }
 
 function parseOptionalDate(value: string | null, fieldName: string) {

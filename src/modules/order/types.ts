@@ -1,4 +1,4 @@
-import type { OrderStatus, Prisma } from "@prisma/client";
+import type { OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
 import type { ApiErrorCode } from "@/shared/errors";
 
 export const MAX_PORTAL_ORDER_BATCH_SIZE = 50;
@@ -49,6 +49,7 @@ export type PortalOrderInput = {
   externalOrderId: string;
   orderNumber?: string;
   source?: string;
+  sourceChannel?: OrderSourceChannel;
   sourceAccount?: string;
   shopName?: string;
   marketplace?: string;
@@ -111,6 +112,7 @@ export type OrderListQuery = {
   page: number;
   pageSize: number;
   status?: OrderStatus;
+  sourceChannel?: OrderSourceChannel;
   search?: string;
   from?: Date;
   to?: Date;
@@ -124,6 +126,7 @@ export type OrderListItem = {
   externalOrderId: string;
   orderNumber: string | null;
   source: string | null;
+  sourceChannel: OrderSourceChannel | null;
   shopName: string | null;
   marketplace: string | null;
   status: OrderStatus;
@@ -153,6 +156,7 @@ export type OrderDetail = {
   externalOrderId: string;
   orderNumber: string | null;
   source: string | null;
+  sourceChannel: OrderSourceChannel | null;
   sourceAccount: string | null;
   shopName: string | null;
   marketplace: string | null;

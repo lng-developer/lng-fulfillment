@@ -422,6 +422,7 @@ Request body:
       "externalOrderId": "EXT-123",
       "orderNumber": "ORD-123",
       "source": "portal",
+      "sourceChannel": "AMAZON",
       "recipient": {
         "name": "Jane Doe",
         "phone": "123456789",
@@ -502,6 +503,9 @@ Validation:
 - Single order object không có `orders` hoặc `data` bị reject với `400 VALIDATION_ERROR`.
 - Unknown fields không bị reject; server giữ full source object trong `rawPayload`.
 
+- `source` identifies the integration path, such as `portal`; `sourceChannel` identifies the sales channel and accepts `AMAZON`, `ETSY`, `MANUAL`, or `UNKNOWN`.
+- If `sourceChannel` is missing, server infers Amazon from standard Amazon order-number format when possible; otherwise it stores `UNKNOWN`.
+
 V2-020B richer Portal/MVP-like payload support:
 
 - Request batch aliases accepted: `orders` and Portal `data`.
@@ -566,6 +570,7 @@ Rules for implemented read APIs:
 - `page`: positive integer, default `1`.
 - `pageSize`: positive integer, default `20`, max `100`.
 - `status`: optional `OrderStatus`.
+- `sourceChannel`: optional, one of `AMAZON`, `ETSY`, `MANUAL`, `UNKNOWN`.
 - `search`: optional search trên `externalOrderId`, `orderNumber`, `recipientName`.
 - `from`: optional ISO date cho `receivedAt >= from`.
 - `to`: optional ISO date cho `receivedAt <= to`.
@@ -590,6 +595,7 @@ List response:
         "externalOrderId": "EXT-123",
         "orderNumber": "ORD-123",
         "source": "portal",
+        "sourceChannel": "AMAZON",
         "shopName": "QA Test Shop",
         "marketplace": "amazon-us",
         "status": "READY_TO_SHIP",
@@ -632,6 +638,7 @@ Detail response data:
     "externalOrderId": "EXT-123",
     "orderNumber": "ORD-123",
     "source": "portal",
+    "sourceChannel": "AMAZON",
     "sourceAccount": "store-account-1",
     "shopName": "QA Test Shop",
     "marketplace": "amazon-us",
