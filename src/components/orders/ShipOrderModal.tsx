@@ -14,8 +14,8 @@ import type {
 } from "@/types/orders";
 import { EnvironmentSelector } from "./EnvironmentSelector";
 
-const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR"] as const;
-const PRODUCT_OPTIONS = [
+export const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR"] as const;
+export const PRODUCT_OPTIONS = [
   {
     eName: "Paper napkins",
     cName: "餐巾纸",

@@ -287,6 +287,7 @@ export async function shipOrderWithYun(
   const portalTrackingSync = await sendPortalTrackingUpdate({
     orderId: order.externalOrderId,
     tracking: shipment.trackingNumber,
+    sourceChannel: order.sourceChannel,
   });
   timing("portalTrackingSyncCompleted", {
     attempted: portalTrackingSync.attempted,
@@ -923,6 +924,7 @@ export async function syncShipmentTracking(
       const portalTrackingSync = await sendPortalTrackingUpdate({
         orderId: shipment.externalOrderId,
         tracking: updatedShipment.trackingNumber,
+        sourceChannel: shipment.sourceChannel,
       });
       logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
     }

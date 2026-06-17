@@ -25,7 +25,9 @@ import {
   cancelYunShipment,
   getOrder,
   getOrders,
+  resetOrder,
   shipOrder,
+  shipOrdersBatch,
 } from "@/lib/api/orders";
 import { syncTracking } from "@/lib/api/shipments";
 import { useAuth } from "@/lib/auth-context";
@@ -37,7 +39,7 @@ import type {
   OrderDetail,
   OrderListItem,
 } from "@/types/orders";
-import { BatchShipModal } from "./BatchShipModal";
+import { BatchShipModal, type BatchShipSubmitInput } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
 import { ConfirmShipModal } from "./ConfirmShipModal";
 import { OrderExpandPanel } from "./OrderExpandPanel";
@@ -90,7 +92,7 @@ type OrderMutationResult = {
   shipment?: OrderMutationShipment;
 };
 
-type PendingOrderAction = "ship" | "cancel" | "sync";
+type PendingOrderAction = "ship" | "cancel" | "sync" | "reset";
 
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
@@ -422,6 +424,47 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
+  async function runBatchShipInBackground(input: BatchShipSubmitInput) {
+    const orderIds = input.orderIds.filter((orderId) => !pendingOrderActions[orderId]);
+    if (!orderIds.length) {
+      setShowBatchModal(false);
+      return;
+    }
+
+    setShowBatchModal(false);
+    setPendingOrderActions((current) => ({
+      ...current,
+      ...Object.fromEntries(orderIds.map((orderId) => [orderId, "ship"])),
+    }));
+
+    try {
+      const result = await shipOrdersBatch(
+        orderIds,
+        input.environment,
+        input.optionsByOrderId,
+      );
+      const successCount = result.succeeded.length;
+      const failedCount = result.failed.length;
+
+      if (successCount) {
+        toastSuccess(
+          failedCount
+            ? `${successCount} shipments created; ${failedCount} failed.`
+            : `${successCount} shipments created successfully.`,
+        );
+      }
+      if (failedCount) {
+        toastError(`${failedCount} shipments failed.`);
+      }
+
+      handleBatchSuccess(result);
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      orderIds.forEach(clearPendingOrderAction);
+    }
+  }
+
   async function runCancelYunInBackground(order: OrderListItem) {
     if (pendingOrderActions[order.id]) {
       return;
@@ -433,6 +476,25 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     try {
       const result = await cancelYunShipment(order.id);
       toastSuccess("YunExpress shipment cancelled.");
+      applyOrderMutation(result);
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      clearPendingOrderAction(order.id);
+    }
+  }
+
+  async function runResetOrderInBackground(order: OrderListItem) {
+    if (pendingOrderActions[order.id]) {
+      return;
+    }
+
+    setResetTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "reset" }));
+
+    try {
+      const result = await resetOrder(order.id);
+      toastSuccess("Order reset. You can create a shipment again.");
       applyOrderMutation(result);
     } catch (error) {
       toastError(getErrorMessage(error));
@@ -835,7 +897,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         <BatchShipModal
           detailsByOrderId={detailCache}
           onClose={() => setShowBatchModal(false)}
-          onSuccess={handleBatchSuccess}
+          onSubmit={(input) => {
+            void runBatchShipInBackground(input);
+          }}
           orders={selectedOrders
             .filter(isEligibleForShip)
             .slice(0, BATCH_LIMIT)}
@@ -865,7 +929,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       {resetTarget ? (
         <ResetOrderModal
           onClose={() => setResetTarget(null)}
-          onSuccess={handleOrderMutation}
+          onSubmit={(order) => {
+            void runResetOrderInBackground(order);
+          }}
           order={resetTarget}
         />
       ) : null}
@@ -1174,7 +1240,9 @@ function OrderActions({
           ? "Creating..."
           : pendingAction === "cancel"
             ? "Cancelling..."
-            : "Syncing..."}
+            : pendingAction === "reset"
+              ? "Resetting..."
+              : "Syncing..."}
       </button>
     );
   }
