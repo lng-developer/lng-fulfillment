@@ -35,6 +35,18 @@ const order: OrderListItem = {
 
 const edit: BatchOrderShipEditState = {
   shippingMethodCode: "VNFZZXR",
+  receiverValues: {
+    firstName: "Rachel",
+    lastName: "Cloud",
+    company: "Studio",
+    countryCode: "US",
+    street: "1701 Example Street",
+    city: "OCEANO",
+    state: "CA",
+    zip: "93445",
+    phone: "1234567890",
+    email: "test@example.com",
+  },
   packageValues: {
     weight: 0.25,
     length: 21,
@@ -68,5 +80,15 @@ const result = buildBatchOptionsByOrderId([order], {}, { [order.id]: edit });
 assert.equal(result[order.id]?.shippingMethodCode, "VNFZZXR");
 assert.equal(result[order.id]?.weight, 0.25);
 assert.equal(result[order.id]?.length, 21);
+assert.equal(result[order.id]?.receiverFirstName, "Rachel");
+assert.equal(result[order.id]?.receiverLastName, "Cloud");
+assert.equal(result[order.id]?.receiverCompany, "Studio");
+assert.equal(result[order.id]?.receiverStreet, "1701 Example Street");
+assert.equal(result[order.id]?.receiverCity, "OCEANO");
+assert.equal(result[order.id]?.receiverState, "CA");
+assert.equal(result[order.id]?.receiverZip, "93445");
+assert.equal(result[order.id]?.receiverCountryCode, "US");
+assert.equal(result[order.id]?.receiverPhone, "1234567890");
+assert.equal(result[order.id]?.receiverEmail, "test@example.com");
 assert.equal(result[order.id]?.parcels?.[0]?.eName, "Wooden decor");
 assert.equal(result[order.id]?.parcels?.[0]?.cName, "木制装饰品");

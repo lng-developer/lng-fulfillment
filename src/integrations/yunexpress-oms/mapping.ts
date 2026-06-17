@@ -43,13 +43,13 @@ export function mapCreateShipmentToYunExpressPayload(
       ),
       FirstName: receiverName.firstName,
       LastName: receiverName.lastName,
-      Company: metadataString(input.metadata, "receiverCompany", ""),
-      Street: input.recipient?.line1,
-      City: input.recipient?.city,
-      State: input.recipient?.state,
-      Zip: input.recipient?.postalCode,
+      Company: sanitizeReceiverText(metadataString(input.metadata, "receiverCompany", "")),
+      Street: sanitizeReceiverText(input.recipient?.line1),
+      City: sanitizeReceiverText(input.recipient?.city),
+      State: sanitizeReceiverText(input.recipient?.state),
+      Zip: sanitizeReceiverText(input.recipient?.postalCode),
       Phone: normalizeReceiverPhone(input.recipient?.phone),
-      Email: input.recipient?.email,
+      Email: sanitizeReceiverText(input.recipient?.email),
     },
     Parcels: input.items.map((item) => {
       const defaultName = item.name || item.sku || "Item";
@@ -117,7 +117,7 @@ function metadataNullableString(
 }
 
 function splitReceiverName(name: string | undefined) {
-  const trimmed = name?.trim();
+  const trimmed = sanitizeReceiverText(name);
   if (!trimmed) {
     return {
       firstName: "Recipient",
@@ -130,6 +130,23 @@ function splitReceiverName(name: string | undefined) {
     firstName: parts[0],
     lastName: parts.length > 1 ? parts.slice(1).join(" ") : undefined,
   };
+}
+
+function sanitizeReceiverText(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const normalized = trimmed
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/[^A-Za-z0-9 .,/#'()@+_-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized || undefined;
 }
 
 function normalizeReceiverPhone(phone: string | undefined) {

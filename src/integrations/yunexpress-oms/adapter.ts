@@ -270,22 +270,28 @@ export function createYunExpressOmsAdapter(
                 apiSecret: config.apiSecret,
               })
             : undefined;
-        const trackingNumberResponse = await callYunExpressGetTrackingNumber({
-          config: {
-            baseUrl: config.baseUrl,
-            lang: config.lang,
-            timeoutMs: config.timeoutMs,
-          },
-          customerOrderNumber: input.customerOrderNumber,
-          authorizationHeader,
-          fetchImpl: options.fetchImpl,
-        });
-        trackingNumberStatus = normalizeGetTrackingNumberResponse(
-          trackingNumberResponse,
-        );
-        carrierShipmentId = trackingNumberStatus.carrierShipmentId ?? carrierShipmentId;
-        trackingNumber = trackingNumberStatus.trackingNumber ?? trackingNumber;
-        orderNumber = carrierShipmentId ?? trackingNumber ?? null;
+        try {
+          const trackingNumberResponse = await callYunExpressGetTrackingNumber({
+            config: {
+              baseUrl: config.baseUrl,
+              lang: config.lang,
+              timeoutMs: config.timeoutMs,
+            },
+            customerOrderNumber: input.customerOrderNumber,
+            authorizationHeader,
+            fetchImpl: options.fetchImpl,
+          });
+          trackingNumberStatus = normalizeGetTrackingNumberResponse(
+            trackingNumberResponse,
+          );
+          carrierShipmentId =
+            trackingNumberStatus.carrierShipmentId ?? carrierShipmentId;
+          trackingNumber =
+            trackingNumberStatus.trackingNumber ?? trackingNumber;
+          orderNumber = carrierShipmentId ?? trackingNumber ?? null;
+        } catch (error) {
+          trackingNumberStatus = buildFailedTrackingNumberLookupResult(error);
+        }
 
         if (!trackingNumber) {
           try {
@@ -349,20 +355,42 @@ export function createYunExpressOmsAdapter(
         );
       }
 
-      const trackInfoResponse = await callYunExpressGetTrackInfo({
-        config: {
-          baseUrl: config.baseUrl,
-          lang: config.lang,
-          timeoutMs: config.timeoutMs,
-        },
-        orderNumber,
-        allInfo: true,
-        fetchImpl: options.fetchImpl,
-      });
-      let tracking = normalizeTrackInfoResponse(trackInfoResponse, {
-        carrierShipmentId,
-        trackingNumber,
-      });
+      let tracking;
+      const trackingAuthorizationHeader =
+        config.customerNo && config.apiSecret
+          ? createYunExpressOmsAuthorizationHeader({
+              customerNo: config.customerNo,
+              apiSecret: config.apiSecret,
+            })
+          : undefined;
+      try {
+        const trackInfoResponse = await callYunExpressGetTrackInfo({
+          config: {
+            baseUrl: config.baseUrl,
+            lang: config.lang,
+            timeoutMs: config.timeoutMs,
+          },
+          orderNumber,
+          allInfo: true,
+          authorizationHeader: trackingAuthorizationHeader,
+          fetchImpl: options.fetchImpl,
+        });
+        tracking = normalizeTrackInfoResponse(trackInfoResponse, {
+          carrierShipmentId,
+          trackingNumber,
+        });
+      } catch (error) {
+        if (!carrierShipmentId && !trackingNumber && !trackingNumberStatus) {
+          throw error;
+        }
+
+        tracking = buildPartialTrackingLookupResult({
+          carrierShipmentId,
+          trackingNumber,
+          trackingNumberStatus,
+          error,
+        });
+      }
 
       try {
         const carrierResponse = await callYunExpressGetCarrier({
@@ -372,6 +400,7 @@ export function createYunExpressOmsAdapter(
             timeoutMs: config.timeoutMs,
           },
           orderNumbers: [orderNumber],
+          authorizationHeader: trackingAuthorizationHeader,
           fetchImpl: options.fetchImpl,
         });
         tracking = mergeCarrierProvider(
@@ -858,6 +887,70 @@ function safeScalarString(value: unknown) {
   }
 
   return null;
+}
+
+function buildPartialTrackingLookupResult(input: {
+  carrierShipmentId: string | null;
+  trackingNumber: string | null;
+  trackingNumberStatus:
+    | ReturnType<typeof normalizeGetTrackingNumberResponse>
+    | undefined;
+  error: unknown;
+}): ReturnType<typeof normalizeTrackInfoResponse> {
+  const errorName = input.error instanceof Error ? input.error.name : "unknown";
+
+  return {
+    carrierCode: "YUNEXPRESS_OMS",
+    carrierShipmentId: input.carrierShipmentId,
+    trackingNumber: input.trackingNumber,
+    status: input.trackingNumberStatus?.status ?? "UNKNOWN",
+    packageState: null,
+    trackingStatus: null,
+    provider: null,
+    events: [],
+    latestEvent: null,
+    errors: [
+      ...(input.trackingNumberStatus?.errors ?? []),
+      {
+        code: "TRACKING_TIMELINE_LOOKUP_FAILED",
+        message:
+          "YunExpress tracking timeline lookup failed; waybill/tracking summary was kept.",
+      },
+    ],
+    metadata: {
+      safe: {
+        ...(input.trackingNumberStatus?.safeMetadata ?? {}),
+        trackingInfoLookupFailed: true,
+        trackingInfoLookupErrorName: errorName,
+      },
+    },
+  };
+}
+
+function buildFailedTrackingNumberLookupResult(error: unknown): ReturnType<
+  typeof normalizeGetTrackingNumberResponse
+> {
+  return {
+    carrierShipmentId: null,
+    trackingNumber: null,
+    status: "UNKNOWN",
+    errors: [
+      {
+        code: "TRACKING_NUMBER_LOOKUP_FAILED",
+        message:
+          "YunExpress tracking number lookup failed; tracking is still pending or unavailable.",
+      },
+    ],
+    safeMetadata: {
+      trackingNumberStatus: null,
+      trackingNumberLookupFailed: true,
+      trackingNumberLookupErrorName: getSafeErrorName(error),
+    },
+  };
+}
+
+function getSafeErrorName(error: unknown) {
+  return error instanceof Error ? error.name : "unknown";
 }
 
 function notSupported(message: string) {

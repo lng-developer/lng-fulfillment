@@ -17,11 +17,13 @@ import {
   buildShipOptions,
   PRODUCT_OPTIONS,
   SHIPPING_METHOD_OPTIONS,
+  type ShipmentReceiverValues,
   type ShipmentPreview,
 } from "./ShipOrderModal";
 
 export type BatchOrderShipEditState = {
   shippingMethodCode: string;
+  receiverValues: ShipmentReceiverValues;
   packageValues: ShipmentPreview["package"];
   parcels: ShipmentPreview["parcels"];
 };
@@ -218,6 +220,7 @@ export function buildBatchOptionsByOrderId(
         buildShipOptions(
           preview,
           edit.shippingMethodCode,
+          edit.receiverValues,
           edit.packageValues,
           edit.parcels,
         ),
@@ -250,6 +253,15 @@ function BatchOrderDetails({
     updateEdit({
       packageValues: {
         ...values.packageValues,
+        ...patch,
+      },
+    });
+  }
+
+  function updateReceiver(patch: Partial<ShipmentReceiverValues>) {
+    updateEdit({
+      receiverValues: {
+        ...values.receiverValues,
         ...patch,
       },
     });
@@ -317,6 +329,76 @@ function BatchOrderDetails({
         </div>
       ) : null}
       <div className="mt-3 grid gap-3 rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+            Editable receiver
+          </div>
+          <div className="grid gap-2 md:grid-cols-5">
+            <BatchTextInput
+              disabled={disabled}
+              label="FirstName"
+              onChange={(value) => updateReceiver({ firstName: value })}
+              value={values.receiverValues.firstName}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="LastName"
+              onChange={(value) => updateReceiver({ lastName: value })}
+              value={values.receiverValues.lastName}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="Company"
+              onChange={(value) => updateReceiver({ company: value })}
+              value={values.receiverValues.company}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="CountryCode"
+              onChange={(value) =>
+                updateReceiver({ countryCode: value.toUpperCase() })
+              }
+              value={values.receiverValues.countryCode}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="Street"
+              onChange={(value) => updateReceiver({ street: value })}
+              value={values.receiverValues.street}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="City"
+              onChange={(value) => updateReceiver({ city: value })}
+              value={values.receiverValues.city}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="State"
+              onChange={(value) => updateReceiver({ state: value })}
+              value={values.receiverValues.state}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="Zip"
+              onChange={(value) => updateReceiver({ zip: value })}
+              value={values.receiverValues.zip}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="Phone"
+              onChange={(value) => updateReceiver({ phone: value })}
+              value={values.receiverValues.phone}
+            />
+            <BatchTextInput
+              disabled={disabled}
+              label="Email"
+              onChange={(value) => updateReceiver({ email: value })}
+              value={values.receiverValues.email}
+            />
+          </div>
+        </div>
+
         <div className="grid gap-2 md:grid-cols-[minmax(170px,220px)_1fr]">
           <label className="block min-w-0">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
@@ -507,6 +589,7 @@ function resolveBatchEditState(
   return (
     edit ?? {
       shippingMethodCode: preview.shippingMethodCode,
+      receiverValues: preview.receiver,
       packageValues: preview.package,
       parcels: preview.parcels,
     }

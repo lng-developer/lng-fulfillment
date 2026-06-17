@@ -1158,15 +1158,18 @@ function buildCreateCarrierShipmentInputFromPreparation(
     carrierCode,
     carrierAccountId,
     recipient: {
-      name: shipment.order.recipientName ?? undefined,
-      phone: shipment.order.recipientPhone ?? undefined,
-      email: shipment.order.recipientEmail ?? undefined,
-      line1: jsonString(shipment.order.recipientAddress, "line1"),
+      name: buildReceiverNameOverride(options, shipment.order.recipientName),
+      phone: options?.receiverPhone ?? shipment.order.recipientPhone ?? undefined,
+      email: options?.receiverEmail ?? shipment.order.recipientEmail ?? undefined,
+      line1:
+        options?.receiverStreet ?? jsonString(shipment.order.recipientAddress, "line1"),
       line2: jsonString(shipment.order.recipientAddress, "line2"),
-      city: jsonString(shipment.order.recipientAddress, "city"),
-      state: jsonString(shipment.order.recipientAddress, "state"),
-      postalCode: jsonString(shipment.order.recipientAddress, "postalCode"),
+      city: options?.receiverCity ?? jsonString(shipment.order.recipientAddress, "city"),
+      state: options?.receiverState ?? jsonString(shipment.order.recipientAddress, "state"),
+      postalCode:
+        options?.receiverZip ?? jsonString(shipment.order.recipientAddress, "postalCode"),
       country:
+        options?.receiverCountryCode ??
         jsonString(shipment.order.recipientAddress, "country") ??
         shipment.order.destinationCountry ??
         undefined,
@@ -1241,15 +1244,16 @@ function buildCreateCarrierShipmentInputFromDirectOrder(
     carrierCode,
     carrierAccountId,
     recipient: {
-      name: order.recipientName ?? undefined,
-      phone: order.recipientPhone ?? undefined,
-      email: order.recipientEmail ?? undefined,
-      line1: jsonString(order.recipientAddress, "line1"),
+      name: buildReceiverNameOverride(options, order.recipientName),
+      phone: options?.receiverPhone ?? order.recipientPhone ?? undefined,
+      email: options?.receiverEmail ?? order.recipientEmail ?? undefined,
+      line1: options?.receiverStreet ?? jsonString(order.recipientAddress, "line1"),
       line2: jsonString(order.recipientAddress, "line2"),
-      city: jsonString(order.recipientAddress, "city"),
-      state: jsonString(order.recipientAddress, "state"),
-      postalCode: jsonString(order.recipientAddress, "postalCode"),
+      city: options?.receiverCity ?? jsonString(order.recipientAddress, "city"),
+      state: options?.receiverState ?? jsonString(order.recipientAddress, "state"),
+      postalCode: options?.receiverZip ?? jsonString(order.recipientAddress, "postalCode"),
       country:
+        options?.receiverCountryCode ??
         jsonString(order.recipientAddress, "country") ??
         order.destinationCountry ??
         undefined,
@@ -1351,6 +1355,18 @@ function jsonString(value: unknown, key: string): string | undefined {
 
   const field = (value as Record<string, unknown>)[key];
   return typeof field === "string" && field.trim() ? field.trim() : undefined;
+}
+
+function buildReceiverNameOverride(
+  options: ExecuteShipmentInput["options"] | undefined,
+  fallbackName: string | null,
+) {
+  const overrideName = [options?.receiverFirstName, options?.receiverLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return overrideName || fallbackName || undefined;
 }
 
 function decimalToNumber(value: unknown): number | null {

@@ -72,6 +72,8 @@ export type ShipmentPreview = {
   >;
 };
 
+export type ShipmentReceiverValues = ShipmentPreview["receiver"];
+
 export type ShipOrderSubmitInput = {
   environment: ShipEnvironment;
   options: ShipOrderOptions;
@@ -94,12 +96,14 @@ export function ShipOrderModal({
   const [shippingMethodCode, setShippingMethodCode] = useState(
     preview.shippingMethodCode,
   );
+  const [receiverValues, setReceiverValues] = useState(preview.receiver);
   const [packageValues, setPackageValues] = useState(preview.package);
   const [parcels, setParcels] = useState(preview.parcels);
   const controlsDisabled = hasSubmitted;
 
   useEffect(() => {
     setShippingMethodCode(preview.shippingMethodCode);
+    setReceiverValues(preview.receiver);
     setPackageValues(preview.package);
     setParcels(preview.parcels);
   }, [preview]);
@@ -112,6 +116,7 @@ export function ShipOrderModal({
     const options = buildShipOptions(
       preview,
       shippingMethodCode,
+      receiverValues,
       packageValues,
       parcels,
     );
@@ -130,6 +135,10 @@ export function ShipOrderModal({
 
   function updatePackage(patch: Partial<typeof packageValues>) {
     setPackageValues((current) => ({ ...current, ...patch }));
+  }
+
+  function updateReceiver(patch: Partial<typeof receiverValues>) {
+    setReceiverValues((current) => ({ ...current, ...patch }));
   }
 
   return (
@@ -202,16 +211,68 @@ export function ShipOrderModal({
 
             <ModalSection icon={<UserRound />} title="Receiver">
               <div className="grid gap-2 md:grid-cols-3">
-                <Field label="FirstName" value={preview.receiver.firstName} />
-                <Field label="LastName" value={preview.receiver.lastName} />
-                <Field label="Company" value={preview.receiver.company} />
-                <Field label="CountryCode" mono value={preview.receiver.countryCode} />
-                <Field label="Street" value={preview.receiver.street} />
-                <Field label="City" value={preview.receiver.city} />
-                <Field label="State" value={preview.receiver.state} />
-                <Field label="Zip" mono value={preview.receiver.zip} />
-                <Field label="Phone" mono value={preview.receiver.phone} />
-                <Field label="Email" value={preview.receiver.email} />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="FirstName"
+                  onChange={(value) => updateReceiver({ firstName: value })}
+                  value={receiverValues.firstName}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="LastName"
+                  onChange={(value) => updateReceiver({ lastName: value })}
+                  value={receiverValues.lastName}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="Company"
+                  onChange={(value) => updateReceiver({ company: value })}
+                  value={receiverValues.company}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="CountryCode"
+                  onChange={(value) =>
+                    updateReceiver({ countryCode: value.toUpperCase() })
+                  }
+                  value={receiverValues.countryCode}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="Street"
+                  onChange={(value) => updateReceiver({ street: value })}
+                  value={receiverValues.street}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="City"
+                  onChange={(value) => updateReceiver({ city: value })}
+                  value={receiverValues.city}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="State"
+                  onChange={(value) => updateReceiver({ state: value })}
+                  value={receiverValues.state}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="Zip"
+                  onChange={(value) => updateReceiver({ zip: value })}
+                  value={receiverValues.zip}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="Phone"
+                  onChange={(value) => updateReceiver({ phone: value })}
+                  value={receiverValues.phone}
+                />
+                <TextInput
+                  disabled={controlsDisabled}
+                  label="Email"
+                  onChange={(value) => updateReceiver({ email: value })}
+                  value={receiverValues.email}
+                />
               </div>
             </ModalSection>
 
@@ -510,13 +571,23 @@ function NumberInput({
 export function buildShipOptions(
   preview: ShipmentPreview,
   shippingMethodCode: string,
+  receiverValues: ShipmentReceiverValues,
   packageValues: ShipmentPreview["package"],
   parcels: ShipmentPreview["parcels"],
 ): ShipOrderOptions {
   return {
     shippingMethodCode,
     sourceCode: preview.sourceCode,
-    receiverCompany: preview.receiver.company,
+    receiverFirstName: receiverValues.firstName,
+    receiverLastName: receiverValues.lastName,
+    receiverCompany: receiverValues.company,
+    receiverCountryCode: receiverValues.countryCode,
+    receiverStreet: receiverValues.street,
+    receiverCity: receiverValues.city,
+    receiverState: receiverValues.state,
+    receiverZip: receiverValues.zip,
+    receiverPhone: receiverValues.phone,
+    receiverEmail: receiverValues.email,
     weight: packageValues.weight,
     length: packageValues.length,
     width: packageValues.width,

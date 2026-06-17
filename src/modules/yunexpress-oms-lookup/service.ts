@@ -117,17 +117,12 @@ export async function lookupYunExpressOmsOrder(
   } catch (error) {
     if (error instanceof CarrierIntegrationError) {
       const carrierError = error.carrierError;
-      throw new AppError(
-        "CARRIER_ERROR",
-        carrierError.message,
-        carrierError.statusCode ?? 502,
-        {
-          carrierCode: carrierError.carrierCode,
-          reason: carrierError.reason,
-          retryable: carrierError.retryable,
-          safeMetadata: carrierError.safeMetadata,
-        },
-      );
+      return buildRejectedGetOrderLookupResult(orderNumber, {
+        code: readString(carrierError.safeMetadata?.resultCode),
+        message:
+          readString(carrierError.safeMetadata?.resultDesc) ??
+          carrierError.message,
+      });
     }
 
     throw error;
@@ -209,6 +204,31 @@ function buildSkippedLabelPrintResult(): YunExpressOmsOrderLookupResult["labelPr
     orderInfos: [],
     raw: null,
     error: "No YunExpress order number was available for label lookup.",
+  };
+}
+
+function buildRejectedGetOrderLookupResult(
+  orderNumber: string,
+  failure: {
+    code: string | null;
+    message: string | null;
+  },
+): YunExpressOmsOrderLookupResult {
+  return {
+    searchedOrderNumber: orderNumber,
+    labelLookupNumber: null,
+    getOrder: {
+      code: failure.code,
+      message: failure.message,
+      found: false,
+      item: null,
+      raw: {
+        ...(failure.code ? { Code: failure.code } : {}),
+        ...(failure.message ? { Message: failure.message } : {}),
+        Item: null,
+      },
+    },
+    labelPrint: buildSkippedLabelPrintResult(),
   };
 }
 

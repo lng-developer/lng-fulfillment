@@ -11,7 +11,6 @@ export type PortalTrackingUpdateInput = {
 
 export type PortalTrackingUpdateResult =
   | { attempted: false; reason: "missing_data" }
-  | { attempted: false; reason: "missing_config" }
   | { attempted: true; delivered: true }
   | { attempted: true; delivered: false; status?: number };
 
@@ -88,16 +87,6 @@ async function sendPortalEtsyTrackingUpdate(input: {
   orderId: string;
   tracking: string;
 }): Promise<PortalTrackingUpdateResult> {
-  const token = process.env.PORTAL_ETSY_TRACKING_AUTH_TOKEN?.trim();
-  if (!token) {
-    logPortalTrackingFlow("portalTrackingUpdateSkipped", {
-      sourceChannel: "ETSY",
-      reason: "missing_config",
-      authTokenPresent: false,
-    });
-    return { attempted: false, reason: "missing_config" };
-  }
-
   const url = buildEtsyTrackingUrl(input.orderId);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -107,14 +96,13 @@ async function sendPortalEtsyTrackingUpdate(input: {
       sourceChannel: "ETSY",
       url: toSafeUrlSummary(url),
       body: { tracking: input.tracking },
-      authTokenPresent: true,
+      authRequired: false,
     });
 
     const response = await fetch(url, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ tracking: input.tracking }),
       signal: controller.signal,
