@@ -1,4 +1,8 @@
-import type { AuditActorType, ShipmentStatus } from "@prisma/client";
+import type {
+  AuditActorType,
+  OrderSourceChannel,
+  ShipmentStatus,
+} from "@prisma/client";
 import type {
   CarrierCode,
   CarrierNormalizedTrackingStatus,
@@ -60,6 +64,7 @@ export type ShipmentDetail = {
   orderId: string;
   orderNumber: string | null;
   externalOrderId: string;
+  sourceChannel: OrderSourceChannel | null;
   status: ShipmentStatus;
   carrierCode: string | null;
   carrierAccountId: string | null;

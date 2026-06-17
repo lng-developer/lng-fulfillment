@@ -1,54 +1,25 @@
 "use client";
 
 import type React from "react";
-import { Loader2, RotateCcw, X } from "lucide-react";
-import { useCallback, useState } from "react";
-import { getErrorMessage } from "@/lib/api/base";
-import { resetOrder } from "@/lib/api/orders";
-import { toastError, toastSuccess } from "@/lib/toast";
+import { RotateCcw, X } from "lucide-react";
 import type { OrderListItem } from "@/types/orders";
 
 export function ResetOrderModal({
   order,
   onClose,
-  onSuccess,
+  onSubmit,
 }: {
   order: OrderListItem;
   onClose: () => void;
-  onSuccess: (result: Awaited<ReturnType<typeof resetOrder>>) => void;
+  onSubmit: (order: OrderListItem) => void;
 }) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const closeIfAllowed = useCallback(() => {
-    if (!isSubmitting) {
-      onClose();
-    }
-  }, [isSubmitting, onClose]);
-
-  async function handleReset() {
-    if (isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await resetOrder(order.id);
-      toastSuccess("Order reset. You can create a shipment again.");
-      onSuccess(result);
-      onClose();
-    } catch (error) {
-      toastError(getErrorMessage(error));
-      setIsSubmitting(false);
-    }
-  }
-
   return (
     <div
       aria-modal="true"
       className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          closeIfAllowed();
+          onClose();
         }
       }}
       role="dialog"
@@ -71,7 +42,6 @@ export function ResetOrderModal({
           <button
             aria-label="Close reset order modal"
             className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:opacity-50"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -95,7 +65,6 @@ export function ResetOrderModal({
           <button
             autoFocus
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] disabled:opacity-50"
-            disabled={isSubmitting}
             onClick={onClose}
             type="button"
           >
@@ -103,13 +72,9 @@ export function ResetOrderModal({
           </button>
           <button
             className="inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isSubmitting}
-            onClick={handleReset}
+            onClick={() => onSubmit(order)}
             type="button"
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
             Reset order
           </button>
         </div>

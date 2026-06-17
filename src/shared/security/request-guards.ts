@@ -105,6 +105,8 @@ function getAllowedOrigins(): Set<string> {
   const origins = new Set<string>();
   addOrigin(origins, process.env.APP_URL);
   addOrigin(origins, process.env.NEXT_PUBLIC_APP_URL);
+  addVercelOrigin(origins, process.env.VERCEL_URL);
+  addVercelOrigin(origins, process.env.VERCEL_BRANCH_URL);
 
   if (isLocalLikeEnvironment(process.env.APP_ENV)) {
     for (const port of ["3000", "3001", "3002", "3003"]) {
@@ -121,6 +123,14 @@ function addOrigin(origins: Set<string>, value: string | undefined) {
   if (origin) {
     origins.add(origin);
   }
+}
+
+function addVercelOrigin(origins: Set<string>, value: string | undefined) {
+  if (!value) {
+    return;
+  }
+
+  addOrigin(origins, value.startsWith("http") ? value : `https://${value}`);
 }
 
 function parseOrigin(value: string | null | undefined): string | null {

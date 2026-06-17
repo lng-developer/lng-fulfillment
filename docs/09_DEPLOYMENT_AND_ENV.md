@@ -123,7 +123,10 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 
 - `TENANT_API_KEY_PEPPER` nếu implementation chọn pepper.
 - Webhook signing secrets nếu callback signing được triển khai.
-- `PORTAL_TRACKING_UPDATE_URL`: server-side Portal tracking update endpoint. Defaults to `https://api.lngmerch.co/api/order/update-tracking` if omitted; shipment creation with a tracking number sends `{ orderId, tracking }` to this endpoint after local shipment records are saved.
+- `PORTAL_TRACKING_UPDATE_URL`: server-side Portal tracking update endpoint for Amazon/default orders. Defaults to `https://api.lngmerch.co/api/order/update-tracking` if omitted; shipment creation with a tracking number sends `{ orderId, tracking }` to this endpoint after local shipment records are saved.
+- `PORTAL_ETSY_TRACKING_BASE_URL`: server-side Portal base URL for Etsy tracking callbacks. Defaults to `https://api.lngmerch.co`; FF calls `PATCH /api/etsy/:orderId/tracking` for orders whose `sourceChannel` is `ETSY`.
+- `PORTAL_ETSY_TRACKING_AUTH_TOKEN`: auth token used only for Etsy tracking callbacks. Required when enabling Etsy callback sync; never print or commit the value.
+- Tracking callback routing is source-aware: `sourceChannel=ETSY` uses the Etsy endpoint, while Amazon/manual/unknown orders use `PORTAL_TRACKING_UPDATE_URL`.
 
 ### Carrier Integration
 

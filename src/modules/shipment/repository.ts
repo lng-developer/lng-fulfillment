@@ -1,4 +1,10 @@
-import type { AuditActorType, OrderStatus, Prisma, ShipmentStatus } from "@prisma/client";
+import type {
+  AuditActorType,
+  OrderSourceChannel,
+  OrderStatus,
+  Prisma,
+  ShipmentStatus,
+} from "@prisma/client";
 import { prisma } from "@/shared/db";
 import type {
   CreateDraftShipmentInput,
@@ -84,6 +90,7 @@ export async function getOrderShipmentPreparation(
       tenantId: true,
       externalOrderId: true,
       orderNumber: true,
+      sourceChannel: true,
       status: true,
       recipientName: true,
       recipientPhone: true,
@@ -123,6 +130,7 @@ export async function getDirectShipOrderPreparation(
       tenantId: true,
       externalOrderId: true,
       orderNumber: true,
+      sourceChannel: true,
       status: true,
       recipientName: true,
       recipientPhone: true,
@@ -695,6 +703,7 @@ export async function getShipmentCarrierPreparation(
         select: {
           externalOrderId: true,
           orderNumber: true,
+          sourceChannel: true,
           recipientName: true,
           recipientPhone: true,
           recipientEmail: true,
@@ -888,6 +897,7 @@ const shipmentDetailSelect = {
     select: {
       orderNumber: true,
       externalOrderId: true,
+      sourceChannel: true,
     },
   },
   items: {
@@ -952,6 +962,7 @@ function toShipmentDetail(row: {
   order: {
     orderNumber: string | null;
     externalOrderId: string;
+    sourceChannel: OrderSourceChannel | null;
   };
   items: Array<{
     id: string;
@@ -981,6 +992,7 @@ function toShipmentDetail(row: {
     orderId: row.orderId,
     orderNumber: row.order.orderNumber,
     externalOrderId: row.order.externalOrderId,
+    sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
     carrierAccountId: row.carrierAccountId,
