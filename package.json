@@ -11,7 +11,8 @@
     "test:platform": "npm run test:e2e:platform",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "sync:etsy-tracking": "tsx scripts/sync-etsy-tracking-to-portal.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
