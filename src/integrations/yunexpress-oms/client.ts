@@ -82,6 +82,7 @@ export async function callYunExpressGetTrackingNumber(input: {
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressGetTrackingNumberResponse> {
   return callYunExpressGet({
+    action: "get_tracking_number",
     config: input.config,
     url: buildTrackingNumberUrl(input.config.baseUrl, input.customerOrderNumber),
     authorizationHeader: input.authorizationHeader,
@@ -98,6 +99,7 @@ export async function callYunExpressGetOrder(input: {
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressGetOrderResponse> {
   return callYunExpressGet({
+    action: "get_order",
     config: input.config,
     url: buildGetOrderUrl(input.config.baseUrl, input.orderNumber),
     authorizationHeader: input.authorizationHeader,
@@ -139,11 +141,14 @@ export async function callYunExpressGetTrackInfo(input: {
   };
   orderNumber: string;
   allInfo?: boolean;
+  authorizationHeader?: string;
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressTrackInfoResponse> {
   return callYunExpressGet({
+    action: "get_track_info",
     config: input.config,
     url: buildTrackInfoUrl(input.config.baseUrl, input.orderNumber, input.allInfo),
+    authorizationHeader: input.authorizationHeader,
     fetchImpl: input.fetchImpl,
   }) as Promise<YunExpressTrackInfoResponse>;
 }
@@ -153,6 +158,7 @@ export async function callYunExpressGetCarrier(input: {
     baseUrl: string;
   };
   orderNumbers: string[];
+  authorizationHeader?: string;
   fetchImpl?: typeof fetch;
 }): Promise<YunExpressGetCarrierResponse> {
   return yunFetchJson<YunExpressGetCarrierResponse>({
@@ -164,6 +170,9 @@ export async function callYunExpressGetCarrier(input: {
       method: "POST",
       headers: {
         Accept: "application/json",
+        ...(input.authorizationHeader
+          ? { Authorization: input.authorizationHeader }
+          : {}),
         "Content-Type": "application/json",
         "__lang": input.config.lang,
       },
@@ -173,13 +182,14 @@ export async function callYunExpressGetCarrier(input: {
 }
 
 async function callYunExpressGet(input: {
+  action: string;
   config: Pick<YunExpressOmsConfig, "lang" | "timeoutMs">;
   url: string;
   authorizationHeader?: string;
   fetchImpl?: typeof fetch;
 }) {
   return yunFetchJson({
-    action: "get",
+    action: input.action,
     fetchImpl: input.fetchImpl,
     timeoutMs: input.config.timeoutMs,
     url: input.url,
@@ -231,7 +241,11 @@ async function yunFetchJson<T>(input: {
     });
 
     if (!response.ok) {
-      const carrierError = mapYunHttpFailure(input.action, response);
+      const carrierError = mapYunHttpFailure(
+        input.action,
+        response,
+        responseText,
+      );
       timing("httpFailureMapped", {
         httpStatus: response.status,
       });
@@ -300,11 +314,13 @@ function getErrorName(error: unknown) {
 function mapYunHttpFailure(
   action: string,
   response: Response,
+  responseText: string,
 ): Parameters<typeof createCarrierError>[0] {
   const safeMetadata = {
     action,
     httpStatus: response.status,
     ...(response.statusText ? { statusText: response.statusText } : {}),
+    ...readSafeYunFailureMetadata(responseText),
   };
 
   if (response.status === 429) {
@@ -340,6 +356,26 @@ function mapYunHttpFailure(
     statusCode: 502,
     safeMetadata,
   };
+}
+
+function readSafeYunFailureMetadata(responseText: string) {
+  try {
+    const parsed = JSON.parse(responseText) as Record<string, unknown>;
+    const resultCode = readString(parsed.ResultCode) ?? readString(parsed.Code);
+    const resultDesc =
+      readString(parsed.ResultDesc) ?? readString(parsed.Message);
+
+    return {
+      ...(resultCode ? { resultCode } : {}),
+      ...(resultDesc ? { resultDesc } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function mapYunFetchFailure(error: unknown, action: string, timeoutMs: number) {
