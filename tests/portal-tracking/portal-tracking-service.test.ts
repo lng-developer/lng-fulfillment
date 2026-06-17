@@ -49,7 +49,7 @@ async function main() {
 
   await withMockFetch(async (calls) => {
     process.env.PORTAL_ETSY_TRACKING_BASE_URL = "https://portal.example";
-    process.env.PORTAL_ETSY_TRACKING_AUTH_TOKEN = "test-token";
+    delete process.env.PORTAL_ETSY_TRACKING_AUTH_TOKEN;
 
     const result = await sendPortalTrackingUpdate({
       orderId: "ETSY-ORDER-1",
@@ -61,33 +61,15 @@ async function main() {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.url, "https://portal.example/api/etsy/ETSY-ORDER-1/tracking");
     assert.equal(calls[0]?.init?.method, "PATCH");
-    assert.equal(
-      (calls[0]?.init?.headers as Record<string, string>)?.Authorization,
-      "Bearer test-token",
-    );
+    assert.deepEqual(calls[0]?.init?.headers, {
+      "Content-Type": "application/json",
+    });
     assert.equal(
       calls[0]?.init?.body,
       JSON.stringify({
         tracking: "YT2605600704990185",
       }),
     );
-  });
-
-  await withMockFetch(async (calls) => {
-    process.env.PORTAL_ETSY_TRACKING_BASE_URL = "https://portal.example";
-    delete process.env.PORTAL_ETSY_TRACKING_AUTH_TOKEN;
-
-    const result = await sendPortalTrackingUpdate({
-      orderId: "ETSY-ORDER-1",
-      tracking: "YT2605600704990185",
-      sourceChannel: "ETSY",
-    });
-
-    assert.deepEqual(result, {
-      attempted: false,
-      reason: "missing_config",
-    });
-    assert.equal(calls.length, 0);
   });
 }
 

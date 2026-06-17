@@ -162,7 +162,16 @@ export type ShipParcelOverride = {
 export type ShipOrderOptions = {
   shippingMethodCode?: string;
   sourceCode?: string;
+  receiverFirstName?: string;
+  receiverLastName?: string;
   receiverCompany?: string;
+  receiverCountryCode?: string;
+  receiverStreet?: string;
+  receiverCity?: string;
+  receiverState?: string;
+  receiverZip?: string;
+  receiverPhone?: string;
+  receiverEmail?: string;
   weight?: number;
   length?: number;
   width?: number;
