@@ -258,6 +258,20 @@ export async function getOrderWorkflowState(
   });
 }
 
+export async function getOrderCostContext(tenantId: string, orderId: string) {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      tenantId,
+    },
+    select: {
+      destinationCountry: true,
+      shippingService: true,
+      shippingType: true,
+    },
+  });
+}
+
 export async function getDirectCancelYunPreparation(
   tenantId: string,
   orderId: string,

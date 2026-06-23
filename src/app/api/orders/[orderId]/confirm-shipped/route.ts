@@ -31,10 +31,16 @@ export async function POST(
     });
 
     const { orderId } = await params;
-    const result = await confirmOrderShipped(context.tenantId, orderId, {
-      actorType: "USER",
-      actorId: context.actorUserId,
-    });
+    const body = await parseConfirmShippedBody(request);
+    const result = await confirmOrderShipped(
+      context.tenantId,
+      orderId,
+      {
+        actorType: "USER",
+        actorId: context.actorUserId,
+      },
+      body,
+    );
 
     return ok(result);
   } catch (error) {
@@ -65,6 +71,51 @@ async function requireCurrentTenantContext(allowedRoles: TenantRole[]) {
     actorUserId: context.user.id,
     tenantId: tenant.tenantId,
   };
+}
+
+async function parseConfirmShippedBody(request: Request) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw new AppError("VALIDATION_ERROR", "Actual package is required.", 400);
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new AppError("VALIDATION_ERROR", "Actual package is required.", 400);
+  }
+
+  const actualPackage = (body as Record<string, unknown>).actualPackage;
+  if (
+    !actualPackage ||
+    typeof actualPackage !== "object" ||
+    Array.isArray(actualPackage)
+  ) {
+    throw new AppError("VALIDATION_ERROR", "Actual package is required.", 400);
+  }
+
+  return {
+    actualPackage: {
+      weightKg: readPositiveNumber(actualPackage, "weightKg"),
+      lengthCm: readPositiveNumber(actualPackage, "lengthCm"),
+      widthCm: readPositiveNumber(actualPackage, "widthCm"),
+      heightCm: readPositiveNumber(actualPackage, "heightCm"),
+    },
+  };
+}
+
+function readPositiveNumber(value: object, key: string) {
+  const raw = (value as Record<string, unknown>)[key];
+  const parsed = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `${key} must be a positive number.`,
+      400,
+    );
+  }
+
+  return parsed;
 }
 
 function handleOrderShipmentActionError(error: unknown) {

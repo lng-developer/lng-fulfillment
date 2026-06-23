@@ -167,6 +167,29 @@ export type YunExpressGetCarrierResponse = {
   Item?: YunExpressCarrierItem[] | null;
 };
 
+export type YunExpressShippingFeeDetailResponse = {
+  Code?: string;
+  Message?: string;
+  Item?: YunExpressShippingFeeDetailItem | null;
+};
+
+export type YunExpressShippingFeeDetailItem = {
+  ShippingMethodName?: string | null;
+  CountryCode?: string | null;
+  CustomerOrderNumber?: string | null;
+  WayBillNumber?: string | null;
+  TrackingNumber?: string | null;
+  GrossWeight?: string | number | null;
+  ChargeWeight?: string | number | null;
+  Freight?: string | number | null;
+  FuelSurcharge?: string | number | null;
+  RegistrationFee?: string | number | null;
+  ProcessingFee?: string | number | null;
+  OtherFee?: string | number | null;
+  TotalFee?: string | number | null;
+  OccurrenceTime?: string | null;
+};
+
 export type YunExpressDeleteOrderResponse = {
   Code?: string;
   Message?: string;

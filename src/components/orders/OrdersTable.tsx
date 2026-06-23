@@ -38,6 +38,7 @@ import type {
   BatchShipResult,
   OrderDetail,
   OrderListItem,
+  ShipmentCostSummary,
 } from "@/types/orders";
 import { BatchShipModal, type BatchShipSubmitInput } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
@@ -90,6 +91,7 @@ type OrderMutationResult = {
   orderStatus: string;
   labelUrl?: string | null;
   shipment?: OrderMutationShipment;
+  shipmentCost?: ShipmentCostSummary;
 };
 
 type PendingOrderAction = "ship" | "cancel" | "sync" | "reset";
@@ -575,6 +577,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           latestShipmentCarrier: hasOwn(shipmentPatch, "carrierCode")
             ? (shipmentPatch.carrierCode ?? null)
             : (order.latestShipmentCarrier ?? null),
+          latestShipmentCost: result.shipmentCost ?? order.latestShipmentCost ?? null,
         };
       });
 
@@ -603,7 +606,12 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           },
           ...detail.statusHistory,
         ],
-        shipments: patchDetailShipments(detail, shipmentPatch, now),
+        shipments: patchDetailShipments(
+          detail,
+          shipmentPatch,
+          now,
+          result.shipmentCost,
+        ),
       };
 
       const next = { ...current, [result.orderId]: nextDetail };
@@ -1140,25 +1148,7 @@ function OrderRows({
         </td>
         <td className="px-3.5 py-2.5 text-center align-middle">
           {shipment.status ? (
-            <div className="grid place-items-center gap-1">
-              <StatusBadge status={shipment.status} />
-              {shipment.carrier ? (
-                <div className="font-mono text-[9px] text-[var(--text-muted)]">
-                  {shipment.carrier}
-                </div>
-              ) : null}
-              {shipment.labelUrl ? (
-                <a
-                  className="inline-flex items-center justify-center gap-0.5 text-[10px] text-[var(--brand)] hover:underline"
-                  href={shipment.labelUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <ExternalLink className="h-[9px] w-[9px]" aria-hidden />
-                  Label
-                </a>
-              ) : null}
-            </div>
+            <StatusBadge status={shipment.status} />
           ) : (
             <span className="text-[11px] text-[var(--text-muted)]">-</span>
           )}
@@ -1424,14 +1414,15 @@ function patchDetailShipments(
   detail: OrderDetail,
   shipmentPatch: OrderMutationShipment | undefined,
   timestamp: string,
+  shipmentCost?: ShipmentCostSummary,
 ) {
-  if (!shipmentPatch) {
+  if (!shipmentPatch && !shipmentCost) {
     return detail.shipments;
   }
 
   const currentShipments = detail.shipments ?? [];
   const firstShipment = currentShipments[0] ?? null;
-  const shipmentId = shipmentPatch.id ?? firstShipment?.id;
+  const shipmentId = shipmentPatch?.id ?? shipmentCost?.shipmentId ?? firstShipment?.id;
 
   if (!shipmentId) {
     return currentShipments;
@@ -1457,8 +1448,9 @@ function patchDetailShipments(
     labelUrl: hasOwn(shipmentPatch, "labelUrl")
       ? (shipmentPatch.labelUrl ?? null)
       : (firstShipment?.labelUrl ?? null),
-    createdAt: shipmentPatch.createdAt ?? firstShipment?.createdAt ?? timestamp,
-    updatedAt: shipmentPatch.updatedAt ?? timestamp,
+    cost: shipmentCost ?? firstShipment?.cost ?? null,
+    createdAt: shipmentPatch?.createdAt ?? firstShipment?.createdAt ?? timestamp,
+    updatedAt: shipmentPatch?.updatedAt ?? timestamp,
     itemCount: firstShipment?.itemCount ?? detail.items.length,
   };
 

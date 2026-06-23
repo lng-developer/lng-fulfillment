@@ -1,5 +1,9 @@
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import {
+  shipmentCostSelect,
+  toShipmentCostSummary,
+} from "@/modules/shipment-cost/repository";
 import type {
   OrderDetail,
   OrderListItem,
@@ -194,6 +198,9 @@ export async function listOrders(
           status: true,
           trackingNumber: true,
           labelUrl: true,
+          cost: {
+            select: shipmentCostSelect,
+          },
         },
       },
       _count: {
@@ -249,6 +256,9 @@ export async function listOrders(
     latestShipmentStatus: row.shipments[0]?.status ?? null,
     latestTrackingNumber: row.shipments[0]?.trackingNumber ?? null,
     latestLabelUrl: row.shipments[0]?.labelUrl ?? null,
+    latestShipmentCost: row.shipments[0]?.cost
+      ? toShipmentCostSummary(row.shipments[0].cost)
+      : null,
   }));
 }
 
@@ -407,6 +417,9 @@ const orderDetailSelect = {
       carrierShipmentId: true,
       trackingNumber: true,
       labelUrl: true,
+      cost: {
+        select: shipmentCostSelect,
+      },
       createdAt: true,
       updatedAt: true,
     },
@@ -484,7 +497,10 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
       };
     }),
     statusHistory: row.statusHistory,
-    shipments: row.shipments,
+    shipments: row.shipments.map((shipment) => ({
+      ...shipment,
+      cost: shipment.cost ? toShipmentCostSummary(shipment.cost) : null,
+    })),
   };
 }
 

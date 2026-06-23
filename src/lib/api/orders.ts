@@ -1,11 +1,13 @@
 import type {
   ApiSuccess,
+  ActualPackageInput,
   BatchShipResult,
   OrderDetail,
   OrderListItem,
   PaginationMeta,
   ShipOrderOptions,
   ShipEnvironment,
+  ShipmentCostSummary,
 } from "@/types/orders";
 import { apiFetch } from "./base";
 
@@ -111,12 +113,16 @@ export async function shipOrder(
   return response.data;
 }
 
-export async function confirmOrderShipped(orderId: string) {
+export async function confirmOrderShipped(
+  orderId: string,
+  actualPackage: ActualPackageInput,
+) {
   const response = await apiFetch<
     ApiSuccess<{
       orderId: string;
       orderStatus: string;
       labelUrl: string | null;
+      shipmentCost?: ShipmentCostSummary;
       shipment?: {
         id?: string;
         status?: string;
@@ -127,6 +133,7 @@ export async function confirmOrderShipped(orderId: string) {
     }>
   >(`/api/orders/${orderId}/confirm-shipped`, {
     method: "POST",
+    body: JSON.stringify({ actualPackage }),
   });
 
   return response.data;

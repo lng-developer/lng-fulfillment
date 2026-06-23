@@ -12,6 +12,8 @@ import {
   type CreateCarrierShipmentInput,
 } from "@/modules/carrier";
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
+import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
+import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { AppError } from "@/shared/errors";
 import { createSafeTimingLogger } from "@/shared/timing";
 import {
@@ -23,6 +25,7 @@ import {
   getDirectCancelYunPreparation,
   getDirectShipOrderPreparation,
   getLatestShipmentForOrder,
+  getOrderCostContext,
   getOrderWorkflowState,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
@@ -39,6 +42,7 @@ import type {
   ExecuteShipmentInput,
   ExecuteShipmentResult,
   CancelOrderYunResult,
+  ConfirmOrderShippedInput,
   ConfirmOrderShippedResult,
   PaginationMeta,
   PrepareShipmentCarrierExecutionInput,
@@ -370,6 +374,7 @@ export async function confirmOrderShipped(
   tenantId: string,
   orderId: string,
   actor: ShipmentActor,
+  input: ConfirmOrderShippedInput,
 ): Promise<ConfirmOrderShippedResult> {
   const shipment = await getLatestShipmentForOrder(tenantId, orderId);
 
@@ -380,6 +385,35 @@ export async function confirmOrderShipped(
   if (!shipment.labelUrl) {
     throw new AppError("CONFLICT", "Shipment label is not available.", 409);
   }
+
+  const costContext = await getOrderCostContext(tenantId, orderId);
+  const estimate = calculateShipmentCostEstimate({
+    actualWeightKg: input.actualPackage.weightKg,
+    lengthCm: input.actualPackage.lengthCm,
+    widthCm: input.actualPackage.widthCm,
+    heightCm: input.actualPackage.heightCm,
+    countryCode: costContext?.destinationCountry,
+    shippingMethodCode:
+      readShipmentMetadataString(shipment.metadata, "shippingMethodCode") ??
+      costContext?.shippingService,
+  });
+  const shipmentCost = await upsertShipmentCostEstimate({
+    tenantId,
+    orderId,
+    shipmentId: shipment.id,
+    actualWeightKg: estimate.actualWeightKg,
+    actualLengthCm: estimate.lengthCm,
+    actualWidthCm: estimate.widthCm,
+    actualHeightCm: estimate.heightCm,
+    volumetricWeightKg: estimate.volumetricWeightKg,
+    chargeableWeightKg: estimate.chargeableWeightKg,
+    estimatedWeightKg: estimate.estimatedWeightKg,
+    estimatedFee: estimate.estimatedFee,
+    estimatedCurrency: estimate.estimatedCurrency,
+    estimatedCountryCode: estimate.estimatedCountryCode,
+    estimatedShippingMethodCode: estimate.estimatedShippingMethodCode,
+    estimateSource: estimate.estimateSource,
+  });
 
   await updateOrderWorkflowStatus({
     tenantId,
@@ -395,6 +429,7 @@ export async function confirmOrderShipped(
     orderStatus: "SHIPPED",
     labelUrl: shipment.labelUrl,
     shipment,
+    shipmentCost,
   };
 }
 
@@ -1349,6 +1384,15 @@ function buildCarrierShipmentItemInputFromOrderItem(
 }
 
 function jsonString(value: unknown, key: string): string | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim() ? field.trim() : undefined;
+}
+
+function readShipmentMetadataString(value: unknown, key: string): string | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
