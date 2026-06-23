@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, Loader2, PackageSearch, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ExternalLink,
+  Loader2,
+  PackageSearch,
+  Search,
+} from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
 type ApiSuccess<T> = {
@@ -94,93 +100,92 @@ export function OrderLookupClient() {
 
   return (
     <div className="grid max-w-6xl gap-5 text-[var(--text-primary)]">
-        <header className="flex flex-col gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-soft md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--brand-mid)] bg-[var(--brand-light)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand)]">
-              <PackageSearch className="h-3.5 w-3.5" aria-hidden />
-              YunExpress OMS
-            </div>
-            <h1 className="text-2xl font-semibold tracking-normal">
-              Tra cứu vận đơn YunExpress
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              Tra cứu trực tiếp trên OMS bằng OrderNumber, WayBillNumber hoặc
-              TrackingNumber. Trang này không đọc hoặc cập nhật dữ liệu
-              Fulfillment.
-            </p>
+      <header className="flex flex-col gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-5 shadow-soft md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--brand-mid)] bg-[var(--brand-light)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand)]">
+            <PackageSearch className="h-3.5 w-3.5" aria-hidden />
+            YunExpress OMS
           </div>
-          <a
-            className="inline-flex h-9 items-center justify-center rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-            href="/orders"
-          >
-            Về Orders
-          </a>
-        </header>
+          <h1 className="text-2xl font-semibold tracking-normal">
+            Tra cứu vận đơn
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+            Tra cứu trực tiếp trên OMS bằng OrderNumber, WayBillNumber hoặc
+            TrackingNumber. Trang này không đọc hoặc cập nhật dữ liệu
+            Fulfillment.
+          </p>
+        </div>
+        <a
+          className="inline-flex h-9 items-center justify-center rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+          href="/orders"
+        >
+          Về Orders
+        </a>
+      </header>
 
-        <section className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
-          <form className="flex flex-col gap-3 md:flex-row" onSubmit={handleSubmit}>
-            <label className="grid flex-1 gap-1.5">
-              <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                OrderNumber, WayBillNumber hoặc TrackingNumber
-              </span>
-              <input
-                className="h-10 rounded-sm border border-[var(--border-strong)] bg-white px-3 font-mono text-sm text-[var(--text-primary)]"
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="VD: YTxxxxxxxx hoặc customer order number"
-                value={input}
-              />
-            </label>
-            <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-4 text-sm font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
-              disabled={!trimmedInput || isLoading}
-              type="submit"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <Search className="h-4 w-4" aria-hidden />
-              )}
-              Tìm
-            </button>
-          </form>
-        </section>
-
-        {!searchedCode && !lookup && !error ? (
-          <EmptyPanel message="Nhập mã YunExpress để tra cứu trực tiếp trên OMS." />
-        ) : null}
-
-        {error ? (
-          <WarningPanel
-            title="Không thể tra cứu"
-            rows={[
-              ["Mã đã tra cứu", searchedCode || "-"],
-              ["Thông báo", error],
-            ]}
-          />
-        ) : null}
-
-        {lookup && !lookup.getOrder.found ? (
-          <WarningPanel
-            title="YunExpress chưa trả về thông tin đơn"
-            rows={[
-              ["Mã đã tra cứu", lookup.searchedOrderNumber],
-              ["Mã phản hồi", lookup.getOrder.code ?? "-"],
-              ["Thông báo", lookup.getOrder.message ?? "-"],
-            ]}
-          />
-        ) : null}
-
-        {lookup ? (
-          <div className="grid gap-5">
-            <LookupSummaryCard item={item} lookup={lookup} />
-            <LabelCard lookup={lookup} />
-            <JsonSections
-              parcels={parcels}
-              receiver={receiver}
-              sender={sender}
+      <section className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
+        <form
+          className="flex flex-col gap-3 md:flex-row"
+          onSubmit={handleSubmit}
+        >
+          <label className="grid flex-1 gap-1.5">
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">
+              OrderNumber, WayBillNumber hoặc TrackingNumber
+            </span>
+            <input
+              className="h-10 rounded-sm border border-[var(--border-strong)] bg-white px-3 font-mono text-sm text-[var(--text-primary)]"
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="VD: YTxxxxxxxx hoặc customer order number"
+              value={input}
             />
-          </div>
-        ) : null}
+          </label>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-4 text-sm font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50 md:self-end"
+            disabled={!trimmedInput || isLoading}
+            type="submit"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Search className="h-4 w-4" aria-hidden />
+            )}
+            Tìm
+          </button>
+        </form>
+      </section>
+
+      {!searchedCode && !lookup && !error ? (
+        <EmptyPanel message="Nhập mã để tra cứu trực tiếp." />
+      ) : null}
+
+      {error ? (
+        <WarningPanel
+          title="Không thể tra cứu"
+          rows={[
+            ["Mã đã tra cứu", searchedCode || "-"],
+            ["Thông báo", error],
+          ]}
+        />
+      ) : null}
+
+      {lookup && !lookup.getOrder.found ? (
+        <WarningPanel
+          title="YunExpress chưa trả về thông tin đơn"
+          rows={[
+            ["Mã đã tra cứu", lookup.searchedOrderNumber],
+            ["Mã phản hồi", lookup.getOrder.code ?? "-"],
+            ["Thông báo", lookup.getOrder.message ?? "-"],
+          ]}
+        />
+      ) : null}
+
+      {lookup ? (
+        <div className="grid gap-5">
+          <LookupSummaryCard item={item} lookup={lookup} />
+          <LabelCard lookup={lookup} />
+          <JsonSections parcels={parcels} receiver={receiver} sender={sender} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -205,8 +210,16 @@ function LookupSummaryCard({
           mono
           value={readText(item?.CustomerOrderNumber)}
         />
-        <Info label="WayBillNumber" mono value={readText(item?.WayBillNumber)} />
-        <Info label="TrackingNumber" mono value={readText(item?.TrackingNumber)} />
+        <Info
+          label="WayBillNumber"
+          mono
+          value={readText(item?.WayBillNumber)}
+        />
+        <Info
+          label="TrackingNumber"
+          mono
+          value={readText(item?.TrackingNumber)}
+        />
         <Info
           label="ShippingMethodCode"
           mono
@@ -248,7 +261,9 @@ function LabelCard({ lookup }: { lookup: YunLookupResult }) {
         <Info
           label="Mã dùng để lấy nhãn"
           mono
-          value={lookup.labelPrint.lookupNumber ?? lookup.labelLookupNumber ?? "-"}
+          value={
+            lookup.labelPrint.lookupNumber ?? lookup.labelLookupNumber ?? "-"
+          }
         />
         <Info label="Mã phản hồi" mono value={lookup.labelPrint.code ?? "-"} />
         <Info
@@ -353,7 +368,10 @@ function EmptyPanel({ message }: { message: string }) {
   return (
     <section className="grid min-h-[220px] place-items-center rounded border border-dashed border-[var(--border-strong)] bg-[var(--bg-surface)] p-8 text-center shadow-soft">
       <div>
-        <PackageSearch className="mx-auto h-8 w-8 text-[var(--text-muted)]" aria-hidden />
+        <PackageSearch
+          className="mx-auto h-8 w-8 text-[var(--text-muted)]"
+          aria-hidden
+        />
         <p className="mt-3 text-sm text-[var(--text-secondary)]">{message}</p>
       </div>
     </section>

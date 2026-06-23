@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import OrderLookupPage from "@/components/order-lookup/OrderLookupPage";
 
 export const metadata: Metadata = {
-  title: "Yun Lookup | Fulfillment Platform",
+  title: "Orders Lookup | Fulfillment Platform",
   description:
-    "Tra cứu trực tiếp OrderNumber, WayBillNumber hoặc TrackingNumber trên YunExpress OMS.",
+    "Tra cứu trực tiếp OrderNumber, WayBillNumber hoặc TrackingNumber.",
 };
 
 export default function Page() {

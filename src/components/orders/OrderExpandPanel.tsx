@@ -11,7 +11,6 @@ import {
   Package,
   ShoppingCart,
   Store,
-  Truck,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -23,9 +22,9 @@ import type {
   PortalCostCenterSummary,
   PortalCustomizationOption,
   PortalFileLinks,
-  PortalItemTrackingInfo,
   PortalListingSummary,
   PortalPersonSummary,
+  ShipmentCostSummary,
 } from "@/types/orders";
 
 type RecipientAddress = {
@@ -67,16 +66,20 @@ export function OrderExpandPanel({
 
         {hasSellerOrScaler ? <StatusHistoryCard order={order} /> : null}
 
-        <PanelCard
-          icon={<ShoppingCart />}
-          title={`Items (${order.items.length})`}
-        >
-          <div className="grid gap-3">
-            {order.items.map((item, index) => (
-              <ItemCard item={item} itemIndex={index} key={item.id} />
-            ))}
-          </div>
-        </PanelCard>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+          <PanelCard
+            icon={<ShoppingCart />}
+            title={`Items (${order.items.length})`}
+          >
+            <div className="grid gap-3">
+              {order.items.map((item, index) => (
+                <ItemCard item={item} itemIndex={index} key={item.id} />
+              ))}
+            </div>
+          </PanelCard>
+
+          <ActualPackageCostCard order={order} />
+        </div>
 
         {/* <PanelCard icon={<Truck />} title="Shipments">
           <div className="flex flex-wrap items-center gap-2">
@@ -314,6 +317,57 @@ function StatusHistoryCard({ order }: { order: OrderDetail }) {
         <p className="text-[11px] text-[var(--text-muted)]">
           No status history.
         </p>
+      )}
+    </PanelCard>
+  );
+}
+
+function ActualPackageCostCard({ order }: { order: OrderDetail }) {
+  const latestShipment = order.shipments?.[0] ?? null;
+  const cost = latestShipment?.cost ?? null;
+
+  return (
+    <PanelCard icon={<Package />} title="Actual package & cost">
+      {!cost ? (
+        <div className="rounded-sm border border-dashed border-[var(--border-strong)] bg-[var(--bg-surface2)] p-3 text-xs text-[var(--text-secondary)]">
+          {["FULFILLED", "READY_TO_SHIP", "IN_PROCESSING"].includes(order.status)
+            ? "Cần confirm ship và nhập kích thước/cân nặng thực tế để tính phí ước lượng."
+            : "Chưa có thông số thực tế hoặc phí ước lượng cho đơn này."}
+        </div>
+      ) : (
+        <div>
+          <KeyValue label="Actual weight" value={`${formatKg(cost.actualWeightKg)} kg`} />
+          <KeyValue
+            label="Dimensions"
+            value={`${formatCm(cost.actualLengthCm)} × ${formatCm(cost.actualWidthCm)} × ${formatCm(cost.actualHeightCm)} cm`}
+          />
+          <KeyValue
+            label="Volumetric weight"
+            value={`${formatKg(cost.volumetricWeightKg)} kg`}
+          />
+          <KeyValue
+            label="Chargeable weight"
+            value={`${formatKg(cost.chargeableWeightKg)} kg`}
+          />
+          <KeyValue
+            label="Estimated bracket"
+            value={
+              cost.estimatedWeightKg ? `${formatKg(cost.estimatedWeightKg)} kg` : null
+            }
+          />
+          <KeyValue
+            label="Estimated fee"
+            value={formatEstimatedFee(cost)}
+          />
+          <KeyValue
+            label="Actual fee"
+            value={
+              cost.actualFeeStatus === "AVAILABLE" && cost.actualTotalFee
+                ? formatNumber(cost.actualTotalFee)
+                : <SmallBadge tone="neutral" value={cost.actualFeeStatus} />
+            }
+          />
+        </div>
       )}
     </PanelCard>
   );
@@ -588,40 +642,6 @@ function ListingInfoPanel({ listing }: { listing: PortalListingSummary }) {
             </a>
           ) : null}
         </div>
-      </div>
-    </ItemSubsection>
-  );
-}
-
-function PortalTrackingInfo({ info }: { info: PortalItemTrackingInfo }) {
-  const rows = [
-    { label: "Provider", value: info.fulfillment },
-    { label: "Status", value: info.status },
-    { label: "Tracking #", value: info.tracking },
-    { label: "Note", value: info.note },
-  ].filter((row) => hasText(row.value));
-
-  if (!rows.length) {
-    return null;
-  }
-
-  return (
-    <ItemSubsection icon={<Truck />} title="Portal tracking info">
-      <div className="mb-2 inline-flex rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-        Portal only - not official shipment tracking
-      </div>
-      <div className="space-y-0.5">
-        {rows.map((row) => (
-          <div
-            className="flex justify-between gap-3 border-b border-[var(--border)] py-1 text-[11px] last:border-b-0"
-            key={row.label}
-          >
-            <span className="text-[var(--text-secondary)]">{row.label}</span>
-            <span className="text-right font-mono text-[10px] text-[var(--text-primary)]">
-              {row.value}
-            </span>
-          </div>
-        ))}
       </div>
     </ItemSubsection>
   );
@@ -920,6 +940,55 @@ function formatCurrency(
   }
 
   return `$${amount.toFixed(2)}`;
+}
+
+function formatEstimatedFee(cost: ShipmentCostSummary) {
+  if (!hasText(cost.estimatedFee)) {
+    return null;
+  }
+
+  const amount = Number(cost.estimatedFee);
+  if (!Number.isFinite(amount)) {
+    return cost.estimatedCurrency
+      ? `${cost.estimatedFee} ${cost.estimatedCurrency}`
+      : cost.estimatedFee;
+  }
+
+  if (cost.estimatedCurrency === "VND") {
+    return new Intl.NumberFormat("vi-VN", {
+      currency: "VND",
+      maximumFractionDigits: 0,
+      style: "currency",
+    }).format(amount);
+  }
+
+  return cost.estimatedCurrency
+    ? `${formatNumber(cost.estimatedFee)} ${cost.estimatedCurrency}`
+    : formatNumber(cost.estimatedFee);
+}
+
+function formatKg(value: string | null | undefined) {
+  return formatNumber(value, 3);
+}
+
+function formatCm(value: string | null | undefined) {
+  return formatNumber(value, 2);
+}
+
+function formatNumber(value: string | null | undefined, digits = 2) {
+  if (!hasText(value)) {
+    return "-";
+  }
+
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: 0,
+  }).format(numberValue);
 }
 
 function statusDotClass(status: string) {

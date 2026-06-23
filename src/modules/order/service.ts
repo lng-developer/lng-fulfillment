@@ -166,5 +166,6 @@ function toOrderListItem(order: OrderDetail): OrderListItem {
     latestShipmentStatus: latestShipment?.status ?? null,
     latestTrackingNumber: latestShipment?.trackingNumber ?? null,
     latestLabelUrl: latestShipment?.labelUrl ?? null,
+    latestShipmentCost: latestShipment?.cost ?? null,
   };
 }

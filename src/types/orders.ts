@@ -121,6 +121,46 @@ export type BatchShipResult = {
   failed: Array<{ orderId: string; message: string; details?: unknown }>;
 };
 
+export type ActualPackageInput = {
+  weightKg: number;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+};
+
+export type ShipmentCostSummary = {
+  id: string;
+  shipmentId: string;
+  orderId: string;
+  actualWeightKg: string;
+  actualLengthCm: string;
+  actualWidthCm: string;
+  actualHeightCm: string;
+  volumetricWeightKg: string;
+  chargeableWeightKg: string;
+  estimatedWeightKg: string | null;
+  estimatedFee: string | null;
+  estimatedCurrency: string | null;
+  estimatedCountryCode: string | null;
+  estimatedShippingMethodCode: string | null;
+  estimateSource: string;
+  actualFeeStatus: "PENDING" | "AVAILABLE" | "FAILED" | string;
+  actualGrossWeight: string | null;
+  actualChargeWeight: string | null;
+  actualFreight: string | null;
+  actualFuelSurcharge: string | null;
+  actualRegistrationFee: string | null;
+  actualProcessingFee: string | null;
+  actualOtherFee: string | null;
+  actualTotalFee: string | null;
+  actualOccurrenceTime: string | null;
+  actualFetchedAt: string | null;
+  actualFetchErrorCode: string | null;
+  actualFetchErrorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OrderListItem = {
   id: string;
   externalOrderId: string;
@@ -149,6 +189,7 @@ export type OrderListItem = {
   latestShipmentStatus: string | null;
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
+  latestShipmentCost?: ShipmentCostSummary | null;
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
   labelUrl?: string | null;
@@ -303,6 +344,7 @@ export type ShipmentListItem = {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  cost?: ShipmentCostSummary | null;
   createdAt: string;
   updatedAt: string;
   itemCount: number;

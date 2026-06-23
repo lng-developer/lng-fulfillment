@@ -89,6 +89,12 @@ enum ShipmentStatus {
   CANCELLED
 }
 
+enum ShipmentActualFeeStatus {
+  PENDING
+  AVAILABLE
+  FAILED
+}
+
 enum CarrierAccountStatus {
   ACTIVE
   DISABLED
@@ -145,6 +151,7 @@ model Tenant {
   auditLogs          AuditLog[]
   orders             Order[]
   shipments          Shipment[]
+  shipmentCosts      ShipmentCost[]
   carrierAccounts    CarrierAccount[]
   carrierCredentials CarrierCredential[]
   createdAt          DateTime            @default(now())
@@ -254,6 +261,7 @@ model Order {
   items                 OrderItem[]
   statusHistory         OrderStatusHistory[]
   shipments             Shipment[]
+  shipmentCosts         ShipmentCost[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -336,11 +344,53 @@ model Shipment {
   order             Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   items             ShipmentItem[]
   statusHistory     ShipmentStatusHistory[]
+  cost              ShipmentCost?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
   @@index([tenantId, orderId])
   @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+}
+
+model ShipmentCost {
+  id                          String                  @id @default(cuid())
+  tenantId                    String
+  orderId                     String
+  shipmentId                  String                  @unique
+  actualWeightKg              Decimal
+  actualLengthCm              Decimal
+  actualWidthCm               Decimal
+  actualHeightCm              Decimal
+  volumetricWeightKg          Decimal
+  chargeableWeightKg          Decimal
+  estimatedWeightKg           Decimal?
+  estimatedFee                Decimal?
+  estimatedCurrency           String?
+  estimatedCountryCode        String?
+  estimatedShippingMethodCode String?
+  estimateSource              String
+  actualFeeStatus             ShipmentActualFeeStatus @default(PENDING)
+  actualGrossWeight           Decimal?
+  actualChargeWeight          Decimal?
+  actualFreight               Decimal?
+  actualFuelSurcharge         Decimal?
+  actualRegistrationFee       Decimal?
+  actualProcessingFee         Decimal?
+  actualOtherFee              Decimal?
+  actualTotalFee              Decimal?
+  actualOccurrenceTime        DateTime?
+  actualFetchedAt             DateTime?
+  actualFetchErrorCode        String?
+  actualFetchErrorMessage     String?
+  tenant                      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order                       Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment                    Shipment                @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, actualFeeStatus])
   @@index([tenantId, createdAt])
 }
 

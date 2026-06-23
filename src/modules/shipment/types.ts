@@ -9,6 +9,10 @@ import type {
   CarrierShipmentMappingPreview,
   CarrierTrackingEvent,
 } from "@/modules/carrier";
+import type {
+  ActualPackageInput,
+  ShipmentCostSummary,
+} from "@/modules/shipment-cost/types";
 
 export const DEFAULT_SHIPMENT_PAGE = 1;
 export const DEFAULT_SHIPMENT_PAGE_SIZE = 20;
@@ -240,6 +244,11 @@ export type ConfirmOrderShippedResult = {
   orderStatus: "SHIPPED";
   labelUrl: string;
   shipment: ShipmentDetail;
+  shipmentCost: ShipmentCostSummary;
+};
+
+export type ConfirmOrderShippedInput = {
+  actualPackage: ActualPackageInput;
 };
 
 export type CancelOrderYunResult = {

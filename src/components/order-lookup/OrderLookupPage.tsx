@@ -44,11 +44,11 @@ export default function OrderLookupPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[17px] font-semibold text-[var(--text-primary)]">
-            Tra cứu vận đơn YunExpress
+            Tra cứu vận đơn
           </h1>
           <p className="mt-1 max-w-[560px] text-[13px] leading-6 text-[var(--text-secondary)]">
-            Kiểm tra dữ liệu vận đơn trực tiếp trên YunExpress OMS, độc lập với
-            dữ liệu đang lưu trong Fulfillment Platform.
+            {/* Kiểm tra dữ liệu vận đơn trực tiếp trên YunExpress OMS, độc lập với
+            dữ liệu đang lưu trong Fulfillment Platform. */}
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--brand-mid)] bg-[var(--brand-light)] px-3 py-1.5 text-[11px] font-semibold text-[var(--brand-dark)]">
@@ -81,9 +81,7 @@ function LookupResults({
       return (
         <div className="flex flex-col items-center justify-center rounded border border-dashed border-[var(--border-strong)] bg-[var(--bg-surface)] py-16 text-[var(--text-muted)] shadow-soft">
           <PackageSearch className="mb-3 h-10 w-10 opacity-50" aria-hidden />
-          <p className="text-[13px]">
-            Nhập mã YunExpress để tra cứu trực tiếp trên OMS.
-          </p>
+          <p className="text-[13px]">Nhập mã đơn để tra cứu trực tiếp.</p>
         </div>
       );
 
@@ -128,9 +126,15 @@ function LookupResults({
               YunExpress chưa trả về thông tin đơn
             </div>
             <div className="grid gap-2 text-xs md:grid-cols-3">
-              <NotFoundInfo label="Mã đã tra cứu" value={state.data.searchCode} />
+              <NotFoundInfo
+                label="Mã đã tra cứu"
+                value={state.data.searchCode}
+              />
               <NotFoundInfo label="Code" value={state.data.getOrder.code} />
-              <NotFoundInfo label="Message" value={state.data.getOrder.message} />
+              <NotFoundInfo
+                label="Message"
+                value={state.data.getOrder.message}
+              />
             </div>
           </div>
         </div>
@@ -157,7 +161,9 @@ function LookupSuccess({ data }: { data: YunLookupResponse }) {
           {item?.Receiver ? (
             <ContactCard contact={item.Receiver} title="Receiver" />
           ) : null}
-          {item?.Sender ? <ContactCard contact={item.Sender} title="Sender" /> : null}
+          {item?.Sender ? (
+            <ContactCard contact={item.Sender} title="Sender" />
+          ) : null}
         </div>
       ) : null}
     </div>

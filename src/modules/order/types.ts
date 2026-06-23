@@ -1,4 +1,5 @@
 import type { OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
+import type { ShipmentCostSummary } from "@/modules/shipment-cost/types";
 import type { ApiErrorCode } from "@/shared/errors";
 
 export const MAX_PORTAL_ORDER_BATCH_SIZE = 50;
@@ -149,6 +150,7 @@ export type OrderListItem = {
   latestShipmentStatus: string | null;
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
+  latestShipmentCost: ShipmentCostSummary | null;
 };
 
 export type OrderDetail = {
@@ -209,6 +211,7 @@ export type OrderDetailShipment = {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  cost: ShipmentCostSummary | null;
   createdAt: Date;
   updatedAt: Date;
 };

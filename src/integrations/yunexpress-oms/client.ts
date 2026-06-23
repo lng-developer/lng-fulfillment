@@ -12,6 +12,7 @@ import type {
   YunExpressGetOrderResponse,
   YunExpressGetTrackingNumberResponse,
   YunExpressPrintLabelResponse,
+  YunExpressShippingFeeDetailResponse,
   YunExpressTrackInfoResponse,
 } from "./types";
 
@@ -179,6 +180,23 @@ export async function callYunExpressGetCarrier(input: {
       body: JSON.stringify(input.orderNumbers),
     },
   });
+}
+
+export async function callYunExpressGetShippingFeeDetail(input: {
+  config: Pick<YunExpressOmsConfig, "baseUrl" | "lang" | "timeoutMs"> & {
+    baseUrl: string;
+  };
+  wayBillNumber: string;
+  authorizationHeader?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<YunExpressShippingFeeDetailResponse> {
+  return callYunExpressGet({
+    action: "get_shipping_fee_detail",
+    config: input.config,
+    url: buildShippingFeeDetailUrl(input.config.baseUrl, input.wayBillNumber),
+    authorizationHeader: input.authorizationHeader,
+    fetchImpl: input.fetchImpl,
+  }) as Promise<YunExpressShippingFeeDetailResponse>;
 }
 
 async function callYunExpressGet(input: {
@@ -466,6 +484,12 @@ function buildTrackInfoUrl(
 
 function buildGetCarrierUrl(baseUrl: string) {
   return buildApiUrl(baseUrl, "/api/Waybill/GetCarrier");
+}
+
+function buildShippingFeeDetailUrl(baseUrl: string, wayBillNumber: string) {
+  const url = new URL(buildApiUrl(baseUrl, "/api/Freight/GetShippingFeeDetail"));
+  url.searchParams.set("wayBillNumber", wayBillNumber);
+  return url.toString();
 }
 
 function buildDeleteOrderUrl(baseUrl: string) {
