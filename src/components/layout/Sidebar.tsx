@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { href: "/orders", label: "Orders", icon: Package },
   { href: "/shipments", label: "Shipments", icon: Truck },
   { href: "/shipping-costs", label: "Shipping Costs", icon: ReceiptText },
-  { href: "/order-lookup", label: "Yun Lookup", icon: Search },
+  { href: "/order-lookup", label: "Order Lookup", icon: Search },
   { separator: true },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
