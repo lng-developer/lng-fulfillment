@@ -187,6 +187,9 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 - The route returns plain text `success` for accepted events. It does not return the platform JSON response envelope.
 - Do not print `YUN_WEBHOOK_ENCRYPT_KEY`, decrypted payloads, Authorization headers, cookies, carrier credentials, or full raw request bodies in production logs.
 - Preview/local webhook tests require a public HTTPS tunnel or deployed preview URL; never configure Yun production webhooks to a disposable or unapproved environment.
+- Platform Admin/Support can review safe receiver setup status and received events at `/platform/yun-webhooks`.
+- Webhook registration remains manual in Yuntu/YunExpress Console; the platform does not call YunExpress registration APIs.
+- Operational runbook: `docs/17_YUNEXPRESS_WEBHOOK_RUNBOOK.md`.
 
 ### Observability
 

@@ -103,7 +103,7 @@ export async function receiveYunWebhookEvent(
   }
 }
 
-async function dispatchYunWebhookEvent(
+export async function dispatchYunWebhookEvent(
   context: YunWebhookDispatchContext,
   category: "TRACKING" | "FEE" | "ABNORMAL" | "UNKNOWN",
 ): Promise<YunWebhookDispatchResult> {

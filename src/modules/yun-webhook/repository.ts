@@ -1,5 +1,6 @@
 import {
   Prisma,
+  type YunWebhookEventCategory,
   type YunWebhookEventStatus,
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
@@ -65,6 +66,157 @@ export async function markYunWebhookEventStatus(input: {
   });
 }
 
+export type ListYunWebhookEventRecordsQuery = {
+  page: number;
+  pageSize: number;
+  attention?: boolean;
+  status?: YunWebhookEventStatus;
+  eventCategory?: YunWebhookEventCategory;
+  eventType?: string;
+  tenantId?: string;
+  shipmentId?: string;
+  waybillNumber?: string;
+  trackingNumber?: string;
+  customerOrderNumber?: string;
+  search?: string;
+  from?: Date;
+  to?: Date;
+  sortOrder: "asc" | "desc";
+};
+
+const webhookManagementSelect = {
+  id: true,
+  eventId: true,
+  eventType: true,
+  eventCategory: true,
+  dataCode: true,
+  waybillNumber: true,
+  trackingNumber: true,
+  customerOrderNumber: true,
+  tenantId: true,
+  shipmentId: true,
+  shipmentCostId: true,
+  status: true,
+  safeMetadata: true,
+  errorMessage: true,
+  receivedAt: true,
+  processedAt: true,
+  tenant: {
+    select: {
+      name: true,
+      slug: true,
+    },
+  },
+  shipment: {
+    select: {
+      id: true,
+      status: true,
+      carrierShipmentId: true,
+      trackingNumber: true,
+      order: {
+        select: {
+          orderNumber: true,
+          externalOrderId: true,
+        },
+      },
+    },
+  },
+  shipmentCost: {
+    select: {
+      id: true,
+      actualFeeStatus: true,
+      actualTotalFee: true,
+    },
+  },
+} satisfies Prisma.YunWebhookEventSelect;
+
+export async function listYunWebhookEventRecords(
+  query: ListYunWebhookEventRecordsQuery,
+) {
+  return prisma.yunWebhookEvent.findMany({
+    where: buildYunWebhookEventWhere(query),
+    orderBy: { receivedAt: query.sortOrder },
+    skip: (query.page - 1) * query.pageSize,
+    take: query.pageSize,
+    select: webhookManagementSelect,
+  });
+}
+
+export async function countYunWebhookEventRecords(
+  query: ListYunWebhookEventRecordsQuery,
+) {
+  return prisma.yunWebhookEvent.count({
+    where: buildYunWebhookEventWhere(query),
+  });
+}
+
+export async function summarizeYunWebhookEventRecords(
+  query: ListYunWebhookEventRecordsQuery,
+) {
+  const where = buildYunWebhookEventWhere({
+    ...query,
+    attention: undefined,
+    status: undefined,
+    eventCategory: undefined,
+  });
+
+  const [
+    total,
+    failed,
+    unmatched,
+    processed,
+    tracking,
+    fee,
+    abnormal,
+  ] = await Promise.all([
+    prisma.yunWebhookEvent.count({ where }),
+    prisma.yunWebhookEvent.count({ where: { ...where, status: "FAILED" } }),
+    prisma.yunWebhookEvent.count({ where: { ...where, status: "UNMATCHED" } }),
+    prisma.yunWebhookEvent.count({ where: { ...where, status: "PROCESSED" } }),
+    prisma.yunWebhookEvent.count({
+      where: { ...where, eventCategory: "TRACKING" },
+    }),
+    prisma.yunWebhookEvent.count({ where: { ...where, eventCategory: "FEE" } }),
+    prisma.yunWebhookEvent.count({
+      where: { ...where, eventCategory: "ABNORMAL" },
+    }),
+  ]);
+
+  return {
+    total,
+    failed,
+    unmatched,
+    needsAttention: failed + unmatched,
+    processed,
+    tracking,
+    fee,
+    abnormal,
+  };
+}
+
+export async function findYunWebhookEventRecord(eventRecordId: string) {
+  return prisma.yunWebhookEvent.findUnique({
+    where: { id: eventRecordId },
+    select: {
+      ...webhookManagementSelect,
+      timestampHeader: true,
+      signatureHeader: true,
+      decryptedPayload: true,
+    },
+  });
+}
+
+export async function findYunWebhookEventForReprocess(eventRecordId: string) {
+  return prisma.yunWebhookEvent.findUnique({
+    where: { id: eventRecordId },
+    select: {
+      id: true,
+      status: true,
+      decryptedPayload: true,
+    },
+  });
+}
+
 export async function upsertYunAbnormalCase(input: {
   tenantId: string | null;
   shipmentId: string | null;
@@ -124,6 +276,48 @@ export async function upsertYunAbnormalCase(input: {
 
 export function toJson(value: unknown): Prisma.InputJsonValue {
   return (value ?? {}) as Prisma.InputJsonValue;
+}
+
+function buildYunWebhookEventWhere(
+  query: ListYunWebhookEventRecordsQuery,
+): Prisma.YunWebhookEventWhereInput {
+  return {
+    ...(query.attention ? { status: { in: ["FAILED", "UNMATCHED"] } } : {}),
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.eventCategory ? { eventCategory: query.eventCategory } : {}),
+    ...(query.eventType ? { eventType: query.eventType } : {}),
+    ...(query.tenantId ? { tenantId: query.tenantId } : {}),
+    ...(query.shipmentId ? { shipmentId: query.shipmentId } : {}),
+    ...(query.waybillNumber ? { waybillNumber: query.waybillNumber } : {}),
+    ...(query.trackingNumber ? { trackingNumber: query.trackingNumber } : {}),
+    ...(query.customerOrderNumber
+      ? { customerOrderNumber: query.customerOrderNumber }
+      : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { eventId: { contains: query.search, mode: "insensitive" } },
+            { eventType: { contains: query.search, mode: "insensitive" } },
+            { waybillNumber: { contains: query.search, mode: "insensitive" } },
+            { trackingNumber: { contains: query.search, mode: "insensitive" } },
+            {
+              customerOrderNumber: {
+                contains: query.search,
+                mode: "insensitive",
+              },
+            },
+          ],
+        }
+      : {}),
+    ...(query.from || query.to
+      ? {
+          receivedAt: {
+            ...(query.from ? { gte: query.from } : {}),
+            ...(query.to ? { lte: query.to } : {}),
+          },
+        }
+      : {}),
+  };
 }
 
 export function getSafeErrorMessage(error: unknown) {

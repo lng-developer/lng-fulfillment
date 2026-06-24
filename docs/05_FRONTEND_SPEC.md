@@ -282,6 +282,24 @@ V2-099 carrier credential UI:
 - UI khong validate credentials against YunExpress live endpoint va khong goi carrier APIs truc tiep.
 - Secret reference mode UI chua implement; se la future task neu can secret manager/vault workflow.
 
+## Platform YunExpress Webhook Management
+
+`/platform/yun-webhooks` is a Platform Admin/Support console for reviewing
+received YunExpress webhook events.
+
+Rules:
+
+- `PLATFORM_ADMIN` and `PLATFORM_SUPPORT` can view webhook event list/detail.
+- Only `PLATFORM_ADMIN` can see/use `Reprocess` for eligible `FAILED` or `UNMATCHED` events.
+- The page includes a setup panel with the manual Yuntu/YunExpress registration URL, receiver enabled status, encryption-key configured status, required header names, expected body shape, and checklist.
+- The setup panel must never render `YUN_WEBHOOK_ENCRYPT_KEY`, full signatures, decrypted secrets, encrypted payload values, carrier credentials, cookies, session tokens, DB URLs, or Authorization headers.
+- Event summary cards should provide quick filters for all events, needs attention, failed, unmatched, tracking, fee, and abnormal.
+- The UI must not call YunExpress carrier APIs directly and must not trigger shipment create/cancel.
+- The UI must not render raw encrypted body, full signature, Authorization, API secrets, carrier credentials, cookies, session tokens, DB URLs, or webhook keys.
+- Decrypted payload and safe metadata must render through `SafeMetadataViewer` or equivalent bounded redaction.
+- Filters should support status, category, waybill, tracking, customer order, search, and date range.
+- Detail panel should show safe links/ids for tenant, shipment, and shipment cost when available.
+
 ## Loading State Rules
 
 - Button action phải có loading state và disable double submit.
