@@ -8,6 +8,8 @@ export {
   cancelOrderYunShipment,
   confirmOrderShipped,
   resetCancelledOrder,
+  applyYunWebhookTrackingUpdate,
+  resolveYunWebhookShipment,
   shipOrderWithYun,
   shipOrdersBatchWithYun,
   syncShipmentTracking,

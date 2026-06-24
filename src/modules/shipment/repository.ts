@@ -76,6 +76,51 @@ export async function createDraftShipmentRecord(input: {
   return toShipmentDetail(row);
 }
 
+export async function findYunWebhookShipment(input: {
+  waybillNumber?: string | null;
+  trackingNumber?: string | null;
+  customerOrderNumber?: string | null;
+}): Promise<ShipmentDetail | null> {
+  const waybillNumber = input.waybillNumber?.trim();
+  const trackingNumber = input.trackingNumber?.trim();
+  const customerOrderNumber = input.customerOrderNumber?.trim();
+
+  const where: Prisma.ShipmentWhereInput[] = [];
+  if (waybillNumber) {
+    where.push({ carrierShipmentId: waybillNumber });
+  }
+  if (trackingNumber) {
+    where.push({ trackingNumber });
+  }
+  if (customerOrderNumber) {
+    where.push({
+      order: {
+        OR: [
+          { externalOrderId: customerOrderNumber },
+          { orderNumber: customerOrderNumber },
+        ],
+      },
+    });
+  }
+
+  if (!where.length) {
+    return null;
+  }
+
+  const row = await prisma.shipment.findFirst({
+    where: {
+      carrierCode: "YUNEXPRESS_OMS",
+      OR: where,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    select: shipmentDetailSelect,
+  });
+
+  return row ? toShipmentDetail(row) : null;
+}
+
 export async function getOrderShipmentPreparation(
   tenantId: string,
   orderId: string,
@@ -898,6 +943,7 @@ export async function updateShipmentTrackingSyncResult(input: {
 
 const shipmentDetailSelect = {
   id: true,
+  tenantId: true,
   orderId: true,
   status: true,
   carrierCode: true,
@@ -964,6 +1010,7 @@ const shipmentMutationSummarySelect = {
 
 function toShipmentDetail(row: {
   id: string;
+  tenantId: string;
   orderId: string;
   status: ShipmentStatus;
   carrierCode: string | null;
@@ -1003,6 +1050,7 @@ function toShipmentDetail(row: {
 }): ShipmentDetail {
   return {
     id: row.id,
+    tenantId: row.tenantId,
     orderId: row.orderId,
     orderNumber: row.order.orderNumber,
     externalOrderId: row.order.externalOrderId,

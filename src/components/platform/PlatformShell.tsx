@@ -1,5 +1,8 @@
-import { Building2, ClipboardList } from "lucide-react";
+"use client";
+
+import { Building2, ClipboardList, Radio } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { PlatformAdminRole } from "@/types/platform";
@@ -9,6 +12,7 @@ import { PlatformUserMenu } from "./PlatformUserMenu";
 const navItems = [
   { href: "/platform/tenants", label: "Tenants", icon: Building2 },
   { href: "/platform/audit-logs", label: "Audit Logs", icon: ClipboardList },
+  { href: "/platform/yun-webhooks", label: "Yun Webhooks", icon: Radio },
 ] as const;
 
 export function PlatformShell({
@@ -20,6 +24,8 @@ export function PlatformShell({
   role: PlatformAdminRole;
   user: { email: string; name: string | null };
 }) {
+  const pathname = usePathname();
+
   return (
     <PlatformAuthProvider role={role} user={user}>
       <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)]">
@@ -40,10 +46,14 @@ export function PlatformShell({
               </div>
               {navItems.map((item) => {
                 const Icon = item.icon;
+                const active =
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     className={cn(
                       "flex h-9 items-center gap-3 rounded-sm border border-transparent px-2.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--brand-light)] hover:text-[var(--brand)]",
+                      active &&
+                        "border-[var(--brand-mid)] bg-[var(--brand-light)] font-semibold text-[var(--brand-dark)]",
                     )}
                     href={item.href}
                     key={item.href}

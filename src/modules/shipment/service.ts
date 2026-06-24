@@ -29,6 +29,7 @@ import {
   getOrderWorkflowState,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
+  findYunWebhookShipment,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
   updateOrderWorkflowStatus,
@@ -1008,6 +1009,60 @@ export async function syncShipmentTracking(
 
     throw appError;
   }
+}
+
+export async function resolveYunWebhookShipment(input: {
+  waybillNumber?: string | null;
+  trackingNumber?: string | null;
+  customerOrderNumber?: string | null;
+}) {
+  return findYunWebhookShipment(input);
+}
+
+export async function applyYunWebhookTrackingUpdate(input: {
+  shipment: ShipmentDetail;
+  carrierStatus: CarrierNormalizedTrackingStatus | null;
+  trackingNumber?: string | null;
+  carrierShipmentId?: string | null;
+}) {
+  const nextTrackingNumber =
+    !input.shipment.trackingNumber && input.trackingNumber
+      ? input.trackingNumber
+      : undefined;
+  const nextCarrierShipmentId =
+    !input.shipment.carrierShipmentId && input.carrierShipmentId
+      ? input.carrierShipmentId
+      : undefined;
+  const statusDecision = chooseTrackingShipmentStatus(
+    input.shipment.status,
+    input.carrierStatus,
+  );
+
+  const updatedShipment = await updateShipmentTrackingSyncResult({
+    tenantId: input.shipment.tenantId,
+    shipmentId: input.shipment.id,
+    status: statusDecision.nextStatus,
+    trackingNumber: nextTrackingNumber,
+    carrierShipmentId: nextCarrierShipmentId,
+    statusChanged: statusDecision.nextStatus !== input.shipment.status,
+    statusNote: statusDecision.note,
+    actorType: "SYSTEM",
+    actorId: "yun-webhook",
+  });
+
+  let portalTrackingSync = null;
+  if (!input.shipment.trackingNumber && updatedShipment.trackingNumber) {
+    portalTrackingSync = await sendPortalTrackingUpdate({
+      orderId: input.shipment.externalOrderId,
+      tracking: updatedShipment.trackingNumber,
+      sourceChannel: input.shipment.sourceChannel,
+    });
+  }
+
+  return {
+    shipment: updatedShipment,
+    portalTrackingSync,
+  };
 }
 
 function chooseTrackingShipmentStatus(
