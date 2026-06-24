@@ -136,6 +136,76 @@ export async function fetchYunActualShippingFee(input: {
   }
 }
 
+export async function applyYunWebhookActualFeeUpdate(input: {
+  tenantId: string;
+  shipmentId: string;
+  payload: unknown;
+}) {
+  const cost = await getShipmentCostWithCarrierIds(input);
+  if (!cost) {
+    throw new AppError("NOT_FOUND", "Shipment cost record not found.", 404);
+  }
+
+  const item = readPayloadItem(input.payload);
+  const actualTotalFee = toNumber(readValue(item, "TotalFee", "totalFee", "TotalCost", "totalCost"));
+  const hasAnyFeeValue = [
+    actualTotalFee,
+    toNumber(readValue(item, "Freight", "freight")),
+    toNumber(readValue(item, "FuelSurcharge", "fuelSurcharge")),
+    toNumber(readValue(item, "RegistrationFee", "registrationFee")),
+    toNumber(readValue(item, "ProcessingFee", "processingFee")),
+    toNumber(readValue(item, "OtherFee", "otherFee")),
+  ].some((value) => value !== null);
+
+  if (!hasAnyFeeValue) {
+    throw new AppError("VALIDATION_ERROR", "Webhook fee payload is missing fee fields.", 400);
+  }
+
+  return markShipmentCostActualFeeAvailable({
+    tenantId: input.tenantId,
+    shipmentId: input.shipmentId,
+    actualGrossWeight: toNumber(readValue(item, "GrossWeight", "grossWeight")),
+    actualChargeWeight: toNumber(readValue(item, "ChargeWeight", "chargeWeight")),
+    actualFreight: toNumber(readValue(item, "Freight", "freight")),
+    actualFuelSurcharge: toNumber(readValue(item, "FuelSurcharge", "fuelSurcharge")),
+    actualRegistrationFee: toNumber(readValue(item, "RegistrationFee", "registrationFee")),
+    actualProcessingFee: toNumber(readValue(item, "ProcessingFee", "processingFee")),
+    actualOtherFee: toNumber(readValue(item, "OtherFee", "otherFee")),
+    actualTotalFee,
+    actualOccurrenceTime: parseYunDate(
+      readStringValue(readValue(item, "OccurrenceTime", "occurrenceTime")),
+    ),
+  });
+}
+
+function readPayloadItem(payload: unknown): Record<string, unknown> {
+  const record = isRecord(payload) ? payload : {};
+  const item = record.Item ?? record.item;
+  return isRecord(item) ? item : record;
+}
+
+function readValue(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): string | number | null {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const value = record[key];
+      return typeof value === "string" || typeof value === "number" ? value : null;
+    }
+  }
+
+  return null;
+}
+
+function readStringValue(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function buildConfigFromRuntime(payload: Record<string, string | number | boolean | null>) {
   const envFallback = getYunExpressOmsConfig();
 

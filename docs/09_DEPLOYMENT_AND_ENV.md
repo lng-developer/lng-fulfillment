@@ -177,6 +177,17 @@ Không in hoặc commit giá trị `DEV_ADMIN_PASSWORD`, `DEV_TEST_PASSWORD` ho�
 - `SHIPMENT_TRACKING_FLOW_DEBUG=true` enables temporary safe debug logs for the ship-to-tracking-to-Portal flow. It must remain `false` by default and must not log Authorization, carrier credentials, raw label strings, cookies, session tokens, DB URLs, API keys, or raw carrier payloads.
 - `YUN_OMS_DEBUG_RAW_RESPONSE=true` temporarily prints the exact YunExpress HTTP response body in the local/server console for carrier debugging. Keep it `false` by default and remove/disable it after debugging.
 
+### YunExpress Webhook
+
+- `YUN_WEBHOOK_ENABLED=true`: enables the public YunExpress/Yuntu webhook receiver.
+- `YUN_WEBHOOK_ENCRYPT_KEY`: encryption policy key configured in Yuntu Console. It is used only server-side for signature verification and AES-256-CBC payload decryption.
+- Webhook request address should be configured in Yuntu Console as:
+  - `https://<app-domain>/api/webhooks/yunexpress/events`
+- The webhook route verifies `X-Openapi-Request-Timestamp` and `X-Openapi-Signature` against the exact raw request body before decrypting.
+- The route returns plain text `success` for accepted events. It does not return the platform JSON response envelope.
+- Do not print `YUN_WEBHOOK_ENCRYPT_KEY`, decrypted payloads, Authorization headers, cookies, carrier credentials, or full raw request bodies in production logs.
+- Preview/local webhook tests require a public HTTPS tunnel or deployed preview URL; never configure Yun production webhooks to a disposable or unapproved environment.
+
 ### Observability
 
 - `LOG_LEVEL`

@@ -74,6 +74,32 @@ Khi endpoint bị rate limit, API trả HTTP `429` với response chuẩn:
 
 Rate limit response không trả internal counters, raw key, session token, IP details hoặc thông tin giúp attacker điều chỉnh request.
 
+## YunExpress Webhook API
+
+- `POST /api/webhooks/yunexpress/events`: public YunExpress/Yuntu webhook receiver.
+- Auth model: carrier signature verification, not dashboard session and not tenant API key.
+- Required headers:
+  - `X-Openapi-Request-Timestamp`
+  - `X-Openapi-Signature`
+- Request body:
+
+```json
+{
+  "encrypt": "BASE64_ENCRYPTED_PAYLOAD"
+}
+```
+
+Processing rules:
+
+- Server verifies `sha256(timestamp + YUN_WEBHOOK_ENCRYPT_KEY + rawBody)` using the exact raw request body.
+- Server decrypts `encrypt` with AES-256-CBC using `SHA256(YUN_WEBHOOK_ENCRYPT_KEY)` as the AES key and the first 16 encrypted bytes as IV.
+- Accepted webhook response is plain text `success`, not the standard JSON API response envelope.
+- Events are stored in `YunWebhookEvent`, deduplicated by `eventId` when available, and dispatched by event category.
+- Tracking events may update `Shipment.trackingNumber`, normalized shipment status, status history, and source-aware Portal tracking callback when tracking newly appears.
+- Fee events may update existing `ShipmentCost.actual*` fields and set actual fee status to `AVAILABLE`.
+- Abnormal events are stored/upserted as `YunAbnormalCase`; operator actions against abnormal cases are outside this endpoint.
+- Unmatched events are stored as `UNMATCHED`; the platform must not create fake orders or shipments from webhook data alone.
+
 ## Same-Origin Mutation Rule
 
 Cookie-authenticated dashboard mutation APIs phải pass same-origin guard dựa trên `Origin` hoặc `Referer`.
