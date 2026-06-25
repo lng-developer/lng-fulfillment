@@ -95,6 +95,8 @@ assert.equal(
 void main();
 
 async function main() {
+  const previousWebhookEnabled = process.env.YUN_WEBHOOK_ENABLED;
+
   const ackResult = await receiveYunWebhookEvent({
     rawBody: JSON.stringify({ ACK: "yun-subscription-check-123" }),
     timestamp: null,
@@ -106,6 +108,24 @@ async function main() {
     category: "UNKNOWN",
     ack: "yun-subscription-check-123",
   });
+
+  process.env.YUN_WEBHOOK_ENABLED = "false";
+  const numericAckResult = await receiveYunWebhookEvent({
+    rawBody: JSON.stringify({ ACK: 1234567890 }),
+    timestamp: null,
+    signature: null,
+  });
+  assert.deepEqual(numericAckResult, {
+    eventId: null,
+    status: "ACK",
+    category: "UNKNOWN",
+    ack: "1234567890",
+  });
+  if (previousWebhookEnabled === undefined) {
+    delete process.env.YUN_WEBHOOK_ENABLED;
+  } else {
+    process.env.YUN_WEBHOOK_ENABLED = previousWebhookEnabled;
+  }
 
   console.log("yun webhook crypto/extractor tests passed");
 }

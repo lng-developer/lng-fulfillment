@@ -99,7 +99,8 @@ encrypted events are pushed:
 ```
 
 The receiver replies with the exact `ACK` value as `text/plain` within the
-request and does not store or dispatch this activation request.
+request and does not store or dispatch this activation request. `ACK` may be
+sent as a string or number; the receiver echoes the string form of that value.
 
 Processing rules:
 

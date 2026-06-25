@@ -62,7 +62,8 @@ During subscription activation, Yuntu may first send a plain JSON challenge:
 
 The receiver echoes the exact `ACK` value as `text/plain` within the same
 request. This activation request is not stored in the webhook inbox and does
-not require encrypted event payload processing.
+not require encrypted event payload processing. `ACK` may be sent as a string
+or number; the receiver returns the string form of the value.
 
 ## Event Review
 
