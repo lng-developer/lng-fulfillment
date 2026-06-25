@@ -95,6 +95,21 @@ enum ShipmentActualFeeStatus {
   FAILED
 }
 
+enum YunWebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  FAILED
+  UNMATCHED
+}
+
+enum YunWebhookEventCategory {
+  TRACKING
+  FEE
+  ABNORMAL
+  UNKNOWN
+}
+
 enum CarrierAccountStatus {
   ACTIVE
   DISABLED
@@ -152,6 +167,8 @@ model Tenant {
   orders             Order[]
   shipments          Shipment[]
   shipmentCosts      ShipmentCost[]
+  yunWebhookEvents   YunWebhookEvent[]
+  yunAbnormalCases   YunAbnormalCase[]
   carrierAccounts    CarrierAccount[]
   carrierCredentials CarrierCredential[]
   createdAt          DateTime            @default(now())
@@ -345,6 +362,8 @@ model Shipment {
   items             ShipmentItem[]
   statusHistory     ShipmentStatusHistory[]
   cost              ShipmentCost?
+  yunWebhookEvents  YunWebhookEvent[]
+  yunAbnormalCases  YunAbnormalCase[]
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
@@ -386,6 +405,7 @@ model ShipmentCost {
   tenant                      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   order                       Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   shipment                    Shipment                @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  yunWebhookEvents            YunWebhookEvent[]
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt
 
@@ -422,6 +442,69 @@ model ShipmentStatusHistory {
   createdAt  DateTime       @default(now())
 
   @@index([tenantId, shipmentId, createdAt])
+}
+
+model YunWebhookEvent {
+  id                  String                   @id @default(cuid())
+  eventId             String?
+  eventType           String?
+  eventCategory       YunWebhookEventCategory  @default(UNKNOWN)
+  dataCode            String?
+  waybillNumber       String?
+  trackingNumber      String?
+  customerOrderNumber String?
+  tenantId            String?
+  shipmentId          String?
+  shipmentCostId      String?
+  status              YunWebhookEventStatus    @default(RECEIVED)
+  timestampHeader     String?
+  signatureHeader     String?
+  rawEncryptedBody    Json
+  decryptedPayload    Json?
+  safeMetadata        Json?
+  errorMessage        String?
+  receivedAt          DateTime                 @default(now())
+  processedAt         DateTime?
+  tenant              Tenant?                  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  shipment            Shipment?                @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  shipmentCost        ShipmentCost?            @relation(fields: [shipmentCostId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId])
+  @@index([status, receivedAt])
+  @@index([eventCategory, receivedAt])
+  @@index([tenantId, receivedAt])
+  @@index([shipmentId, receivedAt])
+  @@index([waybillNumber])
+  @@index([trackingNumber])
+  @@index([customerOrderNumber])
+}
+
+model YunAbnormalCase {
+  id                  String    @id @default(cuid())
+  tenantId            String?
+  shipmentId          String?
+  waybillNumber       String
+  type                Int
+  customerOrderNumber String?
+  trackingNumber      String?
+  processStatus       Int?
+  problemTitles       Json?
+  funcBtnList         Json?
+  woInfo              Json?
+  operationInfo       Json?
+  latestOpCommand     String?
+  processDeadline     DateTime?
+  rawPayload          Json
+  tenant              Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  shipment            Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([waybillNumber, type])
+  @@index([tenantId, updatedAt])
+  @@index([shipmentId])
+  @@index([trackingNumber])
+  @@index([customerOrderNumber])
 }
 
 model CarrierAccount {

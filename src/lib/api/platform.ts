@@ -1,5 +1,11 @@
 import type {
   PlatformAuditLog,
+  PlatformYunWebhookEvent,
+  PlatformYunWebhookEventDetail,
+  PlatformYunWebhookSetup,
+  PlatformYunWebhookStats,
+  YunWebhookEventCategory,
+  YunWebhookEventStatus,
   PlatformMember,
   PlatformPagination,
   PlatformTenantDetail,
@@ -25,6 +31,24 @@ export type PlatformAuditLogParams = {
   actions?: string[];
   actorType?: string;
   resourceType?: string;
+  from?: string;
+  to?: string;
+  sortOrder?: "asc" | "desc";
+};
+
+export type PlatformYunWebhookParams = {
+  page?: number;
+  pageSize?: number;
+  attention?: boolean;
+  status?: YunWebhookEventStatus | "";
+  eventCategory?: YunWebhookEventCategory | "";
+  eventType?: string;
+  tenantId?: string;
+  shipmentId?: string;
+  waybillNumber?: string;
+  trackingNumber?: string;
+  customerOrderNumber?: string;
+  search?: string;
   from?: string;
   to?: string;
   sortOrder?: "asc" | "desc";
@@ -174,6 +198,70 @@ export async function getPlatformAuditLogs(
       totalPages: response.data.auditLogs.length ? 1 : 0,
     },
   };
+}
+
+export async function getPlatformYunWebhookEvents(
+  params: PlatformYunWebhookParams,
+  options?: RequestInit,
+) {
+  const query = buildQuery(params);
+  const response = await apiFetch<
+    ApiSuccessEnvelope<
+      { events: PlatformYunWebhookEvent[] },
+      { pagination: PlatformPagination; stats: PlatformYunWebhookStats }
+    >
+  >(`/api/platform/yun-webhooks?${query}`, options);
+
+  return {
+    data: response.data.events,
+    pagination: response.meta?.pagination ?? {
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? response.data.events.length,
+      totalItems: response.data.events.length,
+      totalPages: response.data.events.length ? 1 : 0,
+    },
+    stats: response.meta?.stats ?? {
+      total: response.data.events.length,
+      failed: response.data.events.filter((event) => event.status === "FAILED").length,
+      unmatched: response.data.events.filter((event) => event.status === "UNMATCHED").length,
+      needsAttention: response.data.events.filter((event) =>
+        event.status === "FAILED" || event.status === "UNMATCHED",
+      ).length,
+      processed: response.data.events.filter((event) => event.status === "PROCESSED").length,
+      tracking: response.data.events.filter((event) => event.eventCategory === "TRACKING").length,
+      fee: response.data.events.filter((event) => event.eventCategory === "FEE").length,
+      abnormal: response.data.events.filter((event) => event.eventCategory === "ABNORMAL").length,
+    },
+  };
+}
+
+export async function getPlatformYunWebhookSetup(options?: RequestInit) {
+  const response = await apiFetch<
+    ApiSuccessEnvelope<{ setup: PlatformYunWebhookSetup }>
+  >("/api/platform/yun-webhooks/setup", options);
+
+  return response.data.setup;
+}
+
+export async function getPlatformYunWebhookEvent(
+  eventId: string,
+  options?: RequestInit,
+) {
+  const response = await apiFetch<
+    ApiSuccessEnvelope<{ event: PlatformYunWebhookEventDetail }>
+  >(`/api/platform/yun-webhooks/${eventId}`, options);
+
+  return response.data.event;
+}
+
+export async function reprocessPlatformYunWebhookEvent(eventId: string) {
+  const response = await apiFetch<
+    ApiSuccessEnvelope<{ event: PlatformYunWebhookEventDetail }>
+  >(`/api/platform/yun-webhooks/${eventId}/reprocess`, {
+    method: "POST",
+  });
+
+  return response.data.event;
 }
 
 function buildQuery(params: Record<string, unknown>) {

@@ -74,6 +74,76 @@ Khi endpoint bị rate limit, API trả HTTP `429` với response chuẩn:
 
 Rate limit response không trả internal counters, raw key, session token, IP details hoặc thông tin giúp attacker điều chỉnh request.
 
+## YunExpress Webhook API
+
+- `POST /api/webhooks/yunexpress/events`: public YunExpress/Yuntu webhook receiver.
+- Auth model: carrier signature verification, not dashboard session and not tenant API key.
+- Required headers:
+  - `X-Openapi-Request-Timestamp`
+  - `X-Openapi-Signature`
+- Request body:
+
+```json
+{
+  "encrypt": "BASE64_ENCRYPTED_PAYLOAD"
+}
+```
+
+YunExpress/Yuntu subscription activation may send a plain JSON challenge before
+encrypted events are pushed:
+
+```json
+{
+  "ACK": "challenge-value"
+}
+```
+
+The receiver replies with the exact `ACK` value as `text/plain` within the
+request and does not store or dispatch this activation request. `ACK` may be
+sent as a string or number; the receiver echoes the string form of that value.
+
+Processing rules:
+
+- Server verifies `sha256(timestamp + YUN_WEBHOOK_ENCRYPT_KEY + rawBody)` using the exact raw request body.
+- Server decrypts `encrypt` with AES-256-CBC using `SHA256(YUN_WEBHOOK_ENCRYPT_KEY)` as the AES key and the first 16 encrypted bytes as IV.
+- Accepted webhook response is plain text `success`, not the standard JSON API response envelope.
+- Events are stored in `YunWebhookEvent`, deduplicated by `eventId` when available, and dispatched by event category.
+- Tracking events may update `Shipment.trackingNumber`, normalized shipment status, status history, and source-aware Portal tracking callback when tracking newly appears.
+- Fee events may update existing `ShipmentCost.actual*` fields and set actual fee status to `AVAILABLE`.
+- Abnormal events are stored/upserted as `YunAbnormalCase`; operator actions against abnormal cases are outside this endpoint.
+- Unmatched events are stored as `UNMATCHED`; the platform must not create fake orders or shipments from webhook data alone.
+
+## Platform YunExpress Webhook Management APIs
+
+- `GET /api/platform/yun-webhooks`: list received YunExpress webhook events for Platform Admin/Support review.
+- `GET /api/platform/yun-webhooks/setup`: show safe manual registration URL and receiver configuration status.
+- `GET /api/platform/yun-webhooks/:eventId`: view one webhook event detail with sanitized decrypted payload.
+- `POST /api/platform/yun-webhooks/:eventId/reprocess`: reprocess one `FAILED` or `UNMATCHED` event.
+
+Rules:
+
+- Requires active `PLATFORM_ADMIN` or `PLATFORM_SUPPORT` for read APIs.
+- Reprocess requires `PLATFORM_ADMIN`, same-origin validation, and dashboard mutation rate limit.
+- Setup API returns only safe booleans and URLs: receiver enabled, encryption key configured, receiver path, webhook URL, required header names, request body shape, and registration checklist.
+- Setup API never returns `YUN_WEBHOOK_ENCRYPT_KEY`, signatures, decrypted payloads, encrypted payloads, carrier credentials, cookies, session tokens, API keys, DB URLs, or Authorization headers.
+- Reprocess does not call YunExpress create/cancel/abnormal action APIs. It only re-runs internal tracking, fee, or abnormal event dispatch from the stored decrypted payload.
+- Reprocess is allowed only for `FAILED` and `UNMATCHED`; `RECEIVED`, `PROCESSED`, and `DUPLICATE` are not reprocessed.
+- List/detail responses never return `rawEncryptedBody`, full signature, Authorization headers, carrier credentials, API secrets, cookies, DB URLs, session tokens, raw credentials, or plaintext webhook keys.
+- Detail payloads must be sanitized/redacted before display. UI must render through `SafeMetadataViewer` or equivalent bounded redaction.
+
+List query params:
+
+- `page`, `pageSize`
+- `attention=true`: shortcut for `FAILED` or `UNMATCHED` events.
+- `status`: `RECEIVED`, `PROCESSED`, `DUPLICATE`, `FAILED`, `UNMATCHED`
+- `eventCategory`: `TRACKING`, `FEE`, `ABNORMAL`, `UNKNOWN`
+- `eventType`
+- `tenantId`, `shipmentId`
+- `waybillNumber`, `trackingNumber`, `customerOrderNumber`
+- `search`
+- `from`, `to`
+- `sortOrder`: `asc` or `desc`
+
 ## Same-Origin Mutation Rule
 
 Cookie-authenticated dashboard mutation APIs phải pass same-origin guard dựa trên `Origin` hoặc `Referer`.

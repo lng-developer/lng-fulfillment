@@ -65,6 +65,7 @@ export type ShipmentListItem = {
 
 export type ShipmentDetail = {
   id: string;
+  tenantId: string;
   orderId: string;
   orderNumber: string | null;
   externalOrderId: string;
