@@ -102,6 +102,9 @@ encrypted events are pushed:
 The receiver replies with the exact `ACK` value as `text/plain` within the
 request and does not store or dispatch this activation request. `ACK` may be
 sent as a string or number; the receiver echoes the string form of that value.
+If Encryption Strategy is enabled, the activation challenge may use the normal
+encrypted body shape; the receiver verifies the signature, decrypts the payload,
+and echoes the decrypted top-level `ACK` value.
 
 Processing rules:
 

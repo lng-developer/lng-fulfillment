@@ -22,6 +22,9 @@ function sanitizeHeaders(headers: Headers) {
 function sanitizeHeaderValue(key: string, value: string) {
   const normalizedKey = key.toLowerCase();
   if (
+    normalizedKey === "forwarded" ||
+    normalizedKey === "x-vercel-proxy-signature" ||
+    normalizedKey === "x-vercel-sc-headers" ||
     normalizedKey.includes("authorization") ||
     normalizedKey.includes("cookie") ||
     normalizedKey.includes("token") ||

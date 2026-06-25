@@ -63,6 +63,16 @@ export async function receiveYunWebhookEvent(
   const encryptedBody = parseEncryptedBody(input.rawBody);
   const decryptedText = decryptYunWebhookPayload(encryptedBody.encrypt, encryptKey);
   const payload = parseDecryptedPayload(decryptedText);
+  const encryptedAck = parseAckChallengePayload(payload);
+  if (encryptedAck) {
+    return {
+      eventId: null,
+      status: "ACK",
+      category: "UNKNOWN",
+      ack: encryptedAck,
+    };
+  }
+
   const meta = extractYunWebhookMeta(payload);
   const category = classifyYunWebhookEvent(payload, meta);
   const createdEvent = await createReceivedYunWebhookEvent({
@@ -159,6 +169,10 @@ function parseAckChallenge(rawBody: string) {
     return null;
   }
 
+  return parseAckChallengePayload(parsed);
+}
+
+function parseAckChallengePayload(parsed: unknown) {
   if (!isRecord(parsed)) {
     return null;
   }

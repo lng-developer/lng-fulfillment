@@ -112,8 +112,14 @@ async function main() {
       new Headers({
         authorization: "Bearer abc",
         cookie: "session=abc",
+        forwarded: "for=150.242.228.163;host=example.test;proto=https;sig=secret-signature",
         "x-openapi-signature": "1234567890abcdef1234567890abcdef",
         "x-openapi-request-timestamp": "1710000000000",
+        "x-vercel-proxy-signature": "Bearer vercel-proxy-secret",
+        "x-vercel-sc-headers": JSON.stringify({
+          Authorization: "Bearer nested-jwt",
+          "x-vercel-function-platform": "vercel/proxy+serverless",
+        }),
         "content-type": "application/json",
       }),
       JSON.stringify({
@@ -126,8 +132,11 @@ async function main() {
       headers: {
         authorization: "[REDACTED]",
         cookie: "[REDACTED]",
+        forwarded: "[REDACTED]",
         "x-openapi-signature": "123456...90abcdef",
         "x-openapi-request-timestamp": "1710000000000",
+        "x-vercel-proxy-signature": "[REDACTED]",
+        "x-vercel-sc-headers": "[REDACTED]",
         "content-type": "application/json",
       },
       body: {
@@ -165,6 +174,36 @@ async function main() {
     delete process.env.YUN_WEBHOOK_ENABLED;
   } else {
     process.env.YUN_WEBHOOK_ENABLED = previousWebhookEnabled;
+  }
+
+  const encryptedAckBody = JSON.stringify({
+    encrypt: encryptForTest(
+      JSON.stringify({ ACK: "yun-encrypted-subscription-check-456" }),
+      encryptKey,
+    ),
+  });
+  const encryptedAckTimestamp = "1710000000001";
+  const encryptedAckSignature = crypto
+    .createHash("sha256")
+    .update(`${encryptedAckTimestamp}${encryptKey}${encryptedAckBody}`, "utf8")
+    .digest("hex");
+  const previousEncryptKey = process.env.YUN_WEBHOOK_ENCRYPT_KEY;
+  process.env.YUN_WEBHOOK_ENCRYPT_KEY = encryptKey;
+  const encryptedAckResult = await receiveYunWebhookEvent({
+    rawBody: encryptedAckBody,
+    timestamp: encryptedAckTimestamp,
+    signature: encryptedAckSignature,
+  });
+  assert.deepEqual(encryptedAckResult, {
+    eventId: null,
+    status: "ACK",
+    category: "UNKNOWN",
+    ack: "yun-encrypted-subscription-check-456",
+  });
+  if (previousEncryptKey === undefined) {
+    delete process.env.YUN_WEBHOOK_ENCRYPT_KEY;
+  } else {
+    process.env.YUN_WEBHOOK_ENCRYPT_KEY = previousEncryptKey;
   }
 
   console.log("yun webhook crypto/extractor tests passed");

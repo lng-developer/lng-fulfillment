@@ -74,6 +74,20 @@ request. This activation request is not stored in the webhook inbox and does
 not require encrypted event payload processing. `ACK` may be sent as a string
 or number; the receiver returns the string form of the value.
 
+If Encryption Strategy is enabled, Yuntu may instead send the activation
+challenge inside the encrypted payload:
+
+```json
+{
+  "encrypt": "BASE64_ENCRYPTED_ACK_PAYLOAD"
+}
+```
+
+In that case the receiver verifies the signature, decrypts the payload, then
+echoes the decrypted top-level `ACK` value as `text/plain`. Encrypted ACK
+requests are also not stored in the webhook inbox and are not dispatched as
+events.
+
 ## Event Review
 
 Use `/platform/yun-webhooks` to review received events.
