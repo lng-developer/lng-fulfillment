@@ -22,10 +22,6 @@ import type {
 export async function receiveYunWebhookEvent(
   input: ReceiveYunWebhookInput,
 ): Promise<YunWebhookReceiveResult> {
-  if (process.env.YUN_WEBHOOK_ENABLED === "false") {
-    throw new AppError("FORBIDDEN", "YunExpress webhook is disabled.", 403);
-  }
-
   const ack = parseAckChallenge(input.rawBody);
   if (ack) {
     return {
@@ -34,6 +30,10 @@ export async function receiveYunWebhookEvent(
       category: "UNKNOWN",
       ack,
     };
+  }
+
+  if (process.env.YUN_WEBHOOK_ENABLED === "false") {
+    throw new AppError("FORBIDDEN", "YunExpress webhook is disabled.", 403);
   }
 
   const encryptKey = process.env.YUN_WEBHOOK_ENCRYPT_KEY?.trim();
@@ -164,7 +164,16 @@ function parseAckChallenge(rawBody: string) {
   }
 
   const ack = parsed.ACK ?? parsed.ack;
-  return typeof ack === "string" && ack ? ack : null;
+
+  if (typeof ack === "string") {
+    return ack ? ack : null;
+  }
+
+  if (typeof ack === "number" || typeof ack === "boolean") {
+    return String(ack);
+  }
+
+  return null;
 }
 
 function parseDecryptedPayload(decryptedText: string): unknown {
