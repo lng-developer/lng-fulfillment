@@ -43,6 +43,7 @@ export type YunWebhookDispatchResult =
 
 export type YunWebhookReceiveResult = {
   eventId: string | null;
-  status: YunWebhookEventStatus | "DUPLICATE";
+  status: YunWebhookEventStatus | "DUPLICATE" | "ACK";
   category: YunWebhookEventCategory;
+  ack?: string;
 };

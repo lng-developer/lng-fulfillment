@@ -3,11 +3,20 @@ import { AppError } from "@/shared/errors";
 
 export async function POST(request: Request) {
   try {
-    await receiveYunWebhookEvent({
+    const result = await receiveYunWebhookEvent({
       rawBody: await request.text(),
       timestamp: request.headers.get("X-Openapi-Request-Timestamp"),
       signature: request.headers.get("X-Openapi-Signature"),
     });
+
+    if (result.status === "ACK") {
+      return new Response(result.ack ?? "", {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+        status: 200,
+      });
+    }
 
     return new Response("success", {
       headers: {

@@ -4,6 +4,7 @@ import {
   decryptYunWebhookPayload,
   verifyYunWebhookSignature,
 } from "@/modules/yun-webhook/crypto";
+import { receiveYunWebhookEvent } from "@/modules/yun-webhook/service";
 import {
   classifyYunWebhookEvent,
   extractYunWebhookMeta,
@@ -91,7 +92,23 @@ assert.equal(
   "ABNORMAL",
 );
 
-console.log("yun webhook crypto/extractor tests passed");
+void main();
+
+async function main() {
+  const ackResult = await receiveYunWebhookEvent({
+    rawBody: JSON.stringify({ ACK: "yun-subscription-check-123" }),
+    timestamp: null,
+    signature: null,
+  });
+  assert.deepEqual(ackResult, {
+    eventId: null,
+    status: "ACK",
+    category: "UNKNOWN",
+    ack: "yun-subscription-check-123",
+  });
+
+  console.log("yun webhook crypto/extractor tests passed");
+}
 
 function encryptForTest(text: string, key: string) {
   const iv = Buffer.from("1234567890abcdef", "utf8");

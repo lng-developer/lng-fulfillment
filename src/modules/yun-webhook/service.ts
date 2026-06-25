@@ -26,6 +26,16 @@ export async function receiveYunWebhookEvent(
     throw new AppError("FORBIDDEN", "YunExpress webhook is disabled.", 403);
   }
 
+  const ack = parseAckChallenge(input.rawBody);
+  if (ack) {
+    return {
+      eventId: null,
+      status: "ACK",
+      category: "UNKNOWN",
+      ack,
+    };
+  }
+
   const encryptKey = process.env.YUN_WEBHOOK_ENCRYPT_KEY?.trim();
   if (!encryptKey) {
     throw new AppError(
@@ -139,6 +149,22 @@ function parseEncryptedBody(rawBody: string): { encrypt: string } {
   }
 
   return { encrypt: parsed.encrypt };
+}
+
+function parseAckChallenge(rawBody: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(parsed)) {
+    return null;
+  }
+
+  const ack = parsed.ACK ?? parsed.ack;
+  return typeof ack === "string" && ack ? ack : null;
 }
 
 function parseDecryptedPayload(decryptedText: string): unknown {
