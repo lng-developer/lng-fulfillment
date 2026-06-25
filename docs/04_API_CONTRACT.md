@@ -89,6 +89,18 @@ Rate limit response không trả internal counters, raw key, session token, IP d
 }
 ```
 
+YunExpress/Yuntu subscription activation may send a plain JSON challenge before
+encrypted events are pushed:
+
+```json
+{
+  "ACK": "challenge-value"
+}
+```
+
+The receiver replies with the exact `ACK` value as `text/plain` within the
+request and does not store or dispatch this activation request.
+
 Processing rules:
 
 - Server verifies `sha256(timestamp + YUN_WEBHOOK_ENCRYPT_KEY + rawBody)` using the exact raw request body.
