@@ -22,7 +22,6 @@ export async function GET(request: Request) {
       { pagination: result.pagination, stats },
     );
   } catch (error) {
-<<<<<<< HEAD
     logYunWebhookListError(error);
     return handlePlatformError(error);
   }
@@ -45,8 +44,3 @@ function logYunWebhookListError(error: unknown) {
     message: "Unknown non-error thrown",
   });
 }
-=======
-    return handlePlatformError(error);
-  }
-}
->>>>>>> 236ed8eff0ddba339122556b6c9dfb32d1bc7ac7
