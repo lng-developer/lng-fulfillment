@@ -1,6 +1,13 @@
 import { receiveYunWebhookEvent } from "@/modules/yun-webhook";
 import { AppError } from "@/shared/errors";
 
+export async function GET() {
+  return Response.json({
+    success: true,
+    message: "YunExpress webhook endpoint is alive",
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const result = await receiveYunWebhookEvent({

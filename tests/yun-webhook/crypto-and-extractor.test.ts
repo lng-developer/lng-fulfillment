@@ -5,6 +5,7 @@ import {
   verifyYunWebhookSignature,
 } from "@/modules/yun-webhook/crypto";
 import { receiveYunWebhookEvent } from "@/modules/yun-webhook/service";
+import { GET as getYunWebhookHealth } from "@/app/api/webhooks/yunexpress/events/route";
 import {
   classifyYunWebhookEvent,
   extractYunWebhookMeta,
@@ -96,6 +97,13 @@ void main();
 
 async function main() {
   const previousWebhookEnabled = process.env.YUN_WEBHOOK_ENABLED;
+
+  const healthResponse = await getYunWebhookHealth();
+  assert.equal(healthResponse.status, 200);
+  assert.deepEqual(await healthResponse.json(), {
+    success: true,
+    message: "YunExpress webhook endpoint is alive",
+  });
 
   const ackResult = await receiveYunWebhookEvent({
     rawBody: JSON.stringify({ ACK: "yun-subscription-check-123" }),

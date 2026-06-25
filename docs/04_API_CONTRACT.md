@@ -76,6 +76,7 @@ Rate limit response không trả internal counters, raw key, session token, IP d
 
 ## YunExpress Webhook API
 
+- `GET /api/webhooks/yunexpress/events`: public health check for webhook endpoint availability.
 - `POST /api/webhooks/yunexpress/events`: public YunExpress/Yuntu webhook receiver.
 - Auth model: carrier signature verification, not dashboard session and not tenant API key.
 - Required headers:

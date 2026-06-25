@@ -37,6 +37,15 @@ Expected receiver URL shape:
 https://<fulfillment-platform-domain>/api/webhooks/yunexpress/events
 ```
 
+The same path supports `GET` as a lightweight public health check:
+
+```json
+{
+  "success": true,
+  "message": "YunExpress webhook endpoint is alive"
+}
+```
+
 Expected headers:
 
 ```text
