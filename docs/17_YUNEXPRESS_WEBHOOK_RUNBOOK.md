@@ -69,10 +69,11 @@ During subscription activation, Yuntu may first send a plain JSON challenge:
 }
 ```
 
-The receiver echoes the exact `ACK` value as `text/plain` within the same
-request. This activation request is not stored in the webhook inbox and does
-not require encrypted event payload processing. `ACK` may be sent as a string
-or number; the receiver returns the string form of the value.
+The receiver treats this as a test/activation request and replies with the
+plain text value `success` and HTTP 200. This activation request is not stored
+in the webhook inbox and does not require encrypted event payload processing.
+`ACK` may be sent as a string or number, but the HTTP response body remains
+`success`.
 
 If Encryption Strategy is enabled, Yuntu may instead send the activation
 challenge inside the encrypted payload:
@@ -83,10 +84,10 @@ challenge inside the encrypted payload:
 }
 ```
 
-In that case the receiver verifies the signature, decrypts the payload, then
-echoes the decrypted top-level `ACK` value as `text/plain`. Encrypted ACK
-requests are also not stored in the webhook inbox and are not dispatched as
-events.
+In that case the receiver verifies the signature, decrypts the payload, detects
+the decrypted top-level `ACK`, then replies with plain text `success`.
+Encrypted ACK requests are also not stored in the webhook inbox and are not
+dispatched as events.
 
 ## Event Review
 

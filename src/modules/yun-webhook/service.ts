@@ -4,6 +4,7 @@ import {
   classifyYunWebhookEvent,
   extractYunWebhookMeta,
 } from "./extractor";
+import { buildYunWebhookDecryptedDebugLog } from "./debug";
 import { handleYunAbnormalWebhook } from "./handlers/abnormal";
 import { handleYunFeeWebhook } from "./handlers/fee";
 import { handleYunTrackingWebhook } from "./handlers/tracking";
@@ -63,6 +64,7 @@ export async function receiveYunWebhookEvent(
   const encryptedBody = parseEncryptedBody(input.rawBody);
   const decryptedText = decryptYunWebhookPayload(encryptedBody.encrypt, encryptKey);
   const payload = parseDecryptedPayload(decryptedText);
+  console.log("[yun-webhook:decrypted]", buildYunWebhookDecryptedDebugLog(payload));
   const encryptedAck = parseAckChallengePayload(payload);
   if (encryptedAck) {
     return {

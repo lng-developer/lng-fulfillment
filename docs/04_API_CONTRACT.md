@@ -99,12 +99,13 @@ encrypted events are pushed:
 }
 ```
 
-The receiver replies with the exact `ACK` value as `text/plain` within the
-request and does not store or dispatch this activation request. `ACK` may be
-sent as a string or number; the receiver echoes the string form of that value.
+The receiver replies with plain text `success` and HTTP 200 for successful
+activation/test requests and does not store or dispatch this activation
+request. `ACK` may be sent as a string or number, but the HTTP response body
+remains `success`.
 If Encryption Strategy is enabled, the activation challenge may use the normal
 encrypted body shape; the receiver verifies the signature, decrypts the payload,
-and echoes the decrypted top-level `ACK` value.
+detects the decrypted top-level `ACK`, and still replies with `success`.
 
 Processing rules:
 

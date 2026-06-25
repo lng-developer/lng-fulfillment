@@ -18,20 +18,11 @@ export async function POST(request: Request) {
     console.log("HEADERS:", debugLog.headers);
     console.log("BODY:", debugLog.body);
 
-    const result = await receiveYunWebhookEvent({
+    await receiveYunWebhookEvent({
       rawBody,
       timestamp: request.headers.get("X-Openapi-Request-Timestamp"),
       signature: request.headers.get("X-Openapi-Signature"),
     });
-
-    if (result.status === "ACK") {
-      return new Response(result.ack ?? "", {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-        },
-        status: 200,
-      });
-    }
 
     return new Response("success", {
       headers: {

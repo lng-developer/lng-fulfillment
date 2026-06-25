@@ -5,8 +5,14 @@ import {
   verifyYunWebhookSignature,
 } from "@/modules/yun-webhook/crypto";
 import { receiveYunWebhookEvent } from "@/modules/yun-webhook/service";
-import { GET as getYunWebhookHealth } from "@/app/api/webhooks/yunexpress/events/route";
-import { buildYunWebhookDebugLog } from "@/modules/yun-webhook/debug";
+import {
+  GET as getYunWebhookHealth,
+  POST as postYunWebhookEvent,
+} from "@/app/api/webhooks/yunexpress/events/route";
+import {
+  buildYunWebhookDebugLog,
+  buildYunWebhookDecryptedDebugLog,
+} from "@/modules/yun-webhook/debug";
 import {
   classifyYunWebhookEvent,
   extractYunWebhookMeta,
@@ -146,6 +152,37 @@ async function main() {
     },
   );
 
+  assert.deepEqual(
+    buildYunWebhookDecryptedDebugLog({
+      data_code: "tisCnPushData",
+      customer_code: "1002",
+      data: {
+        waybill_number: "YT240TEST103",
+        tracking_number: "7771113460512",
+        customer_order_number: "276589222",
+      },
+      Receiver: {
+        Phone: "1234567890",
+        Email: "test@example.com",
+      },
+    }),
+    {
+      isObject: true,
+      topLevelKeys: ["data_code", "customer_code", "data", "Receiver"],
+      nestedDataKeys: [
+        "waybill_number",
+        "tracking_number",
+        "customer_order_number",
+      ],
+      ackPresent: false,
+      dataCode: "tisCnPushData",
+      eventCode: null,
+      waybillPresent: true,
+      trackingPresent: true,
+      customerOrderPresent: true,
+    },
+  );
+
   const ackResult = await receiveYunWebhookEvent({
     rawBody: JSON.stringify({ ACK: "yun-subscription-check-123" }),
     timestamp: null,
@@ -200,6 +237,33 @@ async function main() {
     category: "UNKNOWN",
     ack: "yun-encrypted-subscription-check-456",
   });
+
+  const plainAckResponse = await postYunWebhookEvent(
+    new Request("https://ff.example.test/api/webhooks/yunexpress/events", {
+      method: "POST",
+      body: JSON.stringify({ ACK: "yun-subscription-check-123" }),
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  assert.equal(plainAckResponse.status, 200);
+  assert.equal(plainAckResponse.headers.get("Content-Type"), "text/plain; charset=utf-8");
+  assert.equal(await plainAckResponse.text(), "success");
+
+  const encryptedAckResponse = await postYunWebhookEvent(
+    new Request("https://ff.example.test/api/webhooks/yunexpress/events", {
+      method: "POST",
+      body: encryptedAckBody,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Openapi-Request-Timestamp": encryptedAckTimestamp,
+        "X-Openapi-Signature": encryptedAckSignature,
+      },
+    }),
+  );
+  assert.equal(encryptedAckResponse.status, 200);
+  assert.equal(encryptedAckResponse.headers.get("Content-Type"), "text/plain; charset=utf-8");
+  assert.equal(await encryptedAckResponse.text(), "success");
+
   if (previousEncryptKey === undefined) {
     delete process.env.YUN_WEBHOOK_ENCRYPT_KEY;
   } else {
