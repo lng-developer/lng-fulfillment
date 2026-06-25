@@ -6,6 +6,7 @@ import {
 } from "@/modules/yun-webhook/crypto";
 import { receiveYunWebhookEvent } from "@/modules/yun-webhook/service";
 import { GET as getYunWebhookHealth } from "@/app/api/webhooks/yunexpress/events/route";
+import { buildYunWebhookDebugLog } from "@/modules/yun-webhook/debug";
 import {
   classifyYunWebhookEvent,
   extractYunWebhookMeta,
@@ -104,6 +105,37 @@ async function main() {
     success: true,
     message: "YunExpress webhook endpoint is alive",
   });
+
+  assert.deepEqual(
+    buildYunWebhookDebugLog(
+      "https://ff.example.test/api/webhooks/yunexpress/events",
+      new Headers({
+        authorization: "Bearer abc",
+        cookie: "session=abc",
+        "x-openapi-signature": "1234567890abcdef1234567890abcdef",
+        "x-openapi-request-timestamp": "1710000000000",
+        "content-type": "application/json",
+      }),
+      JSON.stringify({
+        ACK: "yun-subscription-check-123",
+        encrypt: "base64-secret-payload",
+      }),
+    ),
+    {
+      url: "https://ff.example.test/api/webhooks/yunexpress/events",
+      headers: {
+        authorization: "[REDACTED]",
+        cookie: "[REDACTED]",
+        "x-openapi-signature": "123456...90abcdef",
+        "x-openapi-request-timestamp": "1710000000000",
+        "content-type": "application/json",
+      },
+      body: {
+        ACK: "yun-subscription-check-123",
+        encrypt: "[REDACTED]",
+      },
+    },
+  );
 
   const ackResult = await receiveYunWebhookEvent({
     rawBody: JSON.stringify({ ACK: "yun-subscription-check-123" }),

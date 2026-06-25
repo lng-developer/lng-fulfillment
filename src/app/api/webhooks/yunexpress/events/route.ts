@@ -1,3 +1,4 @@
+import { buildYunWebhookDebugLog } from "@/modules/yun-webhook/debug";
 import { receiveYunWebhookEvent } from "@/modules/yun-webhook";
 import { AppError } from "@/shared/errors";
 
@@ -10,8 +11,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const rawBody = await request.text();
+    const debugLog = buildYunWebhookDebugLog(request.url, request.headers, rawBody);
+    console.log("=== YUNEXPRESS WEBHOOK ===");
+    console.log("URL:", debugLog.url);
+    console.log("HEADERS:", debugLog.headers);
+    console.log("BODY:", debugLog.body);
+
     const result = await receiveYunWebhookEvent({
-      rawBody: await request.text(),
+      rawBody,
       timestamp: request.headers.get("X-Openapi-Request-Timestamp"),
       signature: request.headers.get("X-Openapi-Signature"),
     });
