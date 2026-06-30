@@ -95,6 +95,22 @@ enum ShipmentActualFeeStatus {
   FAILED
 }
 
+enum SkuShippingMethodMappingStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum AutoShipmentJobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  SKIPPED_DISABLED
+  MISSING_SKU_MAPPING
+  METHOD_CONFLICT
+  SKIPPED_EXISTING_SHIPMENT
+}
+
 enum YunWebhookEventStatus {
   RECEIVED
   PROCESSED
@@ -167,6 +183,9 @@ model Tenant {
   orders             Order[]
   shipments          Shipment[]
   shipmentCosts      ShipmentCost[]
+  shipmentAutomationSetting TenantShipmentAutomationSetting?
+  skuShippingMethodMappings SkuShippingMethodMapping[]
+  autoShipmentJobs   AutoShipmentJob[]
   yunWebhookEvents   YunWebhookEvent[]
   yunAbnormalCases   YunAbnormalCase[]
   carrierAccounts    CarrierAccount[]
@@ -279,6 +298,7 @@ model Order {
   statusHistory         OrderStatusHistory[]
   shipments             Shipment[]
   shipmentCosts         ShipmentCost[]
+  autoShipmentJob       AutoShipmentJob?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -362,6 +382,7 @@ model Shipment {
   items             ShipmentItem[]
   statusHistory     ShipmentStatusHistory[]
   cost              ShipmentCost?
+  autoShipmentJob   AutoShipmentJob?
   yunWebhookEvents  YunWebhookEvent[]
   yunAbnormalCases  YunAbnormalCase[]
   createdAt         DateTime                @default(now())
@@ -442,6 +463,60 @@ model ShipmentStatusHistory {
   createdAt  DateTime       @default(now())
 
   @@index([tenantId, shipmentId, createdAt])
+}
+
+model TenantShipmentAutomationSetting {
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  autoCreateEnabled Boolean  @default(false)
+  environment       String   @default("live")
+  createdBy         String?
+  updatedBy         String?
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SkuShippingMethodMapping {
+  id                 String                         @id @default(cuid())
+  tenantId           String
+  skuCode            String
+  shippingMethodCode String
+  description        String?
+  status             SkuShippingMethodMappingStatus @default(ACTIVE)
+  createdBy          String?
+  updatedBy          String?
+  tenant             Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+
+  @@unique([tenantId, skuCode])
+  @@index([tenantId, status])
+}
+
+model AutoShipmentJob {
+  id                 String                @id @default(cuid())
+  tenantId           String
+  orderId            String                @unique
+  status             AutoShipmentJobStatus
+  shippingMethodCode String?
+  skuCodes           Json?
+  missingSkuCodes    Json?
+  conflictingMethods Json?
+  shipmentId         String?               @unique
+  errorCode          String?
+  errorMessage       String?
+  attemptCount       Int                   @default(0)
+  lastAttemptAt      DateTime?
+  tenant             Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order              Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment           Shipment?             @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@unique([tenantId, orderId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
 }
 
 model YunWebhookEvent {

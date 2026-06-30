@@ -1,4 +1,9 @@
-import { OrderSourceChannel, OrderStatus, type Prisma } from "@prisma/client";
+import {
+  AutoShipmentJobStatus,
+  OrderSourceChannel,
+  OrderStatus,
+  type Prisma,
+} from "@prisma/client";
 import { AppError } from "@/shared/errors";
 import {
   DEFAULT_ORDER_PAGE,
@@ -91,6 +96,9 @@ export function validateOrderListQuery(
     pageSize: parsePageSize(searchParams.get("pageSize")),
     status: parseOrderStatus(searchParams.get("status")),
     sourceChannel: parseOrderSourceChannel(searchParams.get("sourceChannel")),
+    autoShipmentStatus: parseAutoShipmentJobStatus(
+      searchParams.get("autoShipmentStatus"),
+    ),
     search: optionalString(searchParams.get("search")),
     from: parseOptionalDate(searchParams.get("from"), "from"),
     to: parseOptionalDate(searchParams.get("to"), "to"),
@@ -561,6 +569,23 @@ function parseOrderSourceChannel(value: string | null) {
   }
 
   return sourceChannel as OrderSourceChannel;
+}
+
+function parseAutoShipmentJobStatus(value: string | null) {
+  const normalized = optionalString(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (Object.values(AutoShipmentJobStatus).includes(normalized as never)) {
+    return normalized as AutoShipmentJobStatus;
+  }
+
+  throw new AppError(
+    "VALIDATION_ERROR",
+    "autoShipmentStatus is invalid.",
+    400,
+  );
 }
 
 function normalizePortalSource(order: Record<string, unknown>) {

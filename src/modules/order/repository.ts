@@ -21,6 +21,22 @@ import type {
 
 type TransactionClient = Prisma.TransactionClient;
 
+const orderAutoShipmentJobSelect = {
+  id: true,
+  status: true,
+  shippingMethodCode: true,
+  skuCodes: true,
+  missingSkuCodes: true,
+  conflictingMethods: true,
+  shipmentId: true,
+  errorCode: true,
+  errorMessage: true,
+  attemptCount: true,
+  lastAttemptAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.AutoShipmentJobSelect;
+
 export async function findOrderByExternalId(
   tenantId: string,
   externalOrderId: string,
@@ -203,6 +219,9 @@ export async function listOrders(
           },
         },
       },
+      autoShipmentJob: {
+        select: orderAutoShipmentJobSelect,
+      },
       _count: {
         select: {
           items: true,
@@ -258,6 +277,9 @@ export async function listOrders(
     latestLabelUrl: row.shipments[0]?.labelUrl ?? null,
     latestShipmentCost: row.shipments[0]?.cost
       ? toShipmentCostSummary(row.shipments[0].cost)
+      : null,
+    autoShipmentJob: row.autoShipmentJob
+      ? toOrderAutoShipmentJobSummary(row.autoShipmentJob)
       : null,
   }));
 }
@@ -424,6 +446,9 @@ const orderDetailSelect = {
       updatedAt: true,
     },
   },
+  autoShipmentJob: {
+    select: orderAutoShipmentJobSelect,
+  },
 } satisfies Prisma.OrderSelect;
 
 function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailSelect }>): OrderDetail {
@@ -501,6 +526,31 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
       ...shipment,
       cost: shipment.cost ? toShipmentCostSummary(shipment.cost) : null,
     })),
+    autoShipmentJob: row.autoShipmentJob
+      ? toOrderAutoShipmentJobSummary(row.autoShipmentJob)
+      : null,
+  };
+}
+
+function toOrderAutoShipmentJobSummary(
+  job: Prisma.AutoShipmentJobGetPayload<{
+    select: typeof orderAutoShipmentJobSelect;
+  }>,
+) {
+  return {
+    id: job.id,
+    status: job.status,
+    shippingMethodCode: job.shippingMethodCode,
+    skuCodes: job.skuCodes,
+    missingSkuCodes: job.missingSkuCodes,
+    conflictingMethods: job.conflictingMethods,
+    shipmentId: job.shipmentId,
+    errorCode: job.errorCode,
+    errorMessage: job.errorMessage,
+    attemptCount: job.attemptCount,
+    lastAttemptAt: job.lastAttemptAt,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
   };
 }
 
@@ -872,6 +922,15 @@ function buildOrderWhereInput(
     tenantId,
     ...(query.status ? { status: query.status } : {}),
     ...(query.sourceChannel ? { sourceChannel: query.sourceChannel } : {}),
+    ...(query.autoShipmentStatus
+      ? {
+          autoShipmentJob: {
+            is: {
+              status: query.autoShipmentStatus,
+            },
+          },
+        }
+      : {}),
     ...(query.from || query.to
       ? {
           receivedAt: {

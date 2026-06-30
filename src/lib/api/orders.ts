@@ -16,6 +16,7 @@ export interface OrderListParams {
   pageSize?: number;
   status?: string;
   sourceChannel?: string;
+  autoShipmentStatus?: string;
   search?: string;
   from?: string;
   to?: string;

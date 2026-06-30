@@ -9,6 +9,7 @@ import { ApiKeysTab } from "./ApiKeysTab";
 import { AuditLogsTab } from "./AuditLogsTab";
 import { CarrierAccountsTab } from "./CarrierAccountsTab";
 import { MembersTab } from "./MembersTab";
+import { ShipmentAutomationTab } from "./ShipmentAutomationTab";
 import { TenantProfileTab } from "./TenantProfileTab";
 
 type SettingsTab = {
@@ -65,6 +66,12 @@ export function SettingsShell({
         render: () => <CarrierAccountsTab role={role} />,
       },
       {
+        id: "shipment-automation",
+        label: "Shipment Automation",
+        visible: can.manageShipmentAutomation(role),
+        render: () => <ShipmentAutomationTab role={role} />,
+      },
+      {
         id: "audit-logs",
         label: "Audit Logs",
         visible: can.viewAuditLogs(role),
@@ -80,6 +87,14 @@ export function SettingsShell({
 
   useEffect(() => {
     if (requestedTab === "audit-logs" && !can.viewAuditLogs(role)) {
+      router.replace(`${pathname}?tab=tenant-profile`);
+      return;
+    }
+
+    if (
+      requestedTab === "shipment-automation" &&
+      !can.manageShipmentAutomation(role)
+    ) {
       router.replace(`${pathname}?tab=tenant-profile`);
       return;
     }
