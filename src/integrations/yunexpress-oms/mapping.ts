@@ -2,6 +2,8 @@ import type { CreateCarrierShipmentInput } from "@/modules/carrier/types";
 import type { YunExpressOmsConfig } from "./config";
 import type { YunExpressCreateOrderLabelPayload } from "./types";
 
+const DEFAULT_RECEIVER_PHONE = "0123456789";
+
 export function mapCreateShipmentToYunExpressPayload(
   input: CreateCarrierShipmentInput,
   config: YunExpressOmsConfig,
@@ -152,13 +154,13 @@ function sanitizeReceiverText(value: string | undefined) {
 function normalizeReceiverPhone(phone: string | undefined) {
   const trimmed = phone?.trim();
   if (!trimmed) {
-    return undefined;
+    return DEFAULT_RECEIVER_PHONE;
   }
 
   const withoutExtension = trimmed.split(/\b(?:ext|extension|x)\b/i)[0] ?? trimmed;
   const digits = withoutExtension.replace(/\D/g, "");
 
-  return digits || trimmed;
+  return digits || trimmed || DEFAULT_RECEIVER_PHONE;
 }
 
 function normalizeCountryCode(country: string | undefined | null) {

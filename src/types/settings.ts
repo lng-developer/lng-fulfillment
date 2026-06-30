@@ -91,6 +91,7 @@ export type ShipmentAutomationSetting = {
 export type SkuShippingMethodMapping = {
   id: string;
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
   description: string | null;
   status: "ACTIVE" | "DISABLED";

@@ -9,10 +9,12 @@ export interface AutoShipmentSkuItem {
 
 export interface AutoShipmentSkuMapping {
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
 }
 
 export interface AutoShipmentResolutionInput {
+  destinationCountryCode: string | null;
   items: AutoShipmentSkuItem[];
   mappings: AutoShipmentSkuMapping[];
 }

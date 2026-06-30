@@ -27,6 +27,7 @@ export const skuShippingMethodMappingSelect = {
   id: true,
   tenantId: true,
   skuCode: true,
+  destinationCountryCode: true,
   shippingMethodCode: true,
   description: true,
   status: true,
@@ -95,7 +96,7 @@ export async function upsertShipmentAutomationSettingRecord(input: {
 export async function listSkuShippingMethodMappingRecords(tenantId: string) {
   return prisma.skuShippingMethodMapping.findMany({
     where: { tenantId },
-    orderBy: [{ skuCode: "asc" }],
+    orderBy: [{ skuCode: "asc" }, { destinationCountryCode: "asc" }],
     select: skuShippingMethodMappingSelect,
   });
 }
@@ -108,9 +109,10 @@ export async function listActiveSkuShippingMethodMappingRecords(
       tenantId,
       status: "ACTIVE",
     },
-    orderBy: [{ skuCode: "asc" }],
+    orderBy: [{ skuCode: "asc" }, { destinationCountryCode: "asc" }],
     select: {
       skuCode: true,
+      destinationCountryCode: true,
       shippingMethodCode: true,
     },
   });
@@ -119,6 +121,7 @@ export async function listActiveSkuShippingMethodMappingRecords(
 export async function createSkuShippingMethodMappingRecord(input: {
   tenantId: string;
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
   description: string | null;
   actorUserId: string;
@@ -127,6 +130,7 @@ export async function createSkuShippingMethodMappingRecord(input: {
     data: {
       tenantId: input.tenantId,
       skuCode: input.skuCode,
+      destinationCountryCode: input.destinationCountryCode,
       shippingMethodCode: input.shippingMethodCode,
       description: input.description,
       createdBy: input.actorUserId,
@@ -183,6 +187,7 @@ export async function getAutoShipmentOrderContext(
     select: {
       id: true,
       status: true,
+      destinationCountry: true,
       items: {
         select: {
           sku: true,

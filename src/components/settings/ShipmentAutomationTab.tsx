@@ -22,9 +22,23 @@ import type {
 } from "@/types/settings";
 
 const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR", "VNTHZXR"] as const;
+const COUNTRY_OPTIONS = [
+  { code: "US", label: "Mỹ" },
+  { code: "GB", label: "Anh" },
+  { code: "CA", label: "Canada" },
+] as const;
 
 function sortMappings(mappings: SkuShippingMethodMapping[]) {
-  return [...mappings].sort((a, b) => a.skuCode.localeCompare(b.skuCode));
+  return [...mappings].sort(
+    (a, b) =>
+      a.skuCode.localeCompare(b.skuCode) ||
+      a.destinationCountryCode.localeCompare(b.destinationCountryCode),
+  );
+}
+
+function formatCountry(code: string) {
+  const country = COUNTRY_OPTIONS.find((option) => option.code === code);
+  return country ? `${country.label} (${country.code})` : code;
 }
 
 export function ShipmentAutomationTab({ role }: { role: Role }) {
@@ -214,6 +228,7 @@ function MappingCreateForm({
   onCreated: (mapping: SkuShippingMethodMapping) => void;
 }) {
   const [skuCode, setSkuCode] = useState("");
+  const [destinationCountryCode, setDestinationCountryCode] = useState("US");
   const [shippingMethodCode, setShippingMethodCode] =
     useState<(typeof SHIPPING_METHOD_OPTIONS)[number]>("VN-YTYCPREC");
   const [description, setDescription] = useState("");
@@ -227,10 +242,12 @@ function MappingCreateForm({
     try {
       const mapping = await createSkuShippingMethodMapping({
         skuCode: skuCode.trim().toUpperCase(),
+        destinationCountryCode: destinationCountryCode.trim().toUpperCase(),
         shippingMethodCode,
         description: description.trim() || null,
       });
       setSkuCode("");
+      setDestinationCountryCode("US");
       setDescription("");
       toastSuccess("SKU mapping created.");
       onCreated(mapping);
@@ -243,7 +260,7 @@ function MappingCreateForm({
 
   return (
     <form
-      className="grid gap-2 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft md:grid-cols-[1fr_180px_1fr_auto]"
+      className="grid gap-2 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft md:grid-cols-[1fr_100px_180px_1fr_auto]"
       onSubmit={submit}
     >
       <input
@@ -252,6 +269,17 @@ function MappingCreateForm({
         placeholder="SKU code, e.g. NK"
         value={skuCode}
       />
+      <select
+        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
+        onChange={(event) => setDestinationCountryCode(event.target.value)}
+        value={destinationCountryCode}
+      >
+        {COUNTRY_OPTIONS.map((country) => (
+          <option key={country.code} value={country.code}>
+            {country.label}
+          </option>
+        ))}
+      </select>
       <select
         className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
         onChange={(event) =>
@@ -309,6 +337,7 @@ function MappingTable({
         <thead className="bg-[var(--bg-surface2)] text-[var(--text-muted)]">
           <tr>
             <th className="px-3 py-2 font-semibold">SKU Code</th>
+            <th className="px-3 py-2 font-semibold">Country</th>
             <th className="px-3 py-2 font-semibold">Shipping Method</th>
             <th className="px-3 py-2 font-semibold">Status</th>
             <th className="px-3 py-2 font-semibold">Description</th>
@@ -383,6 +412,9 @@ function MappingRow({
     <tr className="border-t border-[var(--border)]">
       <td className="px-3 py-2 font-mono font-semibold text-[var(--brand)]">
         {mapping.skuCode}
+      </td>
+      <td className="px-3 py-2 font-semibold text-[var(--text-primary)]">
+        {formatCountry(mapping.destinationCountryCode)}
       </td>
       <td className="px-3 py-2 font-mono text-[var(--text-primary)]">
         {mapping.shippingMethodCode}

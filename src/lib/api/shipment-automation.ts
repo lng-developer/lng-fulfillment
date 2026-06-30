@@ -31,6 +31,7 @@ export async function updateShipmentAutomationSetting(input: {
 
 export async function createSkuShippingMethodMapping(input: {
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
   description?: string | null;
 }) {

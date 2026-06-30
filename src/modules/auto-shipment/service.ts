@@ -28,6 +28,7 @@ import {
 const AUTOMATION_MANAGE_ROLES: TenantRole[] = ["OWNER", "ADMIN"];
 const MAX_DESCRIPTION_LENGTH = 240;
 const SAFE_SKU_CODE_PATTERN = /^[A-Z0-9_./+]{1,40}$/;
+const SAFE_COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
 const SAFE_SHIPPING_METHOD_PATTERN = /^[A-Z0-9-]{2,40}$/;
 const ACTIVE_SHIPMENT_SKIP_STATUSES = new Set([
   "CREATING",
@@ -53,6 +54,7 @@ export type ShipmentAutomationSettingSummary = {
 export type SkuShippingMethodMappingSummary = {
   id: string;
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
   description: string | null;
   status: SkuShippingMethodMappingStatus;
@@ -89,6 +91,7 @@ export type ShipmentAutomationSettingInput = {
 
 export type SkuShippingMethodMappingCreateInput = {
   skuCode: string;
+  destinationCountryCode: string;
   shippingMethodCode: string;
   description: string | null;
 };
@@ -162,6 +165,7 @@ export async function createSkuShippingMethodMapping(
     const mapping = await createSkuShippingMethodMappingRecord({
       tenantId,
       skuCode: input.skuCode,
+      destinationCountryCode: input.destinationCountryCode,
       shippingMethodCode: input.shippingMethodCode,
       description: input.description,
       actorUserId,
@@ -175,6 +179,7 @@ export async function createSkuShippingMethodMapping(
       resourceId: mapping.id,
       metadata: {
         skuCode: mapping.skuCode,
+        destinationCountryCode: mapping.destinationCountryCode,
         shippingMethodCode: mapping.shippingMethodCode,
         status: mapping.status,
       },
@@ -185,7 +190,7 @@ export async function createSkuShippingMethodMapping(
     if (isUniqueConstraintError(error)) {
       throw new AppError(
         "CONFLICT",
-        "SKU shipping method mapping already exists.",
+        "SKU and destination country shipping method mapping already exists.",
         409,
       );
     }
@@ -223,6 +228,7 @@ export async function updateSkuShippingMethodMapping(
     resourceId: mapping.id,
     metadata: {
       skuCode: mapping.skuCode,
+      destinationCountryCode: mapping.destinationCountryCode,
       shippingMethodCode: mapping.shippingMethodCode,
       status: mapping.status,
     },
@@ -292,6 +298,7 @@ export async function processAutoShipmentForOrder(input: {
 
   const mappings = await listActiveSkuShippingMethodMappingRecords(input.tenantId);
   const resolution = resolveOrderShippingMethodFromSkuMappings({
+    destinationCountryCode: order.destinationCountry,
     items: order.items,
     mappings,
   });
@@ -393,6 +400,7 @@ export function validateSkuShippingMethodMappingCreateInput(
 
   return {
     skuCode: validateSkuCode(body.skuCode),
+    destinationCountryCode: validateCountryCode(body.destinationCountryCode),
     shippingMethodCode: validateShippingMethodCode(body.shippingMethodCode),
     description: validateDescription(body.description),
   };
@@ -515,6 +523,7 @@ function toMappingSummary(
   return {
     id: mapping.id,
     skuCode: mapping.skuCode,
+    destinationCountryCode: mapping.destinationCountryCode,
     shippingMethodCode: mapping.shippingMethodCode,
     description: mapping.description,
     status: mapping.status,
@@ -571,6 +580,27 @@ function validateSkuCode(value: unknown) {
   return skuCode;
 }
 
+function validateCountryCode(value: unknown) {
+  if (typeof value !== "string") {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "destinationCountryCode is required.",
+      400,
+    );
+  }
+
+  const countryCode = normalizeCountryCode(value);
+  if (!countryCode || !SAFE_COUNTRY_CODE_PATTERN.test(countryCode)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "destinationCountryCode must be a two-character country code.",
+      400,
+    );
+  }
+
+  return countryCode;
+}
+
 function validateShippingMethodCode(value: unknown) {
   if (typeof value !== "string") {
     throw new AppError("VALIDATION_ERROR", "shippingMethodCode is required.", 400);
@@ -623,6 +653,22 @@ function validateBoolean(value: unknown, field: string) {
   }
 
   return value;
+}
+
+function normalizeCountryCode(value: string) {
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "USA" || normalized === "UNITED STATES") return "US";
+  if (normalized === "CANADA") return "CA";
+  if (
+    normalized === "UK" ||
+    normalized === "UNITED KINGDOM" ||
+    normalized === "GREAT BRITAIN" ||
+    normalized === "ENGLAND"
+  ) {
+    return "GB";
+  }
+
+  return normalized;
 }
 
 function truncateSafeMessage(message: string) {

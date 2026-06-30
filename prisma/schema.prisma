@@ -481,6 +481,7 @@ model SkuShippingMethodMapping {
   id                 String                         @id @default(cuid())
   tenantId           String
   skuCode            String
+  destinationCountryCode String
   shippingMethodCode String
   description        String?
   status             SkuShippingMethodMappingStatus @default(ACTIVE)
@@ -490,8 +491,9 @@ model SkuShippingMethodMapping {
   createdAt          DateTime                       @default(now())
   updatedAt          DateTime                       @updatedAt
 
-  @@unique([tenantId, skuCode])
+  @@unique([tenantId, skuCode, destinationCountryCode])
   @@index([tenantId, status])
+  @@index([tenantId, destinationCountryCode, status])
 }
 
 model AutoShipmentJob {
