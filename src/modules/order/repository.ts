@@ -4,6 +4,7 @@ import {
   shipmentCostSelect,
   toShipmentCostSummary,
 } from "@/modules/shipment-cost/repository";
+import { buildShipmentFailureSummary } from "./shipment-failure";
 import type {
   OrderDetail,
   OrderListItem,
@@ -439,6 +440,7 @@ const orderDetailSelect = {
       carrierShipmentId: true,
       trackingNumber: true,
       labelUrl: true,
+      metadata: true,
       cost: {
         select: shipmentCostSelect,
       },
@@ -523,8 +525,19 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
     }),
     statusHistory: row.statusHistory,
     shipments: row.shipments.map((shipment) => ({
-      ...shipment,
+      id: shipment.id,
+      status: shipment.status,
+      carrierCode: shipment.carrierCode,
+      carrierShipmentId: shipment.carrierShipmentId,
+      trackingNumber: shipment.trackingNumber,
+      labelUrl: shipment.labelUrl,
+      failure:
+        shipment.status === "FAILED_CREATE"
+          ? buildShipmentFailureSummary(shipment.metadata)
+          : null,
       cost: shipment.cost ? toShipmentCostSummary(shipment.cost) : null,
+      createdAt: shipment.createdAt,
+      updatedAt: shipment.updatedAt,
     })),
     autoShipmentJob: row.autoShipmentJob
       ? toOrderAutoShipmentJobSummary(row.autoShipmentJob)

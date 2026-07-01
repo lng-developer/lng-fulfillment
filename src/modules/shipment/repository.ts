@@ -275,6 +275,47 @@ export async function createDirectShipmentSuccessRecords(input: {
   return toShipmentMutationSummary(row);
 }
 
+export async function createDirectShipmentFailureRecord(input: {
+  tenantId: string;
+  orderId: string;
+  items: Array<{ orderItemId: string; quantity: number }>;
+  carrierCode: string;
+  carrierAccountId: string | null;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}): Promise<ShipmentMutationSummary> {
+  const row = await prisma.shipment.create({
+    data: {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      status: "FAILED_CREATE",
+      carrierCode: input.carrierCode,
+      carrierAccountId: input.carrierAccountId,
+      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+      items: {
+        create: input.items.map((item) => ({
+          tenantId: input.tenantId,
+          orderItemId: item.orderItemId,
+          quantity: item.quantity,
+        })),
+      },
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: "FAILED_CREATE",
+          note: "YunExpress shipment creation failed.",
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+    select: shipmentMutationSummarySelect,
+  });
+
+  return toShipmentMutationSummary(row);
+}
+
 export async function getOrderWorkflowState(
   tenantId: string,
   orderId: string,

@@ -4,6 +4,7 @@
 
 import type React from "react";
 import {
+  AlertCircle,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -14,6 +15,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
+import { useState } from "react";
 import { StatusBadge, formatStatus } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 import type {
@@ -24,6 +26,7 @@ import type {
   PortalFileLinks,
   PortalListingSummary,
   PortalPersonSummary,
+  ShipmentFailureSummary,
   ShipmentCostSummary,
 } from "@/types/orders";
 
@@ -50,13 +53,14 @@ export function OrderExpandPanel({
   const hasSellerOrScaler =
     hasPerson(order.portalMetadata?.seller) ||
     hasPerson(order.portalMetadata?.scaledBy);
+  const shipmentFailure = getLatestShipmentFailure(order);
 
   return (
     <div className="bg-[var(--brand-light)] px-3 pb-3 pt-0 sm:pl-12 sm:pr-3.5">
       <div className="grid gap-3 pt-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <OrderSummaryCard order={order} />
-          <RecipientCard order={order} />
+          <RecipientCard failure={shipmentFailure} order={order} />
           {hasSellerOrScaler ? (
             <SellerScalerCard order={order} />
           ) : (
@@ -202,7 +206,14 @@ function OrderSummaryCard({ order }: { order: OrderDetail }) {
   );
 }
 
-function RecipientCard({ order }: { order: OrderDetail }) {
+function RecipientCard({
+  order,
+  failure,
+}: {
+  order: OrderDetail;
+  failure: ShipmentFailureSummary | null;
+}) {
+  const [showFailure, setShowFailure] = useState(false);
   const address = getRecipientAddress(order.recipientAddress);
   const city = address?.city ?? order.destinationCity;
   const state = address?.state ?? order.destinationState;
@@ -224,7 +235,36 @@ function RecipientCard({ order }: { order: OrderDetail }) {
   ].filter((row) => hasText(row.value));
 
   return (
-    <PanelCard icon={<UserRound />} title="Recipient">
+    <PanelCard
+      icon={<UserRound />}
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          Recipient
+          {failure ? (
+            <button
+              aria-label="Show YunExpress recipient error"
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
+              onClick={() => setShowFailure((current) => !current)}
+              title={failure.message}
+              type="button"
+            >
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          ) : null}
+        </span>
+      }
+    >
+      {failure && showFailure ? (
+        <div className="mb-2 rounded-sm border border-red-200 bg-red-50 px-2.5 py-2 text-[11px] text-red-800">
+          <div className="font-semibold">YunExpress rejected this shipment.</div>
+          <div className="mt-1 leading-relaxed">{failure.message}</div>
+          {failure.code ? (
+            <div className="mt-1 font-mono text-[10px] text-red-700">
+              Code: {failure.code}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {rows.length ? (
         rows.map((row) => (
           <KeyValue key={row.label} label={row.label} value={row.value} />
@@ -728,7 +768,7 @@ function PanelCard({
   children,
 }: {
   icon: React.ReactElement;
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -785,6 +825,16 @@ function summarizeUniqueItemValues(values: Array<string | null | undefined>) {
   return hiddenCount > 0
     ? `${visibleValues.join(", ")} +${hiddenCount} more`
     : visibleValues.join(", ");
+}
+
+function getLatestShipmentFailure(order: OrderDetail) {
+  const latestShipment = order.shipments?.[0] ?? null;
+
+  if (latestShipment?.status !== "FAILED_CREATE") {
+    return null;
+  }
+
+  return latestShipment.failure ?? null;
 }
 
 function SmallBadge({

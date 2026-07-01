@@ -30,6 +30,13 @@ function buildMappingKey(skuCode: string, countryCode: string) {
   return `${skuCode.trim().toUpperCase()}::${countryCode.trim().toUpperCase()}`;
 }
 
+function hasProductDeclaration(mapping: {
+  eName?: string | null;
+  cName?: string | null;
+}) {
+  return Boolean(mapping.eName?.trim() && mapping.cName?.trim());
+}
+
 export function resolveOrderShippingMethodFromSkuMappings(
   input: AutoShipmentResolutionInput,
 ): AutoShipmentResolution {
@@ -43,14 +50,22 @@ export function resolveOrderShippingMethodFromSkuMappings(
   const mappingBySkuCode = new Map(
     input.mappings.map((mapping) => [
       buildMappingKey(mapping.skuCode, mapping.destinationCountryCode),
-      mapping.shippingMethodCode.trim().toUpperCase(),
+      {
+        skuCode: mapping.skuCode.trim().toUpperCase(),
+        shippingMethodCode: mapping.shippingMethodCode.trim().toUpperCase(),
+        eName: mapping.eName?.trim() ?? null,
+        cName: mapping.cName?.trim() ?? null,
+      },
     ]),
   );
 
   const missingSkuCodes = skuCodes.filter(
     (skuCode) =>
       !destinationCountryCode ||
-      !mappingBySkuCode.has(buildMappingKey(skuCode, destinationCountryCode)),
+      !mappingBySkuCode.has(buildMappingKey(skuCode, destinationCountryCode)) ||
+      !hasProductDeclaration(
+        mappingBySkuCode.get(buildMappingKey(skuCode, destinationCountryCode)) ?? {},
+      ),
   );
 
   if (missingSkuCodes.length > 0) {
@@ -67,6 +82,7 @@ export function resolveOrderShippingMethodFromSkuMappings(
       .map((skuCode) =>
         destinationCountryCode
           ? mappingBySkuCode.get(buildMappingKey(skuCode, destinationCountryCode))
+              ?.shippingMethodCode
           : null,
       )
       .filter((shippingMethodCode): shippingMethodCode is string =>
@@ -86,6 +102,25 @@ export function resolveOrderShippingMethodFromSkuMappings(
   return {
     status: "RESOLVED",
     shippingMethodCode: resolvedMethods[0],
+    productDeclarations: skuCodes
+      .map((skuCode) =>
+        destinationCountryCode
+          ? mappingBySkuCode.get(buildMappingKey(skuCode, destinationCountryCode))
+          : null,
+      )
+      .filter(
+        (mapping): mapping is {
+          skuCode: string;
+          eName: string;
+          cName: string;
+          shippingMethodCode: string;
+        } => Boolean(mapping?.eName && mapping.cName),
+      )
+      .map((mapping) => ({
+        skuCode: mapping.skuCode,
+        eName: mapping.eName,
+        cName: mapping.cName,
+      })),
     skuCodes,
     missingSkuCodes: [],
     conflictingMethods: [],

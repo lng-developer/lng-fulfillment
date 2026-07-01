@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getErrorMessage } from "@/lib/api/base";
+import { getCarrierFailureMessage, getErrorMessage } from "@/lib/api/base";
 import {
   cancelYunShipment,
   getOrder,
@@ -161,6 +161,31 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       return;
     }
 
+    detailLoadingRef.current.add(orderId);
+    setDetailErrors((current) => {
+      const next = { ...current };
+      delete next[orderId];
+      return next;
+    });
+
+    try {
+      const detail = await getOrder(orderId);
+      setDetailCache((current) => {
+        const next = { ...current, [orderId]: detail };
+        detailCacheRef.current = next;
+        return next;
+      });
+    } catch (detailError) {
+      setDetailErrors((current) => ({
+        ...current,
+        [orderId]: getErrorMessage(detailError),
+      }));
+    } finally {
+      detailLoadingRef.current.delete(orderId);
+    }
+  }, []);
+
+  const reloadOrderDetail = useCallback(async (orderId: string) => {
     detailLoadingRef.current.add(orderId);
     setDetailErrors((current) => {
       const next = { ...current };
@@ -441,6 +466,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       });
     } catch (error) {
       toastError(getErrorMessage(error));
+      void reloadOrderDetail(order.id);
     } finally {
       clearPendingOrderAction(order.id);
     }
@@ -476,7 +502,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         );
       }
       if (failedCount) {
-        toastError(`${failedCount} shipments failed.`);
+        toastError(formatBatchFailureToast(result.failed));
+        result.failed.forEach((failure) => {
+          void reloadOrderDetail(failure.orderId);
+        });
       }
 
       handleBatchSuccess(result);
@@ -1495,6 +1524,7 @@ function patchDetailShipments(
     labelUrl: hasOwn(shipmentPatch, "labelUrl")
       ? (shipmentPatch.labelUrl ?? null)
       : (firstShipment?.labelUrl ?? null),
+    failure: null,
     cost: shipmentCost ?? firstShipment?.cost ?? null,
     createdAt: shipmentPatch?.createdAt ?? firstShipment?.createdAt ?? timestamp,
     updatedAt: shipmentPatch?.updatedAt ?? timestamp,
@@ -1698,6 +1728,17 @@ function autoShipmentBadgeClass(status: string) {
     default:
       return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
   }
+}
+
+function formatBatchFailureToast(failures: BatchShipResult["failed"]) {
+  const firstFailure = failures[0];
+  const firstMessage = firstFailure
+    ? getCarrierFailureMessage(firstFailure.details) ?? firstFailure.message
+    : "Shipment creation failed.";
+
+  return failures.length > 1
+    ? `${failures.length} shipments failed. First error: ${firstMessage}`
+    : firstMessage;
 }
 
 function isEligibleForShip(order: OrderListItem) {

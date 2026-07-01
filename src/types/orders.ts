@@ -373,8 +373,16 @@ export type ShipmentListItem = {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  failure?: ShipmentFailureSummary | null;
   cost?: ShipmentCostSummary | null;
   createdAt: string;
   updatedAt: string;
   itemCount: number;
+};
+
+export type ShipmentFailureSummary = {
+  carrierCode: string | null;
+  code: string | null;
+  message: string;
+  remarks: string[];
 };

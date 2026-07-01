@@ -11,6 +11,8 @@ export interface AutoShipmentSkuMapping {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName?: string | null;
+  cName?: string | null;
 }
 
 export interface AutoShipmentResolutionInput {
@@ -22,7 +24,14 @@ export interface AutoShipmentResolutionInput {
 export interface AutoShipmentResolution {
   status: AutoShipmentResolutionStatus;
   shippingMethodCode?: string;
+  productDeclarations?: AutoShipmentProductDeclaration[];
   skuCodes: string[];
   missingSkuCodes: string[];
   conflictingMethods: string[];
+}
+
+export interface AutoShipmentProductDeclaration {
+  skuCode: string;
+  eName: string;
+  cName: string;
 }

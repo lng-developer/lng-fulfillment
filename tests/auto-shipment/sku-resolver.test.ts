@@ -20,11 +20,15 @@ const singleMethodResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "US",
       skuCode: "NK",
       shippingMethodCode: "VN-YTYCPREC",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
     {
       destinationCountryCode: "CA",
       skuCode: "NK",
       shippingMethodCode: "VNTHZXR",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
   ],
 });
@@ -32,6 +36,13 @@ const singleMethodResult = resolveOrderShippingMethodFromSkuMappings({
 assert.deepEqual(singleMethodResult, {
   status: "RESOLVED",
   shippingMethodCode: "VN-YTYCPREC",
+  productDeclarations: [
+    {
+      skuCode: "NK",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
+    },
+  ],
   skuCodes: ["NK"],
   missingSkuCodes: [],
   conflictingMethods: [],
@@ -45,6 +56,8 @@ const missingResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "US",
       skuCode: "NK",
       shippingMethodCode: "VN-YTYCPREC",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
   ],
 });
@@ -61,11 +74,15 @@ const conflictResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "US",
       skuCode: "NK",
       shippingMethodCode: "VN-YTYCPREC",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
     {
       destinationCountryCode: "US",
       skuCode: "TS",
       shippingMethodCode: "VNFZZXR",
+      eName: "Paper napkins",
+      cName: "餐巾纸",
     },
   ],
 });
@@ -81,11 +98,15 @@ const canadaMethodResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "US",
       skuCode: "NK",
       shippingMethodCode: "VN-YTYCPREC",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
     {
       destinationCountryCode: "CA",
       skuCode: "NK",
       shippingMethodCode: "VNTHZXR",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
   ],
 });
@@ -93,6 +114,13 @@ const canadaMethodResult = resolveOrderShippingMethodFromSkuMappings({
 assert.deepEqual(canadaMethodResult, {
   status: "RESOLVED",
   shippingMethodCode: "VNTHZXR",
+  productDeclarations: [
+    {
+      skuCode: "NK",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
+    },
+  ],
   skuCodes: ["NK"],
   missingSkuCodes: [],
   conflictingMethods: [],
@@ -106,6 +134,8 @@ const countryMissingResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "US",
       skuCode: "NK",
       shippingMethodCode: "VN-YTYCPREC",
+      eName: "Embroidered shirt",
+      cName: "刺绣衬衫",
     },
   ],
 });
@@ -121,6 +151,8 @@ const unitedKingdomMethodResult = resolveOrderShippingMethodFromSkuMappings({
       destinationCountryCode: "GB",
       skuCode: "NK",
       shippingMethodCode: "VNTHZXR",
+      eName: "Wooden decor",
+      cName: "木制装饰品",
     },
   ],
 });
@@ -128,6 +160,13 @@ const unitedKingdomMethodResult = resolveOrderShippingMethodFromSkuMappings({
 assert.deepEqual(unitedKingdomMethodResult, {
   status: "RESOLVED",
   shippingMethodCode: "VNTHZXR",
+  productDeclarations: [
+    {
+      skuCode: "NK",
+      eName: "Wooden decor",
+      cName: "木制装饰品",
+    },
+  ],
   skuCodes: ["NK"],
   missingSkuCodes: [],
   conflictingMethods: [],

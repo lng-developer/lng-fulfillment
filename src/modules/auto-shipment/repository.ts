@@ -29,6 +29,8 @@ export const skuShippingMethodMappingSelect = {
   skuCode: true,
   destinationCountryCode: true,
   shippingMethodCode: true,
+  eName: true,
+  cName: true,
   description: true,
   status: true,
   createdBy: true,
@@ -114,6 +116,8 @@ export async function listActiveSkuShippingMethodMappingRecords(
       skuCode: true,
       destinationCountryCode: true,
       shippingMethodCode: true,
+      eName: true,
+      cName: true,
     },
   });
 }
@@ -123,6 +127,8 @@ export async function createSkuShippingMethodMappingRecord(input: {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName: string;
+  cName: string;
   description: string | null;
   actorUserId: string;
 }) {
@@ -132,6 +138,8 @@ export async function createSkuShippingMethodMappingRecord(input: {
       skuCode: input.skuCode,
       destinationCountryCode: input.destinationCountryCode,
       shippingMethodCode: input.shippingMethodCode,
+      eName: input.eName,
+      cName: input.cName,
       description: input.description,
       createdBy: input.actorUserId,
       updatedBy: input.actorUserId,
@@ -144,6 +152,8 @@ export async function updateSkuShippingMethodMappingRecord(input: {
   tenantId: string;
   mappingId: string;
   shippingMethodCode?: string;
+  eName?: string;
+  cName?: string;
   description?: string | null;
   status?: SkuShippingMethodMappingStatus;
   actorUserId: string;
@@ -155,6 +165,8 @@ export async function updateSkuShippingMethodMappingRecord(input: {
     },
     data: {
       ...(input.shippingMethodCode ? { shippingMethodCode: input.shippingMethodCode } : {}),
+      ...(input.eName ? { eName: input.eName } : {}),
+      ...(input.cName ? { cName: input.cName } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.status ? { status: input.status } : {}),
       updatedBy: input.actorUserId,
@@ -186,11 +198,28 @@ export async function getAutoShipmentOrderContext(
     },
     select: {
       id: true,
+      externalOrderId: true,
+      orderNumber: true,
       status: true,
+      recipientName: true,
+      recipientPhone: true,
+      recipientEmail: true,
+      recipientAddress: true,
       destinationCountry: true,
+      destinationState: true,
+      destinationCity: true,
+      destinationPostalCode: true,
       items: {
         select: {
+          id: true,
           sku: true,
+          name: true,
+          title: true,
+          quantity: true,
+          weight: true,
+          declaredValue: true,
+          unitPrice: true,
+          currency: true,
         },
       },
       shipments: {

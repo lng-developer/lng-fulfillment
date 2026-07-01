@@ -33,6 +33,8 @@ export async function createSkuShippingMethodMapping(input: {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName: string;
+  cName: string;
   description?: string | null;
 }) {
   const response = await apiFetch<
@@ -49,6 +51,8 @@ export async function updateSkuShippingMethodMapping(
   mappingId: string,
   input: {
     shippingMethodCode?: string;
+    eName?: string;
+    cName?: string;
     description?: string | null;
     status?: "ACTIVE" | "DISABLED";
   },

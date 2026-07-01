@@ -93,6 +93,8 @@ export type SkuShippingMethodMapping = {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName: string | null;
+  cName: string | null;
   description: string | null;
   status: "ACTIVE" | "DISABLED";
   createdAt: string;

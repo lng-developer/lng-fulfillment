@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { recordUserAuditLog } from "@/modules/audit";
 import {
   getCarrierAdapter,
@@ -19,6 +20,7 @@ import { createSafeTimingLogger } from "@/shared/timing";
 import {
   countShipments,
   cancelDirectYunShipmentRecords,
+  createDirectShipmentFailureRecord,
   createDirectShipmentSuccessRecords,
   createDraftShipmentRecord,
   findOrderForDraftShipment,
@@ -241,7 +243,41 @@ export async function shipOrderWithYun(
       safeMetadata: carrierResult.metadata?.safe ?? null,
     });
   } catch (error) {
-    throw mapCarrierErrorToAppError(error);
+    const appError = mapCarrierErrorToAppError(error);
+    await createDirectShipmentFailureRecord({
+      tenantId,
+      orderId: order.id,
+      items: order.items.map((item) => ({
+        orderItemId: item.id,
+        quantity: item.quantity,
+      })),
+      carrierCode: "YUNEXPRESS_OMS",
+      carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+      metadata: buildCarrierFailureMetadata(
+        "YUNEXPRESS_OMS",
+        appError,
+        input.environment,
+      ),
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+    });
+
+    if (actor.actorType === "USER" && actor.actorId) {
+      await recordUserAuditLog({
+        tenantId,
+        actorUserId: actor.actorId,
+        action: "SHIPMENT_EXECUTION_FAILED",
+        resourceType: "Order",
+        resourceId: order.id,
+        metadata: {
+          orderId: order.id,
+          carrierCode: "YUNEXPRESS_OMS",
+          errorCode: appError.code,
+        },
+      });
+    }
+
+    throw appError;
   }
 
   const successStatus = carrierResult.trackingNumber
@@ -842,16 +878,8 @@ export async function executeShipment(
       tenantId,
       shipmentId,
       metadata: {
-        carrier: {
-          carrierCode: prepared.carrierCode,
-          errorCode: appError.code,
-          retryable:
-            typeof appError.details === "object" &&
-            appError.details !== null &&
-            "retryable" in appError.details
-              ? Boolean(appError.details.retryable)
-              : false,
-        },
+        carrier: buildCarrierFailureMetadata(prepared.carrierCode, appError)
+          .carrier,
       },
       actorType: actor.actorType,
       actorId: actor.actorId,
@@ -876,6 +904,27 @@ export async function executeShipment(
 
     throw appError;
   }
+}
+
+function buildCarrierFailureMetadata(
+  carrierCode: string,
+  appError: AppError,
+  environmentMode?: string,
+): Prisma.InputJsonObject {
+  const details = asRecord(appError.details);
+  const safeMetadata = asRecord(details?.safeMetadata);
+
+  return {
+    carrier: {
+      carrierCode,
+      errorCode: appError.code,
+      message: appError.message,
+      retryable:
+        typeof details?.retryable === "boolean" ? details.retryable : false,
+      ...(safeMetadata ? { safeMetadata: toJsonObject(safeMetadata) } : {}),
+      ...(environmentMode ? { environmentMode } : {}),
+    },
+  };
 }
 
 export async function syncShipmentTracking(
@@ -1519,4 +1568,14 @@ function readShipmentEnvironment(value: unknown): ShipmentYunEnvironment {
       : undefined;
 
   return environment === "live" ? "live" : "test";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function toJsonObject(value: Record<string, unknown>): Prisma.InputJsonObject {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
 }

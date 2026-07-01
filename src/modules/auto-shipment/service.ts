@@ -8,6 +8,7 @@ import { shipOrderWithYun } from "@/modules/shipment";
 import type { ShipmentYunEnvironment } from "@/modules/shipment";
 import { findTenantMembershipForUser } from "@/modules/tenant/repository";
 import { AppError } from "@/shared/errors";
+import { buildAutoShipmentShipOrderOptions } from "./options";
 import { resolveOrderShippingMethodFromSkuMappings } from "./resolver";
 import type { AutoShipmentResolution } from "./types";
 import {
@@ -56,6 +57,8 @@ export type SkuShippingMethodMappingSummary = {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName: string | null;
+  cName: string | null;
   description: string | null;
   status: SkuShippingMethodMappingStatus;
   createdAt: Date;
@@ -93,11 +96,15 @@ export type SkuShippingMethodMappingCreateInput = {
   skuCode: string;
   destinationCountryCode: string;
   shippingMethodCode: string;
+  eName: string;
+  cName: string;
   description: string | null;
 };
 
 export type SkuShippingMethodMappingUpdateInput = {
   shippingMethodCode?: string;
+  eName?: string;
+  cName?: string;
   description?: string | null;
   status?: SkuShippingMethodMappingStatus;
 };
@@ -167,6 +174,8 @@ export async function createSkuShippingMethodMapping(
       skuCode: input.skuCode,
       destinationCountryCode: input.destinationCountryCode,
       shippingMethodCode: input.shippingMethodCode,
+      eName: input.eName,
+      cName: input.cName,
       description: input.description,
       actorUserId,
     });
@@ -181,6 +190,8 @@ export async function createSkuShippingMethodMapping(
         skuCode: mapping.skuCode,
         destinationCountryCode: mapping.destinationCountryCode,
         shippingMethodCode: mapping.shippingMethodCode,
+        eName: mapping.eName,
+        cName: mapping.cName,
         status: mapping.status,
       },
     });
@@ -211,6 +222,8 @@ export async function updateSkuShippingMethodMapping(
     tenantId,
     mappingId,
     shippingMethodCode: input.shippingMethodCode,
+    eName: input.eName,
+    cName: input.cName,
     description: input.description,
     status: input.status,
     actorUserId,
@@ -230,6 +243,8 @@ export async function updateSkuShippingMethodMapping(
       skuCode: mapping.skuCode,
       destinationCountryCode: mapping.destinationCountryCode,
       shippingMethodCode: mapping.shippingMethodCode,
+      eName: mapping.eName,
+      cName: mapping.cName,
       status: mapping.status,
     },
   });
@@ -330,14 +345,17 @@ export async function processAutoShipmentForOrder(input: {
   });
 
   try {
+    const shipOptions = buildAutoShipmentShipOrderOptions(order, {
+      shippingMethodCode: resolution.shippingMethodCode,
+      productDeclarations: resolution.productDeclarations ?? [],
+    });
+
     const result = await shipOrderWithYun(
       input.tenantId,
       {
         orderId: input.orderId,
         environment: normalizeShipmentEnvironment(setting.environment),
-        options: {
-          shippingMethodCode: resolution.shippingMethodCode,
-        },
+        options: shipOptions,
       },
       {
         actorType: "SYSTEM",
@@ -402,6 +420,8 @@ export function validateSkuShippingMethodMappingCreateInput(
     skuCode: validateSkuCode(body.skuCode),
     destinationCountryCode: validateCountryCode(body.destinationCountryCode),
     shippingMethodCode: validateShippingMethodCode(body.shippingMethodCode),
+    eName: validateProductName(body.eName, "eName"),
+    cName: validateProductName(body.cName, "cName"),
     description: validateDescription(body.description),
   };
 }
@@ -420,6 +440,14 @@ export function validateSkuShippingMethodMappingUpdateInput(
     update.shippingMethodCode = validateShippingMethodCode(body.shippingMethodCode);
   }
 
+  if (body.eName !== undefined) {
+    update.eName = validateProductName(body.eName, "eName");
+  }
+
+  if (body.cName !== undefined) {
+    update.cName = validateProductName(body.cName, "cName");
+  }
+
   if (body.description !== undefined) {
     update.description = validateDescription(body.description);
   }
@@ -430,12 +458,14 @@ export function validateSkuShippingMethodMappingUpdateInput(
 
   if (
     update.shippingMethodCode === undefined &&
+    update.eName === undefined &&
+    update.cName === undefined &&
     update.description === undefined &&
     update.status === undefined
   ) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "shippingMethodCode, description, or status is required.",
+      "shippingMethodCode, eName, cName, description, or status is required.",
       400,
     );
   }
@@ -525,6 +555,8 @@ function toMappingSummary(
     skuCode: mapping.skuCode,
     destinationCountryCode: mapping.destinationCountryCode,
     shippingMethodCode: mapping.shippingMethodCode,
+    eName: mapping.eName,
+    cName: mapping.cName,
     description: mapping.description,
     status: mapping.status,
     createdAt: mapping.createdAt,
@@ -616,6 +648,23 @@ function validateShippingMethodCode(value: unknown) {
   }
 
   return shippingMethodCode;
+}
+
+function validateProductName(value: unknown, field: string) {
+  if (typeof value !== "string") {
+    throw new AppError("VALIDATION_ERROR", `${field} is required.`, 400);
+  }
+
+  const productName = value.trim();
+  if (!productName || productName.length > 80) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `${field} must be between 1 and 80 characters.`,
+      400,
+    );
+  }
+
+  return productName;
 }
 
 function validateMappingStatus(value: unknown): SkuShippingMethodMappingStatus {

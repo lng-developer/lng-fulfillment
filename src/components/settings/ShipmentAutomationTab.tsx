@@ -16,6 +16,7 @@ import {
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { YUN_PRODUCT_OPTIONS } from "@/shared/yun-product-options";
 import type {
   ShipmentAutomationConfig,
   SkuShippingMethodMapping,
@@ -231,8 +232,14 @@ function MappingCreateForm({
   const [destinationCountryCode, setDestinationCountryCode] = useState("US");
   const [shippingMethodCode, setShippingMethodCode] =
     useState<(typeof SHIPPING_METHOD_OPTIONS)[number]>("VN-YTYCPREC");
+  const [productEName, setProductEName] = useState<string>(
+    YUN_PRODUCT_OPTIONS[2].eName,
+  );
   const [description, setDescription] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const selectedProduct =
+    YUN_PRODUCT_OPTIONS.find((option) => option.eName === productEName) ??
+    YUN_PRODUCT_OPTIONS[2];
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -244,10 +251,13 @@ function MappingCreateForm({
         skuCode: skuCode.trim().toUpperCase(),
         destinationCountryCode: destinationCountryCode.trim().toUpperCase(),
         shippingMethodCode,
+        eName: selectedProduct.eName,
+        cName: selectedProduct.cName,
         description: description.trim() || null,
       });
       setSkuCode("");
       setDestinationCountryCode("US");
+      setProductEName(YUN_PRODUCT_OPTIONS[2].eName);
       setDescription("");
       toastSuccess("SKU mapping created.");
       onCreated(mapping);
@@ -260,7 +270,7 @@ function MappingCreateForm({
 
   return (
     <form
-      className="grid gap-2 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft md:grid-cols-[1fr_100px_180px_1fr_auto]"
+      className="grid gap-2 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft md:grid-cols-[1fr_100px_180px_190px_1fr_auto]"
       onSubmit={submit}
     >
       <input
@@ -292,6 +302,17 @@ function MappingCreateForm({
         {SHIPPING_METHOD_OPTIONS.map((method) => (
           <option key={method} value={method}>
             {method}
+          </option>
+        ))}
+      </select>
+      <select
+        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
+        onChange={(event) => setProductEName(event.target.value)}
+        value={productEName}
+      >
+        {YUN_PRODUCT_OPTIONS.map((product) => (
+          <option key={product.eName} value={product.eName}>
+            {product.eName}
           </option>
         ))}
       </select>
@@ -339,6 +360,7 @@ function MappingTable({
             <th className="px-3 py-2 font-semibold">SKU Code</th>
             <th className="px-3 py-2 font-semibold">Country</th>
             <th className="px-3 py-2 font-semibold">Shipping Method</th>
+            <th className="px-3 py-2 font-semibold">Product</th>
             <th className="px-3 py-2 font-semibold">Status</th>
             <th className="px-3 py-2 font-semibold">Description</th>
             <th className="px-3 py-2 text-right font-semibold">Actions</th>
@@ -418,6 +440,12 @@ function MappingRow({
       </td>
       <td className="px-3 py-2 font-mono text-[var(--text-primary)]">
         {mapping.shippingMethodCode}
+      </td>
+      <td className="px-3 py-2">
+        <div className="text-[var(--text-primary)]">{mapping.eName || "-"}</div>
+        <div className="text-[10px] text-[var(--text-muted)]">
+          {mapping.cName || "-"}
+        </div>
       </td>
       <td className="px-3 py-2">
         <ToggleSwitch

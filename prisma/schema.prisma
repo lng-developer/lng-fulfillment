@@ -483,6 +483,8 @@ model SkuShippingMethodMapping {
   skuCode            String
   destinationCountryCode String
   shippingMethodCode String
+  eName              String?
+  cName              String?
   description        String?
   status             SkuShippingMethodMappingStatus @default(ACTIVE)
   createdBy          String?

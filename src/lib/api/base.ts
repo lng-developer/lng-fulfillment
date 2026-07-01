@@ -3,6 +3,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly details?: unknown,
   ) {
     super(message);
   }
@@ -54,6 +55,7 @@ export async function apiFetch<T>(
       response.status,
       errorBody?.error.code ?? "REQUEST_FAILED",
       errorBody?.error.message ?? "Request failed",
+      errorBody?.error.details,
     );
   }
 
@@ -91,11 +93,45 @@ export function getErrorMessage(error: unknown): string {
     return "Too many requests. Please wait a moment and try again.";
   }
 
+  const carrierMessage = getCarrierFailureMessage(error.details);
+  if (carrierMessage) {
+    return carrierMessage;
+  }
+
   if (error.status >= 500) {
     return "A server error occurred. Please try again later.";
   }
 
   return "Something went wrong. Please try again.";
+}
+
+export function getCarrierFailureMessage(details: unknown) {
+  const detailRecord = readRecord(details);
+  const safeMetadata = readRecord(detailRecord?.safeMetadata);
+  const remarks = readStringArray(safeMetadata?.itemRemarks);
+
+  return (
+    remarks[0] ??
+    readString(safeMetadata?.message) ??
+    readString(detailRecord?.message) ??
+    null
+  );
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => readString(item) !== null)
+    : [];
 }
 
 export function redirectToExpiredLogin() {
