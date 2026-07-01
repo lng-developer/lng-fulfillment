@@ -4,6 +4,7 @@ export const can = {
   manageApiKeys: (role: Role) => ["OWNER", "ADMIN"].includes(role),
   manageMembers: (role: Role) => ["OWNER", "ADMIN"].includes(role),
   manageCarrierAccounts: (role: Role) => ["OWNER", "ADMIN"].includes(role),
+  manageShipmentAutomation: (role: Role) => ["OWNER", "ADMIN"].includes(role),
   viewAuditLogs: (role: Role) => ["OWNER", "ADMIN"].includes(role),
   createShipment: (role: Role) =>
     ["OWNER", "ADMIN", "OPERATOR"].includes(role),

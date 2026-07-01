@@ -59,3 +59,16 @@ assert.equal(payload.Receiver.LastName, "born");
 assert.equal(payload.Receiver.CountryCode, "US");
 assert.equal(payload.Receiver.Phone, "15550100");
 assert.ok(!JSON.stringify(payload.Receiver).includes("🌺"));
+
+const missingPhonePayload = mapCreateShipmentToYunExpressPayload(
+  {
+    ...input,
+    recipient: {
+      ...input.recipient,
+      phone: "",
+    },
+  },
+  config,
+);
+
+assert.equal(missingPhonePayload.Receiver.Phone, "0123456789");

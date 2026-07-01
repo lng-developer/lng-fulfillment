@@ -35,6 +35,17 @@ export type OrderStatus =
 
 export type OrderSourceChannel = "AMAZON" | "ETSY" | "MANUAL" | "UNKNOWN" | string;
 
+export type AutoShipmentJobStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "SKIPPED_DISABLED"
+  | "MISSING_SKU_MAPPING"
+  | "METHOD_CONFLICT"
+  | "SKIPPED_EXISTING_SHIPMENT"
+  | string;
+
 export type ShipEnvironment = "test" | "live";
 
 export const YUN_ENDPOINTS: Record<ShipEnvironment, string> = {
@@ -190,11 +201,28 @@ export type OrderListItem = {
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
   latestShipmentCost?: ShipmentCostSummary | null;
+  autoShipmentJob?: OrderAutoShipmentJobSummary | null;
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
   labelUrl?: string | null;
   latestShipmentCarrier?: string | null;
   shipMappingPreview?: ShipMappingPreview | null;
+};
+
+export type OrderAutoShipmentJobSummary = {
+  id: string;
+  status: AutoShipmentJobStatus;
+  shippingMethodCode: string | null;
+  skuCodes: unknown;
+  missingSkuCodes: unknown;
+  conflictingMethods: unknown;
+  shipmentId: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type OrderDetailItem = {
@@ -315,6 +343,7 @@ export type OrderDetail = {
     createdAt: string;
   }>;
   shipments?: ShipmentListItem[];
+  autoShipmentJob?: OrderAutoShipmentJobSummary | null;
 };
 
 export type OrderPortalMetadata = {
@@ -344,8 +373,16 @@ export type ShipmentListItem = {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  failure?: ShipmentFailureSummary | null;
   cost?: ShipmentCostSummary | null;
   createdAt: string;
   updatedAt: string;
   itemCount: number;
+};
+
+export type ShipmentFailureSummary = {
+  carrierCode: string | null;
+  code: string | null;
+  message: string;
+  remarks: string[];
 };

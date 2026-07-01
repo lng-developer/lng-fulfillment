@@ -1,4 +1,5 @@
 import { recordApiKeyAuditLog } from "@/modules/audit";
+import { processAutoShipmentForOrder } from "@/modules/auto-shipment";
 import { AppError } from "@/shared/errors";
 import {
   countOrders,
@@ -14,6 +15,7 @@ import type {
   OrderListQuery,
   PaginationMeta,
   PortalReceiveResult,
+  PortalAutoShipmentSummary,
   PortalTenantContext,
   ReceivedOrderSummary,
 } from "./types";
@@ -30,6 +32,15 @@ export async function receivePortalOrders(
 
   const validation = validatePortalOrdersInput(input);
   const orders: ReceivedOrderSummary[] = [];
+  const autoShipment: PortalAutoShipmentSummary = {
+    attempted: 0,
+    succeeded: 0,
+    failed: 0,
+    skippedDisabled: 0,
+    missingSkuMapping: 0,
+    methodConflict: 0,
+    skippedExistingShipment: 0,
+  };
   let inserted = 0;
   let skipped = 0;
 
@@ -45,6 +56,12 @@ export async function receivePortalOrders(
     if (result.action === "inserted") {
       inserted += 1;
       orders.push(result.order);
+      await processReceivedOrderAutoShipment({
+        tenantId: tenantContext.tenantId,
+        orderId: result.order.id,
+        apiKeyId: tenantContext.apiKeyId,
+        summary: autoShipment,
+      });
     } else {
       skipped += 1;
     }
@@ -60,6 +77,7 @@ export async function receivePortalOrders(
       inserted,
       skipped,
       errorCount: validation.errors.length,
+      autoShipment,
       apiKeyId: tenantContext.apiKeyId,
     },
   });
@@ -71,7 +89,58 @@ export async function receivePortalOrders(
     skipped,
     errors: validation.errors,
     orders,
+    autoShipment,
   };
+}
+
+async function processReceivedOrderAutoShipment(input: {
+  tenantId: string;
+  orderId: string;
+  apiKeyId: string;
+  summary: PortalAutoShipmentSummary;
+}) {
+  input.summary.attempted += 1;
+
+  try {
+    const result = await processAutoShipmentForOrder({
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      actorId: input.apiKeyId,
+    });
+
+    incrementAutoShipmentSummary(input.summary, result.status);
+  } catch {
+    input.summary.failed += 1;
+  }
+}
+
+function incrementAutoShipmentSummary(
+  summary: PortalAutoShipmentSummary,
+  status: string,
+) {
+  switch (status) {
+    case "SUCCEEDED":
+      summary.succeeded += 1;
+      break;
+    case "FAILED":
+      summary.failed += 1;
+      break;
+    case "SKIPPED_DISABLED":
+      summary.skippedDisabled += 1;
+      break;
+    case "MISSING_SKU_MAPPING":
+      summary.missingSkuMapping += 1;
+      break;
+    case "METHOD_CONFLICT":
+      summary.methodConflict += 1;
+      break;
+    case "SKIPPED_EXISTING_SHIPMENT":
+      summary.skippedExistingShipment += 1;
+      break;
+    default:
+      summary.failed += 1;
+      break;
+  }
 }
 
 export async function listTenantOrders(
@@ -167,5 +236,6 @@ function toOrderListItem(order: OrderDetail): OrderListItem {
     latestTrackingNumber: latestShipment?.trackingNumber ?? null,
     latestLabelUrl: latestShipment?.labelUrl ?? null,
     latestShipmentCost: latestShipment?.cost ?? null,
+    autoShipmentJob: order.autoShipmentJob ?? null,
   };
 }

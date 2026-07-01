@@ -1,4 +1,9 @@
-import type { OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
+import type {
+  AutoShipmentJobStatus,
+  OrderSourceChannel,
+  OrderStatus,
+  Prisma,
+} from "@prisma/client";
 import type { ShipmentCostSummary } from "@/modules/shipment-cost/types";
 import type { ApiErrorCode } from "@/shared/errors";
 
@@ -107,6 +112,17 @@ export type PortalReceiveResult = {
   skipped: number;
   errors: PortalOrderValidationError[];
   orders: ReceivedOrderSummary[];
+  autoShipment?: PortalAutoShipmentSummary;
+};
+
+export type PortalAutoShipmentSummary = {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  skippedDisabled: number;
+  missingSkuMapping: number;
+  methodConflict: number;
+  skippedExistingShipment: number;
 };
 
 export type OrderListQuery = {
@@ -114,6 +130,7 @@ export type OrderListQuery = {
   pageSize: number;
   status?: OrderStatus;
   sourceChannel?: OrderSourceChannel;
+  autoShipmentStatus?: AutoShipmentJobStatus;
   search?: string;
   from?: Date;
   to?: Date;
@@ -151,6 +168,7 @@ export type OrderListItem = {
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
   latestShipmentCost: ShipmentCostSummary | null;
+  autoShipmentJob: OrderAutoShipmentJobSummary | null;
 };
 
 export type OrderDetail = {
@@ -185,6 +203,23 @@ export type OrderDetail = {
   items: OrderDetailItem[];
   statusHistory: OrderDetailStatusHistory[];
   shipments?: OrderDetailShipment[];
+  autoShipmentJob: OrderAutoShipmentJobSummary | null;
+};
+
+export type OrderAutoShipmentJobSummary = {
+  id: string;
+  status: AutoShipmentJobStatus;
+  shippingMethodCode: string | null;
+  skuCodes: unknown;
+  missingSkuCodes: unknown;
+  conflictingMethods: unknown;
+  shipmentId: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  attemptCount: number;
+  lastAttemptAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type OrderPortalMetadata = {
@@ -211,9 +246,17 @@ export type OrderDetailShipment = {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  failure: ShipmentFailureSummary | null;
   cost: ShipmentCostSummary | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type ShipmentFailureSummary = {
+  carrierCode: string | null;
+  code: string | null;
+  message: string;
+  remarks: string[];
 };
 
 export type OrderDetailItem = {

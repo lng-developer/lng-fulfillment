@@ -79,6 +79,33 @@ export type CarrierAccount = {
   } | null;
 };
 
+export type ShipmentAutomationSetting = {
+  id: string | null;
+  tenantId: string;
+  autoCreateEnabled: boolean;
+  environment: "test" | "live";
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type SkuShippingMethodMapping = {
+  id: string;
+  skuCode: string;
+  destinationCountryCode: string;
+  shippingMethodCode: string;
+  eName: string | null;
+  cName: string | null;
+  description: string | null;
+  status: "ACTIVE" | "DISABLED";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShipmentAutomationConfig = {
+  setting: ShipmentAutomationSetting;
+  mappings: SkuShippingMethodMapping[];
+};
+
 export type CredentialFormValues = {
   customerNo: string;
   apiSecret: string;

@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getErrorMessage } from "@/lib/api/base";
+import { getCarrierFailureMessage, getErrorMessage } from "@/lib/api/base";
 import {
   cancelYunShipment,
   getOrder,
@@ -67,6 +67,15 @@ const SOURCE_CHANNELS = [
   { label: "Unknown", value: "UNKNOWN" },
 ];
 
+const AUTO_SHIPMENT_STATUSES = [
+  { label: "All auto shipment", value: "" },
+  { label: "Missing SKU mapping", value: "MISSING_SKU_MAPPING" },
+  { label: "Method conflict", value: "METHOD_CONFLICT" },
+  { label: "Auto shipment failed", value: "FAILED" },
+  { label: "Auto shipment succeeded", value: "SUCCEEDED" },
+  { label: "Skipped disabled", value: "SKIPPED_DISABLED" },
+];
+
 const BATCH_LIMIT = 10;
 const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
 
@@ -111,6 +120,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [sourceChannel, setSourceChannel] = useState("");
+  const [autoShipmentStatus, setAutoShipmentStatus] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -175,6 +185,31 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }, []);
 
+  const reloadOrderDetail = useCallback(async (orderId: string) => {
+    detailLoadingRef.current.add(orderId);
+    setDetailErrors((current) => {
+      const next = { ...current };
+      delete next[orderId];
+      return next;
+    });
+
+    try {
+      const detail = await getOrder(orderId);
+      setDetailCache((current) => {
+        const next = { ...current, [orderId]: detail };
+        detailCacheRef.current = next;
+        return next;
+      });
+    } catch (detailError) {
+      setDetailErrors((current) => ({
+        ...current,
+        [orderId]: getErrorMessage(detailError),
+      }));
+    } finally {
+      detailLoadingRef.current.delete(orderId);
+    }
+  }, []);
+
   const refreshOrders = useCallback(() => {
     setReloadKey((value) => value + 1);
   }, []);
@@ -206,6 +241,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             search,
             status,
             sourceChannel,
+            autoShipmentStatus,
             from: from ? new Date(from).toISOString() : undefined,
             to: to ? new Date(to).toISOString() : undefined,
           },
@@ -250,7 +286,16 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     loadOrders();
 
     return () => controller.abort();
-  }, [from, page, reloadKey, search, sourceChannel, status, to]);
+  }, [
+    autoShipmentStatus,
+    from,
+    page,
+    reloadKey,
+    search,
+    sourceChannel,
+    status,
+    to,
+  ]);
 
   useEffect(() => {
     if (!orders.length) {
@@ -421,6 +466,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       });
     } catch (error) {
       toastError(getErrorMessage(error));
+      void reloadOrderDetail(order.id);
     } finally {
       clearPendingOrderAction(order.id);
     }
@@ -456,7 +502,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         );
       }
       if (failedCount) {
-        toastError(`${failedCount} shipments failed.`);
+        toastError(formatBatchFailureToast(result.failed));
+        result.failed.forEach((failure) => {
+          void reloadOrderDetail(failure.orderId);
+        });
       }
 
       handleBatchSuccess(result);
@@ -684,6 +733,20 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             value={sourceChannel}
           >
             {SOURCE_CHANNELS.map((option) => (
+              <option key={option.label} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
+            onChange={(event) => {
+              setAutoShipmentStatus(event.target.value);
+              setPage(1);
+            }}
+            value={autoShipmentStatus}
+          >
+            {AUTO_SHIPMENT_STATUSES.map((option) => (
               <option key={option.label} value={option.value}>
                 {option.label}
               </option>
@@ -1074,7 +1137,20 @@ function OrderRows({
           </button>
         </td>
         <td className="px-3.5 py-2.5 text-center align-middle">
-          <StatusBadge status={order.status} />
+          <div className="grid place-items-center gap-1">
+            <StatusBadge status={order.status} />
+            {order.autoShipmentJob ? (
+              <span
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em]",
+                  autoShipmentBadgeClass(order.autoShipmentJob.status),
+                )}
+                title={order.autoShipmentJob.errorMessage ?? undefined}
+              >
+                {autoShipmentLabel(order.autoShipmentJob.status)}
+              </span>
+            ) : null}
+          </div>
         </td>
         <td className="px-3.5 py-2.5 text-center align-middle">
           <div className="grid place-items-center gap-1">
@@ -1448,6 +1524,7 @@ function patchDetailShipments(
     labelUrl: hasOwn(shipmentPatch, "labelUrl")
       ? (shipmentPatch.labelUrl ?? null)
       : (firstShipment?.labelUrl ?? null),
+    failure: null,
     cost: shipmentCost ?? firstShipment?.cost ?? null,
     createdAt: shipmentPatch?.createdAt ?? firstShipment?.createdAt ?? timestamp,
     updatedAt: shipmentPatch?.updatedAt ?? timestamp,
@@ -1614,6 +1691,54 @@ function sourceChannelBadgeClass(sourceChannel: string | null) {
     default:
       return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
   }
+}
+
+function autoShipmentLabel(status: string) {
+  switch (status) {
+    case "SUCCEEDED":
+      return "Auto shipped";
+    case "FAILED":
+      return "Auto failed";
+    case "MISSING_SKU_MAPPING":
+      return "Missing map";
+    case "METHOD_CONFLICT":
+      return "Method conflict";
+    case "SKIPPED_DISABLED":
+      return "Auto off";
+    case "SKIPPED_EXISTING_SHIPMENT":
+      return "Has shipment";
+    case "PROCESSING":
+      return "Auto processing";
+    default:
+      return status;
+  }
+}
+
+function autoShipmentBadgeClass(status: string) {
+  switch (status) {
+    case "SUCCEEDED":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "FAILED":
+    case "METHOD_CONFLICT":
+      return "border-red-200 bg-red-50 text-red-700";
+    case "MISSING_SKU_MAPPING":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "PROCESSING":
+      return "border-indigo-200 bg-indigo-50 text-indigo-700";
+    default:
+      return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
+  }
+}
+
+function formatBatchFailureToast(failures: BatchShipResult["failed"]) {
+  const firstFailure = failures[0];
+  const firstMessage = firstFailure
+    ? getCarrierFailureMessage(firstFailure.details) ?? firstFailure.message
+    : "Shipment creation failed.";
+
+  return failures.length > 1
+    ? `${failures.length} shipments failed. First error: ${firstMessage}`
+    : firstMessage;
 }
 
 function isEligibleForShip(order: OrderListItem) {
