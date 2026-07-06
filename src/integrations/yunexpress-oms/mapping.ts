@@ -63,7 +63,7 @@ export function mapCreateShipmentToYunExpressPayload(
           item.cName ||
           metadataString(input.metadata, "defaultCName", defaultName) ||
           "Goods",
-        HSCode: metadataNullableString(input.metadata, "hsCode"),
+        HSCode: null,
         Quantity: item.quantity,
         UnitPrice:
           item.declaredValue ?? metadataNumber(input.metadata, "unitPrice", 1),
@@ -108,14 +108,6 @@ function metadataString(
 ) {
   const value = metadata?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function metadataNullableString(
-  metadata: CreateCarrierShipmentInput["metadata"],
-  key: string,
-) {
-  const value = metadataString(metadata, key, undefined);
-  return value ?? null;
 }
 
 function splitReceiverName(name: string | undefined) {

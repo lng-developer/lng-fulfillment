@@ -15,6 +15,7 @@ import {
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
 import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
+import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
 import { AppError } from "@/shared/errors";
 import { createSafeTimingLogger } from "@/shared/timing";
 import {
@@ -204,6 +205,14 @@ export async function shipOrderWithYun(
   if (!order.items.length) {
     throw new AppError("CONFLICT", "Order must have items.", 409);
   }
+
+  await assertTenantYunIossReadyForDestination({
+    tenantId,
+    destinationCountryCode: resolveDirectOrderDestinationCountry(order, input.options),
+    sourceChannel: order.sourceChannel,
+    iossNumber: input.options?.iossNumber,
+  });
+  timing("iossGuardPassed");
 
   const adapter = getCarrierAdapter("YUNEXPRESS_OMS");
   const runtimeCredentials = applyYunEnvironmentOverride(
@@ -1352,6 +1361,7 @@ function buildCreateCarrierShipmentInputFromPreparation(
       ...(options?.insuranceOption !== undefined
         ? { insuranceOption: options.insuranceOption }
         : {}),
+      ...(options?.iossNumber ? { iossNumber: options.iossNumber } : {}),
     },
   };
 }
@@ -1434,8 +1444,21 @@ function buildCreateCarrierShipmentInputFromDirectOrder(
       ...(options?.insuranceOption !== undefined
         ? { insuranceOption: options.insuranceOption }
         : {}),
+      ...(options?.iossNumber ? { iossNumber: options.iossNumber } : {}),
     },
   };
+}
+
+function resolveDirectOrderDestinationCountry(
+  order: NonNullable<Awaited<ReturnType<typeof getDirectShipOrderPreparation>>>,
+  options?: ExecuteShipmentInput["options"],
+) {
+  return (
+    options?.receiverCountryCode ??
+    jsonString(order.recipientAddress, "country") ??
+    order.destinationCountry ??
+    null
+  );
 }
 
 function buildCarrierShipmentItemInput(

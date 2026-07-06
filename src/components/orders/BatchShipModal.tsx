@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronDown, Truck, X } from "lucide-react";
+import { ChevronDown, ShieldCheck, Truck, X } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
 import { cn } from "@/lib/utils";
 import type {
   OrderDetail,
@@ -15,6 +16,7 @@ import { EnvironmentSelector } from "./EnvironmentSelector";
 import {
   buildShipmentPreview,
   buildShipOptions,
+  DEFAULT_YUN_IOSS_NUMBER,
   PRODUCT_OPTIONS,
   SHIPPING_METHOD_OPTIONS,
   type ShipmentReceiverValues,
@@ -25,6 +27,8 @@ export type BatchOrderShipEditState = {
   shippingMethodCode: string;
   receiverValues: ShipmentReceiverValues;
   packageValues: ShipmentPreview["package"];
+  useIoss: boolean;
+  iossNumber: string;
   parcels: ShipmentPreview["parcels"];
 };
 
@@ -46,11 +50,41 @@ export function BatchShipModal({
   onSubmit: (input: BatchShipSubmitInput) => void;
 }) {
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
+  const [tenantIossNumber, setTenantIossNumber] = useState(
+    DEFAULT_YUN_IOSS_NUMBER,
+  );
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [editsByOrderId, setEditsByOrderId] = useState<
     Record<string, BatchOrderShipEditState>
   >({});
-  const canSubmit = orders.length > 0 && orders.length <= 10;
+  const hasMissingIoss = hasMissingBatchIossNumber(
+    orders,
+    detailsByOrderId,
+    editsByOrderId,
+    tenantIossNumber,
+  );
+  const canSubmit =
+    orders.length > 0 && orders.length <= 10 && !hasMissingIoss;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getTenantYunIossSetting(controller.signal)
+      .then((setting) => {
+        setTenantIossNumber(
+          setting.status === "ACTIVE"
+            ? setting.iossNumber ?? DEFAULT_YUN_IOSS_NUMBER
+            : "",
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTenantIossNumber(DEFAULT_YUN_IOSS_NUMBER);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   function handleSubmit() {
     if (!canSubmit) {
@@ -61,6 +95,7 @@ export function BatchShipModal({
       orders,
       detailsByOrderId,
       editsByOrderId,
+      tenantIossNumber,
     );
     onSubmit({
       orderIds: orders.map((order) => order.id),
@@ -110,6 +145,11 @@ export function BatchShipModal({
             <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3 text-xs text-[var(--text-secondary)]">
               YunExpress batch limit: 10 orders.
             </div>
+            {hasMissingIoss ? (
+              <div className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">
+                IOSS number is required for orders with Use IOSS enabled.
+              </div>
+            ) : null}
             <div className="overflow-hidden rounded-sm border border-[var(--border)]">
               {orders.map((order) => (
                 <div
@@ -169,6 +209,7 @@ export function BatchShipModal({
                         }))
                       }
                       order={order}
+                      tenantIossNumber={tenantIossNumber}
                     />
                   ) : null}
                 </div>
@@ -208,11 +249,12 @@ export function buildBatchOptionsByOrderId(
   orders: OrderListItem[],
   detailsByOrderId: Record<string, OrderDetail | undefined>,
   editsByOrderId: Record<string, BatchOrderShipEditState> = {},
+  defaultIossNumber = DEFAULT_YUN_IOSS_NUMBER,
 ): Record<string, ShipOrderOptions> {
   return Object.fromEntries(
     orders.map((order) => {
       const detail = detailsByOrderId[order.id] ?? null;
-      const preview = buildShipmentPreview(order, detail);
+      const preview = buildShipmentPreview(order, detail, defaultIossNumber);
       const edit = resolveBatchEditState(preview, editsByOrderId[order.id]);
 
       return [
@@ -222,11 +264,28 @@ export function buildBatchOptionsByOrderId(
           edit.shippingMethodCode,
           edit.receiverValues,
           edit.packageValues,
+          edit.useIoss,
+          edit.iossNumber,
           edit.parcels,
         ),
       ];
     }),
   );
+}
+
+export function hasMissingBatchIossNumber(
+  orders: OrderListItem[],
+  detailsByOrderId: Record<string, OrderDetail | undefined>,
+  editsByOrderId: Record<string, BatchOrderShipEditState> = {},
+  defaultIossNumber = DEFAULT_YUN_IOSS_NUMBER,
+): boolean {
+  return orders.some((order) => {
+    const detail = detailsByOrderId[order.id] ?? null;
+    const preview = buildShipmentPreview(order, detail, defaultIossNumber);
+    const edit = resolveBatchEditState(preview, editsByOrderId[order.id]);
+
+    return edit.useIoss && !edit.iossNumber.trim();
+  });
 }
 
 function BatchOrderDetails({
@@ -235,14 +294,16 @@ function BatchOrderDetails({
   detail,
   edit,
   onEditChange,
+  tenantIossNumber,
 }: {
   disabled: boolean;
   order: OrderListItem;
   detail: OrderDetail | null;
   edit?: BatchOrderShipEditState;
   onEditChange: (edit: BatchOrderShipEditState) => void;
+  tenantIossNumber: string;
 }) {
-  const preview = buildShipmentPreview(order, detail);
+  const preview = buildShipmentPreview(order, detail, tenantIossNumber);
   const values = resolveBatchEditState(preview, edit);
 
   function updateEdit(patch: Partial<BatchOrderShipEditState>) {
@@ -301,6 +362,11 @@ function BatchOrderDetails({
         <Info label="First SKU" mono value={order.firstSku ?? "-"} />
         <Info label="First item" value={order.firstItemName ?? "-"} />
         <Info label="Shipping method" mono value={preview.shippingMethodCode} />
+        <Info
+          label="IOSS"
+          mono
+          value={values.useIoss ? values.iossNumber || "-" : "Not used"}
+        />
         <Info
           label="Package"
           mono
@@ -419,6 +485,14 @@ function BatchOrderDetails({
               ))}
             </select>
           </label>
+          <BatchIossInput
+            disabled={disabled}
+            euDetected={preview.iossEuDetected}
+            onChange={(value) => updateEdit({ iossNumber: value })}
+            onToggle={(value) => updateEdit({ useIoss: value })}
+            useIoss={values.useIoss}
+            value={values.iossNumber}
+          />
           <div className="grid gap-2 md:grid-cols-5">
             <BatchNumberInput
               disabled={disabled}
@@ -591,6 +665,8 @@ function resolveBatchEditState(
       shippingMethodCode: preview.shippingMethodCode,
       receiverValues: preview.receiver,
       packageValues: preview.package,
+      useIoss: preview.useIoss,
+      iossNumber: preview.iossNumber,
       parcels: preview.parcels,
     }
   );
@@ -619,6 +695,63 @@ function BatchTextInput({
         value={value}
       />
     </label>
+  );
+}
+
+function BatchIossInput({
+  disabled,
+  euDetected,
+  onChange,
+  onToggle,
+  useIoss,
+  value,
+}: {
+  disabled: boolean;
+  euDetected: boolean;
+  onChange: (value: string) => void;
+  onToggle: (value: boolean) => void;
+  useIoss: boolean;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.06em] text-emerald-700">
+          <ShieldCheck size={12} aria-hidden />
+          IOSS
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+            {euDetected ? "EU detected" : "Optional"}
+          </span>
+          <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800">
+            <input
+              checked={useIoss}
+              className="accent-emerald-600"
+              disabled={disabled}
+              onChange={(event) => onToggle(event.target.checked)}
+              type="checkbox"
+            />
+            Use IOSS
+          </label>
+        </div>
+      </div>
+      {useIoss ? (
+        <>
+          <input
+            className="h-8 w-full rounded-sm border border-emerald-200 bg-white px-2 font-mono text-[11px] text-[var(--text-primary)] outline-none transition-colors focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            value={value}
+          />
+          {!value.trim() ? (
+            <div className="mt-1 text-[10px] font-medium text-amber-700">
+              IOSS number is required when Use IOSS is enabled.
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 

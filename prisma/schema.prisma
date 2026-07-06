@@ -100,6 +100,11 @@ enum SkuShippingMethodMappingStatus {
   DISABLED
 }
 
+enum TenantYunIossStatus {
+  ACTIVE
+  DISABLED
+}
+
 enum AutoShipmentJobStatus {
   PENDING
   PROCESSING
@@ -184,6 +189,7 @@ model Tenant {
   shipments          Shipment[]
   shipmentCosts      ShipmentCost[]
   shipmentAutomationSetting TenantShipmentAutomationSetting?
+  yunIossSetting   TenantYunIossSetting?
   skuShippingMethodMappings SkuShippingMethodMapping[]
   autoShipmentJobs   AutoShipmentJob[]
   yunWebhookEvents   YunWebhookEvent[]
@@ -475,6 +481,20 @@ model TenantShipmentAutomationSetting {
   tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model TenantYunIossSetting {
+  id         String              @id @default(cuid())
+  tenantId   String              @unique
+  iossNumber String?
+  status     TenantYunIossStatus @default(DISABLED)
+  createdBy  String?
+  updatedBy  String?
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([tenantId, status])
 }
 
 model SkuShippingMethodMapping {

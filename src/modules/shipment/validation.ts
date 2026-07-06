@@ -254,6 +254,7 @@ function parseShipOrderOptions(value: unknown): ShipOrderOptions | undefined {
     returnOption: parseNonNegativeInteger(body.returnOption, "returnOption"),
     tariffPrepay: parseNonNegativeInteger(body.tariffPrepay, "tariffPrepay"),
     insuranceOption: parseNonNegativeInteger(body.insuranceOption, "insuranceOption"),
+    iossNumber: optionalString(body.iossNumber),
     parcels: parseShipParcelOverrides(body.parcels),
   };
 

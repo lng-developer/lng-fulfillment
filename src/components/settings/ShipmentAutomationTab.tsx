@@ -1,6 +1,15 @@
 "use client";
 
-import { Bot, Plus, Trash2 } from "lucide-react";
+import {
+  BadgeCheck,
+  Bot,
+  Globe2,
+  Plus,
+  Route,
+  Save,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -10,16 +19,20 @@ import {
   createSkuShippingMethodMapping,
   deleteSkuShippingMethodMapping,
   getShipmentAutomationConfig,
+  getTenantYunIossSetting,
   updateShipmentAutomationSetting,
   updateSkuShippingMethodMapping,
+  updateTenantYunIossSetting,
 } from "@/lib/api/shipment-automation";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { EU_COUNTRY_OPTIONS } from "@/shared/eu-countries";
 import { YUN_PRODUCT_OPTIONS } from "@/shared/yun-product-options";
 import type {
   ShipmentAutomationConfig,
   SkuShippingMethodMapping,
+  TenantYunIossSetting,
 } from "@/types/settings";
 
 const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR", "VNTHZXR"] as const;
@@ -27,6 +40,7 @@ const COUNTRY_OPTIONS = [
   { code: "US", label: "Mỹ" },
   { code: "GB", label: "Anh" },
   { code: "CA", label: "Canada" },
+  ...EU_COUNTRY_OPTIONS,
 ] as const;
 
 function sortMappings(mappings: SkuShippingMethodMapping[]) {
@@ -45,6 +59,8 @@ function formatCountry(code: string) {
 export function ShipmentAutomationTab({ role }: { role: Role }) {
   const canManage = can.manageShipmentAutomation(role);
   const [config, setConfig] = useState<ShipmentAutomationConfig | null>(null);
+  const [iossSetting, setIossSetting] =
+    useState<TenantYunIossSetting | null>(null);
   const [state, setState] = useState<"loading" | "success" | "error">(
     "loading",
   );
@@ -60,8 +76,12 @@ export function ShipmentAutomationTab({ role }: { role: Role }) {
       setLoadError(null);
 
       try {
-        const data = await getShipmentAutomationConfig(controller.signal);
+        const [data, ioss] = await Promise.all([
+          getShipmentAutomationConfig(controller.signal),
+          getTenantYunIossSetting(controller.signal),
+        ]);
         setConfig(data);
+        setIossSetting(ioss);
         setState("success");
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -128,9 +148,9 @@ export function ShipmentAutomationTab({ role }: { role: Role }) {
         </p>
       </div>
 
-      <div className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[var(--brand-light)] text-[var(--brand)]">
+      <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
+        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--brand-mid)] bg-[var(--brand-light)] text-[var(--brand)]">
             <Bot size={17} aria-hidden />
           </div>
           <div className="min-w-[220px] flex-1">
@@ -141,36 +161,69 @@ export function ShipmentAutomationTab({ role }: { role: Role }) {
               Orders without a complete SKU mapping are kept for manual ship.
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
-            <ToggleSwitch
-              ariaLabel="Toggle auto-create shipment after Portal receive"
-              checked={config.setting.autoCreateEnabled}
+          <StatusPill active={config.setting.autoCreateEnabled}>
+            {config.setting.autoCreateEnabled ? "Automation on" : "Manual mode"}
+          </StatusPill>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-[1fr_220px]">
+          <div className="rounded-[8px] border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-2.5">
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Runtime control
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">
+                  Auto-create after Portal receive
+                </div>
+                <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  Uses active SKU-country mappings only; unmapped orders stay manual.
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+                <ToggleSwitch
+                  ariaLabel="Toggle auto-create shipment after Portal receive"
+                  checked={config.setting.autoCreateEnabled}
+                  disabled={!canManage || isSavingSetting}
+                  onChange={(checked) =>
+                    void saveSetting({
+                      autoCreateEnabled: checked,
+                      environment: config.setting.environment,
+                    })
+                  }
+                />
+                Enabled
+              </div>
+            </div>
+          </div>
+          <label className="rounded-[8px] border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-2.5">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Environment
+            </span>
+            <select
+              className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-semibold text-[var(--text-primary)]"
               disabled={!canManage || isSavingSetting}
-              onChange={(checked) =>
+              onChange={(event) =>
                 void saveSetting({
-                  autoCreateEnabled: checked,
-                  environment: config.setting.environment,
+                  autoCreateEnabled: config.setting.autoCreateEnabled,
+                  environment: event.target.value === "test" ? "test" : "live",
                 })
               }
-            />
-            Enabled
-          </div>
-          <select
-            className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-primary)]"
-            disabled={!canManage || isSavingSetting}
-            onChange={(event) =>
-              void saveSetting({
-                autoCreateEnabled: config.setting.autoCreateEnabled,
-                environment: event.target.value === "test" ? "test" : "live",
-              })
-            }
-            value={config.setting.environment}
-          >
-            <option value="live">Live Production</option>
-            <option value="test">Test UAT</option>
-          </select>
+              value={config.setting.environment}
+            >
+              <option value="live">Live Production</option>
+              <option value="test">Test UAT</option>
+            </select>
+          </label>
         </div>
       </div>
+
+      {iossSetting ? (
+        <YunIossCard
+          canManage={canManage}
+          setting={iossSetting}
+          onUpdated={setIossSetting}
+        />
+      ) : null}
 
       {canManage ? (
         <MappingCreateForm
@@ -223,6 +276,144 @@ export function ShipmentAutomationTab({ role }: { role: Role }) {
   );
 }
 
+function YunIossCard({
+  canManage,
+  setting,
+  onUpdated,
+}: {
+  canManage: boolean;
+  setting: TenantYunIossSetting;
+  onUpdated: (setting: TenantYunIossSetting) => void;
+}) {
+  const [iossNumber, setIossNumber] = useState(setting.iossNumber ?? "");
+  const [status, setStatus] =
+    useState<TenantYunIossSetting["status"]>(setting.status);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setIossNumber(setting.iossNumber ?? "");
+    setStatus(setting.status);
+  }, [setting]);
+
+  async function save() {
+    if (!canManage || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const updated = await updateTenantYunIossSetting({
+        iossNumber: iossNumber.trim() || null,
+        status,
+      });
+      onUpdated(updated);
+      toastSuccess("YunExpress IOSS updated.");
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
+      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-emerald-200 bg-emerald-50 text-emerald-600">
+          <ShieldCheck size={17} aria-hidden />
+        </div>
+        <div className="min-w-[240px] flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">
+              Etsy EU IOSS
+            </div>
+            <StatusPill active={status === "ACTIVE"}>
+              {status === "ACTIVE" ? "Active" : "Disabled"}
+            </StatusPill>
+          </div>
+          <div className="mt-1 text-xs text-[var(--text-secondary)]">
+            Used only for Etsy orders shipped to EU countries. Amazon/manual
+            orders are not blocked by this setting.
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-3 p-4 lg:grid-cols-[1fr_auto]">
+        <div className="rounded-[8px] border border-[var(--border)] bg-[var(--bg-surface2)] p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            <Globe2 size={12} aria-hidden />
+            EU tax code
+          </div>
+          <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_auto]">
+            <label className="grid gap-1 text-xs font-medium text-[var(--text-secondary)]">
+              IOSS number
+              <input
+                className="h-10 rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 font-mono text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                disabled={!canManage || isSaving}
+                onChange={(event) => setIossNumber(event.target.value)}
+                placeholder="IOSS261841515582105977183"
+                value={iossNumber}
+              />
+            </label>
+            <div className="flex items-end gap-2 text-xs font-medium text-[var(--text-secondary)]">
+              <div className="flex h-10 items-center gap-2 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--bg-surface)] px-3">
+                <ToggleSwitch
+                  ariaLabel="Toggle YunExpress IOSS"
+                  checked={status === "ACTIVE"}
+                  disabled={!canManage || isSaving}
+                  onChange={(checked) => setStatus(checked ? "ACTIVE" : "DISABLED")}
+                />
+                Active
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
+            <BadgeCheck size={12} className="text-emerald-600" aria-hidden />
+            Default:
+            <span className="font-mono text-[var(--text-secondary)]">
+              IOSS261841515582105977183
+            </span>
+          </div>
+        </div>
+        <div className="flex items-end">
+          <button
+            className="btn btn-primary inline-flex h-10 items-center gap-1.5 px-4"
+            disabled={!canManage || isSaving}
+            onClick={() => void save()}
+            type="button"
+          >
+            <Save size={13} aria-hidden />
+            Save IOSS
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)]",
+      )}
+    >
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          active ? "bg-emerald-500" : "bg-[var(--text-muted)]",
+        )}
+      />
+      {children}
+    </span>
+  );
+}
+
 function MappingCreateForm({
   onCreated,
 }: {
@@ -270,62 +461,110 @@ function MappingCreateForm({
 
   return (
     <form
-      className="grid gap-2 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft md:grid-cols-[1fr_100px_180px_190px_1fr_auto]"
+      className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft"
       onSubmit={submit}
     >
-      <input
-        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
-        onChange={(event) => setSkuCode(event.target.value)}
-        placeholder="SKU code, e.g. NK"
-        value={skuCode}
-      />
-      <select
-        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
-        onChange={(event) => setDestinationCountryCode(event.target.value)}
-        value={destinationCountryCode}
-      >
-        {COUNTRY_OPTIONS.map((country) => (
-          <option key={country.code} value={country.code}>
-            {country.label}
-          </option>
-        ))}
-      </select>
-      <select
-        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
-        onChange={(event) =>
-          setShippingMethodCode(
-            event.target.value as (typeof SHIPPING_METHOD_OPTIONS)[number],
-          )
-        }
-        value={shippingMethodCode}
-      >
-        {SHIPPING_METHOD_OPTIONS.map((method) => (
-          <option key={method} value={method}>
-            {method}
-          </option>
-        ))}
-      </select>
-      <select
-        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
-        onChange={(event) => setProductEName(event.target.value)}
-        value={productEName}
-      >
-        {YUN_PRODUCT_OPTIONS.map((product) => (
-          <option key={product.eName} value={product.eName}>
-            {product.eName}
-          </option>
-        ))}
-      </select>
-      <input
-        className="rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-sm"
-        onChange={(event) => setDescription(event.target.value)}
-        placeholder="Description"
-        value={description}
-      />
-      <button className="btn btn-primary" disabled={isPending} type="submit">
-        <Plus size={13} /> Add
-      </button>
+      <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--brand)]">
+          <Route size={17} aria-hidden />
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-[var(--text-primary)]">
+            Add SKU shipping route
+          </div>
+          <div className="mt-1 text-xs text-[var(--text-secondary)]">
+            Match SKU code and destination country to a YunExpress service.
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[1fr_150px_170px_190px_1fr_auto]">
+        <LabeledField label="SKU code">
+          <input
+            className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            onChange={(event) => setSkuCode(event.target.value)}
+            placeholder="NK"
+            value={skuCode}
+          />
+        </LabeledField>
+        <LabeledField label="Country">
+          <select
+            className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            onChange={(event) => setDestinationCountryCode(event.target.value)}
+            value={destinationCountryCode}
+          >
+            {COUNTRY_OPTIONS.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.label}
+              </option>
+            ))}
+          </select>
+        </LabeledField>
+        <LabeledField label="Ship method">
+          <select
+            className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            onChange={(event) =>
+              setShippingMethodCode(
+                event.target.value as (typeof SHIPPING_METHOD_OPTIONS)[number],
+              )
+            }
+            value={shippingMethodCode}
+          >
+            {SHIPPING_METHOD_OPTIONS.map((method) => (
+              <option key={method} value={method}>
+                {method}
+              </option>
+            ))}
+          </select>
+        </LabeledField>
+        <LabeledField label="Product">
+          <select
+            className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            onChange={(event) => setProductEName(event.target.value)}
+            value={productEName}
+          >
+            {YUN_PRODUCT_OPTIONS.map((product) => (
+              <option key={product.eName} value={product.eName}>
+                {product.eName}
+              </option>
+            ))}
+          </select>
+        </LabeledField>
+        <LabeledField label="Description">
+          <input
+            className="h-9 w-full rounded-[var(--r-sm)] border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-sm text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Optional note"
+            value={description}
+          />
+        </LabeledField>
+        <div className="flex items-end">
+          <button
+            className="btn btn-primary inline-flex h-9 w-full items-center justify-center gap-1.5 px-4 xl:w-auto"
+            disabled={isPending}
+            type="submit"
+          >
+            <Plus size={13} aria-hidden /> Add mapping
+          </button>
+        </div>
+      </div>
     </form>
+  );
+}
+
+function LabeledField({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }
 

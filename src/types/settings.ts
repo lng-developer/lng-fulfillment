@@ -101,6 +101,15 @@ export type SkuShippingMethodMapping = {
   updatedAt: string;
 };
 
+export type TenantYunIossSetting = {
+  id: string | null;
+  tenantId: string;
+  iossNumber: string | null;
+  status: "ACTIVE" | "DISABLED";
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 export type ShipmentAutomationConfig = {
   setting: ShipmentAutomationSetting;
   mappings: SkuShippingMethodMapping[];

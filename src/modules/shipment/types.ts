@@ -187,6 +187,7 @@ export type ShipOrderOptions = {
   returnOption?: number;
   tariffPrepay?: number;
   insuranceOption?: number;
+  iossNumber?: string;
   parcels?: ShipParcelOverride[];
 };
 

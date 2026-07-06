@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { buildBatchOptionsByOrderId } from "../../src/components/orders/BatchShipModal";
+import {
+  buildBatchOptionsByOrderId,
+  hasMissingBatchIossNumber,
+} from "../../src/components/orders/BatchShipModal";
+import {
+  buildShipmentPreview,
+  buildShipOptions,
+} from "../../src/components/orders/ShipOrderModal";
 import type { OrderListItem } from "../../src/types/orders";
 import type { BatchOrderShipEditState } from "../../src/components/orders/BatchShipModal";
 
@@ -59,6 +66,8 @@ const edit: BatchOrderShipEditState = {
     tariffPrepay: 0,
     insuranceOption: 0,
   },
+  useIoss: true,
+  iossNumber: "IOSS261841515582105977183",
   parcels: [
     {
       sku: "SKU-1",
@@ -90,5 +99,62 @@ assert.equal(result[order.id]?.receiverZip, "93445");
 assert.equal(result[order.id]?.receiverCountryCode, "US");
 assert.equal(result[order.id]?.receiverPhone, "1234567890");
 assert.equal(result[order.id]?.receiverEmail, "test@example.com");
+assert.equal(result[order.id]?.iossNumber, "IOSS261841515582105977183");
 assert.equal(result[order.id]?.parcels?.[0]?.eName, "Wooden decor");
+
+const euAmazonOrder: OrderListItem = {
+  ...order,
+  id: "order-eu-amz",
+  sourceChannel: "amazon",
+  destinationCountry: "FR",
+};
+const euPreview = buildShipmentPreview(euAmazonOrder, null, "IOSS-DEFAULT");
+
+assert.equal(euPreview.iossEuDetected, true);
+assert.equal(euPreview.useIoss, true);
+assert.equal(euPreview.iossNumber, "IOSS-DEFAULT");
+assert.equal(
+  hasMissingBatchIossNumber([euAmazonOrder], {}, {}, ""),
+  true,
+);
+assert.equal(
+  hasMissingBatchIossNumber([euAmazonOrder], {}, {}, "IOSS-DEFAULT"),
+  false,
+);
+
+const usPreview = buildShipmentPreview(order, null, "IOSS-DEFAULT");
+assert.equal(usPreview.iossEuDetected, false);
+assert.equal(usPreview.useIoss, false);
+assert.equal(usPreview.iossNumber, "IOSS-DEFAULT");
+assert.equal(
+  hasMissingBatchIossNumber(
+    [order],
+    {},
+    { [order.id]: { ...edit, useIoss: true, iossNumber: "" } },
+    "IOSS-DEFAULT",
+  ),
+  true,
+);
+
+const noIossOptions = buildShipOptions(
+  usPreview,
+  usPreview.shippingMethodCode,
+  usPreview.receiver,
+  usPreview.package,
+  false,
+  "IOSS-DEFAULT",
+  usPreview.parcels,
+);
+assert.equal(noIossOptions.iossNumber, undefined);
+
+const manualIossOptions = buildShipOptions(
+  usPreview,
+  usPreview.shippingMethodCode,
+  usPreview.receiver,
+  usPreview.package,
+  true,
+  "IOSS-MANUAL",
+  usPreview.parcels,
+);
+assert.equal(manualIossOptions.iossNumber, "IOSS-MANUAL");
 assert.equal(result[order.id]?.parcels?.[0]?.cName, "木制装饰品");

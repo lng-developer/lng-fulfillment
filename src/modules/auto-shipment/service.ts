@@ -465,7 +465,7 @@ export function validateSkuShippingMethodMappingUpdateInput(
   ) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "shippingMethodCode, eName, cName, description, or status is required.",
+      "shippingMethodCode, product name, description, or status is required.",
       400,
     );
   }

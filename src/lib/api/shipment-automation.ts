@@ -3,6 +3,7 @@ import type {
   ShipmentAutomationConfig,
   ShipmentAutomationSetting,
   SkuShippingMethodMapping,
+  TenantYunIossSetting,
 } from "@/types/settings";
 import { apiFetch } from "./base";
 
@@ -22,6 +23,28 @@ export async function updateShipmentAutomationSetting(input: {
   const response = await apiFetch<
     ApiSuccess<{ setting: ShipmentAutomationSetting }>
   >("/api/tenants/current/shipment-automation", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+
+  return response.data.setting;
+}
+
+export async function getTenantYunIossSetting(signal?: AbortSignal) {
+  const response = await apiFetch<
+    ApiSuccess<{ setting: TenantYunIossSetting }>
+  >("/api/tenants/current/yun-ioss", { signal });
+
+  return response.data.setting;
+}
+
+export async function updateTenantYunIossSetting(input: {
+  iossNumber: string | null;
+  status: "ACTIVE" | "DISABLED";
+}) {
+  const response = await apiFetch<
+    ApiSuccess<{ setting: TenantYunIossSetting }>
+  >("/api/tenants/current/yun-ioss", {
     method: "PATCH",
     body: JSON.stringify(input),
   });
