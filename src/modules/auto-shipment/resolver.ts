@@ -1,8 +1,19 @@
+import {
+  normalizeSupportedEuCountryCode,
+} from "@/shared/eu-countries";
 import { extractSkuCode } from "./sku";
 import type {
+  AutoShipmentProductDeclaration,
   AutoShipmentResolution,
   AutoShipmentResolutionInput,
 } from "./types";
+
+type NormalizedSkuMapping = {
+  skuCode: string;
+  shippingMethodCode: string;
+  eName: string | null;
+  cName: string | null;
+};
 
 function uniqueSorted(values: Iterable<string>): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
@@ -14,6 +25,8 @@ function normalizeCountryCode(value: string | null) {
   const normalized = value.trim().toUpperCase();
   if (normalized === "USA" || normalized === "UNITED STATES") return "US";
   if (normalized === "CANADA") return "CA";
+  const euCountryCode = normalizeSupportedEuCountryCode(normalized);
+  if (euCountryCode) return euCountryCode;
   if (
     normalized === "UK" ||
     normalized === "UNITED KINGDOM" ||
@@ -102,27 +115,40 @@ export function resolveOrderShippingMethodFromSkuMappings(
   return {
     status: "RESOLVED",
     shippingMethodCode: resolvedMethods[0],
-    productDeclarations: skuCodes
-      .map((skuCode) =>
-        destinationCountryCode
-          ? mappingBySkuCode.get(buildMappingKey(skuCode, destinationCountryCode))
-          : null,
-      )
-      .filter(
-        (mapping): mapping is {
-          skuCode: string;
-          eName: string;
-          cName: string;
-          shippingMethodCode: string;
-        } => Boolean(mapping?.eName && mapping.cName),
-      )
-      .map((mapping) => ({
-        skuCode: mapping.skuCode,
-        eName: mapping.eName,
-        cName: mapping.cName,
-      })),
+    productDeclarations: buildProductDeclarations(
+      skuCodes,
+      destinationCountryCode,
+      mappingBySkuCode,
+    ),
     skuCodes,
     missingSkuCodes: [],
     conflictingMethods: [],
   };
+}
+
+function buildProductDeclarations(
+  skuCodes: string[],
+  destinationCountryCode: string | null,
+  mappingBySkuCode: Map<string, NormalizedSkuMapping>,
+): AutoShipmentProductDeclaration[] {
+  if (!destinationCountryCode) {
+    return [];
+  }
+
+  return skuCodes.flatMap((skuCode) => {
+    const mapping = mappingBySkuCode.get(
+      buildMappingKey(skuCode, destinationCountryCode),
+    );
+    if (!mapping?.eName || !mapping.cName) {
+      return [];
+    }
+
+    return [
+      {
+        skuCode: mapping.skuCode,
+        eName: mapping.eName,
+        cName: mapping.cName,
+      },
+    ];
+  });
 }

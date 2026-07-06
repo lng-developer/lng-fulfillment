@@ -1,9 +1,10 @@
 "use client";
 
-import { Package, Truck, UserRound, X } from "lucide-react";
+import { Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
 import type {
   OrderDetail,
   OrderDetailItem,
@@ -15,6 +16,7 @@ import type {
 import { EnvironmentSelector } from "./EnvironmentSelector";
 
 export const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR", "VNTHZXR"] as const;
+export const DEFAULT_YUN_IOSS_NUMBER = "IOSS261841515582105977183";
 export const PRODUCT_OPTIONS = [
   {
     eName: "Paper napkins",
@@ -32,6 +34,35 @@ export const PRODUCT_OPTIONS = [
     keywords: ["embroidered", "embroidery", "shirt", "tee", "t-shirt", "top"],
   },
 ] as const;
+const EU_COUNTRY_CODES = new Set([
+  "AT",
+  "BE",
+  "BG",
+  "HR",
+  "CY",
+  "CZ",
+  "DE",
+  "DK",
+  "EE",
+  "ES",
+  "FI",
+  "FR",
+  "GR",
+  "HU",
+  "IE",
+  "IT",
+  "LT",
+  "LU",
+  "LV",
+  "MT",
+  "NL",
+  "PL",
+  "PT",
+  "RO",
+  "SE",
+  "SI",
+  "SK",
+]);
 
 export type ShipmentPreview = {
   customerOrderNumber: string;
@@ -61,11 +92,18 @@ export type ShipmentPreview = {
     tariffPrepay: number;
     insuranceOption: number;
   };
+  iossNumber: string;
+  iossEuDetected: boolean;
+  useIoss: boolean;
   parcels: Array<
     Required<Pick<ShipParcelOverride, "sku" | "eName" | "cName" | "currencyCode" | "remark">> &
       Pick<
         ShipParcelOverride,
-        "orderItemId" | "unitPrice" | "unitWeight" | "invoicePart" | "invoiceUsage"
+        | "orderItemId"
+        | "unitPrice"
+        | "unitWeight"
+        | "invoicePart"
+        | "invoiceUsage"
       > & {
         quantity: number;
       }
@@ -92,24 +130,55 @@ export function ShipOrderModal({
 }) {
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const preview = useMemo(() => buildShipmentPreview(order, detail), [detail, order]);
+  const [tenantIossNumber, setTenantIossNumber] = useState(
+    DEFAULT_YUN_IOSS_NUMBER,
+  );
+  const preview = useMemo(
+    () => buildShipmentPreview(order, detail, tenantIossNumber),
+    [detail, order, tenantIossNumber],
+  );
   const [shippingMethodCode, setShippingMethodCode] = useState(
     preview.shippingMethodCode,
   );
   const [receiverValues, setReceiverValues] = useState(preview.receiver);
   const [packageValues, setPackageValues] = useState(preview.package);
+  const [useIoss, setUseIoss] = useState(preview.useIoss);
+  const [iossNumber, setIossNumber] = useState(preview.iossNumber);
   const [parcels, setParcels] = useState(preview.parcels);
   const controlsDisabled = hasSubmitted;
+  const iossMissing = useIoss && !iossNumber.trim();
 
   useEffect(() => {
     setShippingMethodCode(preview.shippingMethodCode);
     setReceiverValues(preview.receiver);
     setPackageValues(preview.package);
+    setUseIoss(preview.useIoss);
+    setIossNumber(preview.iossNumber);
     setParcels(preview.parcels);
   }, [preview]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getTenantYunIossSetting(controller.signal)
+      .then((setting) => {
+        setTenantIossNumber(
+          setting.status === "ACTIVE"
+            ? setting.iossNumber ?? DEFAULT_YUN_IOSS_NUMBER
+            : "",
+        );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTenantIossNumber(DEFAULT_YUN_IOSS_NUMBER);
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
+
   const handleSubmit = () => {
-    if (hasSubmitted) {
+    if (hasSubmitted || iossMissing) {
       return;
     }
 
@@ -118,6 +187,8 @@ export function ShipOrderModal({
       shippingMethodCode,
       receiverValues,
       packageValues,
+      useIoss,
+      iossNumber,
       parcels,
     );
 
@@ -207,6 +278,14 @@ export function ShipOrderModal({
                   value={<StatusBadge status={order.status} />}
                 />
               </div>
+              <IossInlinePanel
+                disabled={controlsDisabled}
+                euDetected={preview.iossEuDetected}
+                onChange={setIossNumber}
+                onToggle={setUseIoss}
+                useIoss={useIoss}
+                value={iossNumber}
+              />
             </ModalSection>
 
             <ModalSection icon={<UserRound />} title="Receiver">
@@ -447,6 +526,7 @@ export function ShipOrderModal({
           </button>
           <button
             className="inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={controlsDisabled || iossMissing}
             onClick={handleSubmit}
             type="button"
           >
@@ -506,6 +586,68 @@ function Field({
       >
         {value || "-"}
       </div>
+    </div>
+  );
+}
+
+function IossInlinePanel({
+  disabled,
+  euDetected,
+  onChange,
+  onToggle,
+  useIoss,
+  value,
+}: {
+  disabled: boolean;
+  euDetected: boolean;
+  onChange: (value: string) => void;
+  onToggle: (value: boolean) => void;
+  useIoss: boolean;
+  value: string;
+}) {
+  return (
+    <div className="mt-3 rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-emerald-700">
+            <ShieldCheck size={13} aria-hidden />
+            IOSS
+          </div>
+          <div className="mt-0.5 text-[11px] text-emerald-800/80">
+            Optional tax identifier. EU destinations are enabled by default.
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+            {euDetected ? "EU detected" : "Optional"}
+          </span>
+          <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800">
+            <input
+              checked={useIoss}
+              className="accent-emerald-600"
+              disabled={disabled}
+              onChange={(event) => onToggle(event.target.checked)}
+              type="checkbox"
+            />
+            Use IOSS
+          </label>
+        </div>
+      </div>
+      {useIoss ? (
+        <>
+          <input
+            className="h-9 w-full rounded-[var(--r-sm)] border border-emerald-200 bg-white px-3 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-colors focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            value={value}
+          />
+          {!value.trim() ? (
+            <div className="mt-1.5 text-[10px] font-medium text-amber-700">
+              IOSS number is required when Use IOSS is enabled.
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -573,6 +715,8 @@ export function buildShipOptions(
   shippingMethodCode: string,
   receiverValues: ShipmentReceiverValues,
   packageValues: ShipmentPreview["package"],
+  useIoss: boolean,
+  iossNumber: string,
   parcels: ShipmentPreview["parcels"],
 ): ShipOrderOptions {
   return {
@@ -598,6 +742,7 @@ export function buildShipOptions(
     returnOption: packageValues.returnOption,
     tariffPrepay: packageValues.tariffPrepay,
     insuranceOption: packageValues.insuranceOption,
+    ...(useIoss && iossNumber.trim() ? { iossNumber: iossNumber.trim() } : {}),
     parcels: parcels.map((parcel) => ({
       orderItemId: parcel.orderItemId,
       sku: parcel.sku,
@@ -616,13 +761,21 @@ export function buildShipOptions(
 export function buildShipmentPreview(
   order: OrderListItem,
   detail: OrderDetail | null,
+  defaultIossNumber = DEFAULT_YUN_IOSS_NUMBER,
 ): ShipmentPreview {
   const mapping = order.shipMappingPreview;
   const orderNumber = mapping?.customerOrderNumber ?? order.orderNumber ?? order.externalOrderId;
   const address = getAddress(detail?.recipientAddress);
   const fullName = detail?.recipientName ?? order.recipientName ?? "Recipient";
   const name = splitName(fullName);
+  const destinationCountry =
+    address.country ||
+    detail?.destinationCountry ||
+    order.destinationCountry ||
+    mapping?.receiver.country ||
+    "";
   const parcels = buildPreviewParcels(order, detail);
+  const iossEuDetected = isEuCountry(destinationCountry);
   const weight = round(
     parcels.reduce((sum, parcel) => sum + (parcel.unitWeight ?? 0.1) * parcel.quantity, 0),
   );
@@ -639,29 +792,25 @@ export function buildShipmentPreview(
       lastName: name.lastName,
       company: "",
       countryCode:
-        address.country ??
-        detail?.destinationCountry ??
-        order.destinationCountry ??
-        mapping?.receiver.country ??
-        "",
+        destinationCountry,
       street: address.line1,
       city:
-        address.city ??
-        detail?.destinationCity ??
-        order.destinationCity ??
-        mapping?.receiver.city ??
+        address.city ||
+        detail?.destinationCity ||
+        order.destinationCity ||
+        mapping?.receiver.city ||
         "",
       state:
-        address.state ??
-        detail?.destinationState ??
-        order.destinationState ??
-        mapping?.receiver.state ??
+        address.state ||
+        detail?.destinationState ||
+        order.destinationState ||
+        mapping?.receiver.state ||
         "",
       zip:
-        address.postalCode ??
-        detail?.destinationPostalCode ??
-        order.destinationPostalCode ??
-        mapping?.receiver.postalCode ??
+        address.postalCode ||
+        detail?.destinationPostalCode ||
+        order.destinationPostalCode ||
+        mapping?.receiver.postalCode ||
         "",
       phone: detail?.recipientPhone ?? "",
       email: detail?.recipientEmail ?? "",
@@ -678,11 +827,26 @@ export function buildShipmentPreview(
       tariffPrepay: 0,
       insuranceOption: 0,
     },
+    iossNumber: defaultIossNumber,
+    iossEuDetected,
+    useIoss: iossEuDetected,
     parcels,
   };
 }
 
-function buildPreviewParcels(order: OrderListItem, detail: OrderDetail | null) {
+function isEuCountry(countryCode: string | null | undefined) {
+  const normalized = countryCode?.trim().toUpperCase();
+  if (!normalized) return false;
+
+  return EU_COUNTRY_CODES.has(normalized);
+}
+
+function buildPreviewParcels(
+  order: OrderListItem,
+  detail: OrderDetail | null,
+) {
+  const defaultCurrency = "USD";
+
   if (detail?.items.length) {
     return detail.items.map((item: OrderDetailItem) => {
       const name = item.title ?? item.name ?? item.sku ?? "Item";
@@ -695,7 +859,7 @@ function buildPreviewParcels(order: OrderListItem, detail: OrderDetail | null) {
         quantity: item.quantity,
         unitPrice: parseNumber(item.declaredValue) ?? parseNumber(item.unitPrice) ?? 1,
         unitWeight: parseNumber(item.weight) ?? 0.1,
-        currencyCode: item.currency ?? "USD",
+        currencyCode: item.currency ?? defaultCurrency,
         invoicePart: "cotton",
         invoiceUsage: "wear",
         remark: "",
@@ -714,7 +878,7 @@ function buildPreviewParcels(order: OrderListItem, detail: OrderDetail | null) {
         quantity: item.quantity,
         unitPrice: item.unitPrice ?? 1,
         unitWeight: item.unitWeight ?? 0.1,
-        currencyCode: "USD",
+        currencyCode: defaultCurrency,
         invoicePart: "cotton",
         invoiceUsage: "wear",
         remark: "",
@@ -732,7 +896,7 @@ function buildPreviewParcels(order: OrderListItem, detail: OrderDetail | null) {
       quantity: Math.max(order.totalQuantity, 1),
       unitPrice: 1,
       unitWeight: 0.1,
-      currencyCode: "USD",
+      currencyCode: defaultCurrency,
       invoicePart: "cotton",
       invoiceUsage: "wear",
       remark: "",

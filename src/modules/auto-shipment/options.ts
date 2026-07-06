@@ -44,6 +44,9 @@ export function buildAutoShipmentShipOrderOptions(
       declaration,
     ]),
   );
+  const receiverCountryCode = normalizeCountryCode(
+    address.country ?? order.destinationCountry ?? "",
+  );
 
   const parcels = order.items.map((item) => {
     const skuCode = extractSkuCode(item.sku);
@@ -79,9 +82,7 @@ export function buildAutoShipmentShipOrderOptions(
     receiverFirstName: name.firstName,
     receiverLastName: name.lastName,
     receiverCompany: "",
-    receiverCountryCode: normalizeCountryCode(
-      address.country ?? order.destinationCountry ?? "",
-    ),
+    receiverCountryCode,
     receiverStreet: address.line1,
     receiverCity: address.city ?? order.destinationCity ?? "",
     receiverState: address.state ?? order.destinationState ?? "",
