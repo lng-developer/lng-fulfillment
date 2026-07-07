@@ -147,7 +147,7 @@ List query params:
 - `waybillNumber`, `trackingNumber`, `customerOrderNumber`
 - `search`
 - `from`, `to`
-- `sortOrder`: `asc` or `desc`
+- `sortOrder`: `asc` or `desc``
 
 ## Same-Origin Mutation Rule
 
