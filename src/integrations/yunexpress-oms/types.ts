@@ -1,6 +1,7 @@
 export type YunExpressCreateOrderLabelPayload = {
   CustomerOrderNumber: string;
   ShippingMethodCode: string;
+  IossCode?: string;
   TrackingNumber: string | null;
   TransactionNumber: string | null;
   SizeUnits: string;

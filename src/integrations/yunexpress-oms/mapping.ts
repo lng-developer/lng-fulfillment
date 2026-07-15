@@ -21,11 +21,13 @@ export function mapCreateShipmentToYunExpressPayload(
   const sizeUnits =
     metadataString(input.metadata, "sizeUnits", config.defaultSizeUnit) ??
     config.defaultSizeUnit;
+  const iossCode = metadataString(input.metadata, "iossNumber", undefined);
 
   return {
     CustomerOrderNumber:
       input.orderNumber ?? input.externalOrderId ?? input.shipmentId,
     ShippingMethodCode: shippingMethodCode,
+    ...(iossCode ? { IossCode: iossCode } : {}),
     TrackingNumber: null,
     TransactionNumber: null,
     SizeUnits: sizeUnits,

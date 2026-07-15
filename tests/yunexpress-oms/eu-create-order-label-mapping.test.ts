@@ -49,6 +49,7 @@ const payload = mapCreateShipmentToYunExpressPayload(
       applicationType: 4,
       returnOption: 0,
       insuranceOption: 0,
+      iossNumber: "IOSS261841515582105977183",
     },
   },
   {
@@ -65,6 +66,7 @@ const payload = mapCreateShipmentToYunExpressPayload(
 );
 
 assert.equal(payload.Receiver.CountryCode, "DE");
+assert.equal(payload.IossCode, "IOSS261841515582105977183");
 assert.equal(payload.TariffPrepay, 0);
 assert.equal(payload.Parcels[0]?.HSCode, null);
 assert.equal(payload.Parcels[0]?.CurrencyCode, "USD");
