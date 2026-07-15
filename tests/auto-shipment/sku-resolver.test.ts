@@ -11,10 +11,7 @@ assert.equal(extractSkuCode("BADSKU"), null);
 
 const singleMethodResult = resolveOrderShippingMethodFromSkuMappings({
   destinationCountryCode: "US",
-  items: [
-    { sku: "J2618-NK-120626-002" },
-    { sku: "J2618-NK-120626-003" },
-  ],
+  items: [{ sku: "J2618-NK-120626-002" }, { sku: "J2618-NK-120626-003" }],
   mappings: [
     {
       destinationCountryCode: "US",
@@ -171,5 +168,40 @@ assert.deepEqual(unitedKingdomMethodResult, {
   missingSkuCodes: [],
   conflictingMethods: [],
 });
+
+const unitedArabEmiratesMethodResult =
+  resolveOrderShippingMethodFromSkuMappings({
+    destinationCountryCode: "United Arab Emirates",
+    items: [{ sku: "J2618-NK-120626-002" }],
+    mappings: [
+      {
+        destinationCountryCode: "AE",
+        skuCode: "NK",
+        shippingMethodCode: "VNTHZXR",
+        eName: "Embroidered shirt",
+        cName: "Embroidered shirt CN",
+      },
+    ],
+  });
+
+assert.equal(unitedArabEmiratesMethodResult.status, "RESOLVED");
+assert.equal(unitedArabEmiratesMethodResult.shippingMethodCode, "VNTHZXR");
+
+const brazilMethodResult = resolveOrderShippingMethodFromSkuMappings({
+  destinationCountryCode: "Brazil",
+  items: [{ sku: "J2618-NK-120626-002" }],
+  mappings: [
+    {
+      destinationCountryCode: "BR",
+      skuCode: "NK",
+      shippingMethodCode: "VNTHZXR",
+      eName: "Embroidered shirt",
+      cName: "Embroidered shirt CN",
+    },
+  ],
+});
+
+assert.equal(brazilMethodResult.status, "RESOLVED");
+assert.equal(brazilMethodResult.shippingMethodCode, "VNTHZXR");
 
 console.log("auto-shipment SKU resolver tests passed");

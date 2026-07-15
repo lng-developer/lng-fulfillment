@@ -1,6 +1,4 @@
-import {
-  normalizeSupportedEuCountryCode,
-} from "@/shared/eu-countries";
+import { normalizeYunSupportedCountryCode } from "@/shared/yun-supported-countries";
 import { extractSkuCode } from "./sku";
 import type {
   AutoShipmentProductDeclaration,
@@ -23,18 +21,8 @@ function normalizeCountryCode(value: string | null) {
   if (!value) return null;
 
   const normalized = value.trim().toUpperCase();
-  if (normalized === "USA" || normalized === "UNITED STATES") return "US";
-  if (normalized === "CANADA") return "CA";
-  const euCountryCode = normalizeSupportedEuCountryCode(normalized);
-  if (euCountryCode) return euCountryCode;
-  if (
-    normalized === "UK" ||
-    normalized === "UNITED KINGDOM" ||
-    normalized === "GREAT BRITAIN" ||
-    normalized === "ENGLAND"
-  ) {
-    return "GB";
-  }
+  const yunCountryCode = normalizeYunSupportedCountryCode(normalized);
+  if (yunCountryCode) return yunCountryCode;
 
   return normalized.length === 2 ? normalized : null;
 }

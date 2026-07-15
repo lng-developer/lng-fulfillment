@@ -8,6 +8,7 @@ import { shipOrderWithYun } from "@/modules/shipment";
 import type { ShipmentYunEnvironment } from "@/modules/shipment";
 import { findTenantMembershipForUser } from "@/modules/tenant/repository";
 import { AppError } from "@/shared/errors";
+import { normalizeYunSupportedCountryCode } from "@/shared/yun-supported-countries";
 import { buildAutoShipmentShipOrderOptions } from "./options";
 import { resolveOrderShippingMethodFromSkuMappings } from "./resolver";
 import type { AutoShipmentResolution } from "./types";
@@ -706,16 +707,8 @@ function validateBoolean(value: unknown, field: string) {
 
 function normalizeCountryCode(value: string) {
   const normalized = value.trim().toUpperCase();
-  if (normalized === "USA" || normalized === "UNITED STATES") return "US";
-  if (normalized === "CANADA") return "CA";
-  if (
-    normalized === "UK" ||
-    normalized === "UNITED KINGDOM" ||
-    normalized === "GREAT BRITAIN" ||
-    normalized === "ENGLAND"
-  ) {
-    return "GB";
-  }
+  const yunCountryCode = normalizeYunSupportedCountryCode(normalized);
+  if (yunCountryCode) return yunCountryCode;
 
   return normalized;
 }

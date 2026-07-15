@@ -38,7 +38,10 @@ import {
 } from "@/lib/shipment-automation-import";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { EU_COUNTRY_OPTIONS } from "@/shared/eu-countries";
+import {
+  formatYunSupportedCountry,
+  YUN_SUPPORTED_COUNTRY_OPTIONS,
+} from "@/shared/yun-supported-countries";
 import { YUN_PRODUCT_OPTIONS } from "@/shared/yun-product-options";
 import type {
   ShipmentAutomationConfig,
@@ -47,12 +50,7 @@ import type {
 } from "@/types/settings";
 
 const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR", "VNTHZXR"] as const;
-const COUNTRY_OPTIONS = [
-  { code: "US", label: "Mỹ" },
-  { code: "GB", label: "Anh" },
-  { code: "CA", label: "Canada" },
-  ...EU_COUNTRY_OPTIONS,
-] as const;
+const COUNTRY_OPTIONS = YUN_SUPPORTED_COUNTRY_OPTIONS;
 
 function sortMappings(mappings: SkuShippingMethodMapping[]) {
   return [...mappings].sort(
@@ -63,8 +61,7 @@ function sortMappings(mappings: SkuShippingMethodMapping[]) {
 }
 
 function formatCountry(code: string) {
-  const country = COUNTRY_OPTIONS.find((option) => option.code === code);
-  return country ? `${country.label} (${country.code})` : code;
+  return formatYunSupportedCountry(code);
 }
 
 function mergeMappings(
@@ -605,7 +602,7 @@ function MappingCreateForm({
             >
               {COUNTRY_OPTIONS.map((country) => (
                 <option key={country.code} value={country.code}>
-                  {country.label}
+                  {country.label} ({country.code})
                 </option>
               ))}
             </select>
