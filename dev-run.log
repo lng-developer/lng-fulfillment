@@ -1,0 +1,55 @@
+
+> lng-fulfill-platform@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.26:3000
+   - Environments: .env
+
+ ✓ Starting...
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+ ✓ Ready in 10.1s
+ ○ Compiling / ...
+ ✓ Compiled /_not-found in 13.9s (695 modules)
+ OPTIONS /api/design/tasks/workload 404 in 3677ms
+ OPTIONS /api/design/tasks/summary 404 in 3680ms
+ OPTIONS /api/design/assignees 404 in 3682ms
+ OPTIONS /api/design/tasks?page=1&limit=20 404 in 3686ms
+ GET / 200 in 15255ms
+ OPTIONS /api/production/tasks/scale-assignees?limit=100 404 in 281ms
+ OPTIONS /api/production/tasks/summary 404 in 285ms
+ OPTIONS /api/production/tasks?view=SCALE&page=1&limit=20 404 in 288ms
+ OPTIONS /api/media/assets/6a7af5ec22792220a90303cd/download 404 in 281ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.7s (980 modules)
+ OPTIONS /api/notifications/unread-count 404 in 1326ms
+ OPTIONS /api/design/tasks?page=1&limit=20 404 in 3930ms
+ OPTIONS /api/design/assignees 404 in 3927ms
+ OPTIONS /api/design/tasks/summary 404 in 3926ms
+ OPTIONS /api/design/tasks/workload 404 in 3924ms
+ OPTIONS /api/design/tasks/summary 404 in 397ms
+ OPTIONS /api/design/assignees 404 in 399ms
+ OPTIONS /api/design/tasks?page=1&limit=20 404 in 401ms
+ OPTIONS /api/hr/employee-profiles/me 404 in 406ms
+ OPTIONS /api/notifications/unread-count 404 in 410ms
+ OPTIONS /api/design/tasks/workload 404 in 397ms
+ OPTIONS /api/notifications/unread-count 404 in 178ms
+ OPTIONS /api/hr/employee-profiles/me 404 in 174ms
+ OPTIONS /api/production/tasks/summary 404 in 286ms
+ OPTIONS /api/production/tasks?view=SCALE&page=1&limit=20 404 in 289ms
+ OPTIONS /api/media/assets/6a7af5ec22792220a90303cd/download 404 in 281ms
+ OPTIONS /api/production/tasks/scale-assignees?limit=100 404 in 284ms
+   Reload env: .env
+ ✓ Compiled in 560ms (980 modules)
+ ○ Compiling /api/orders ...
+ ✓ Compiled /api/orders in 1244ms (669 modules)
+ GET /api/orders 200 in 7602ms
+ GET /api/orders?page=1&pageSize=20&include=expanded&sortBy=receivedAt&sortOrder=desc 200 in 3926ms
+ ✓ Compiled /_not-found in 371ms (486 modules)
+ OPTIONS /api/notifications/unread-count 404 in 785ms
+ OPTIONS /api/notifications/unread-count 404 in 92ms
