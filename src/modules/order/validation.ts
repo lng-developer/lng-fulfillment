@@ -141,35 +141,59 @@ function validatePortalOrder(
     recipient.shippingAddress,
     recipient.Address,
   );
-  const recipientAddress =
-    recipientAddressObject ?? compactJsonObject({
-      line1: firstString(
-        recipient.line1,
-        recipient.street,
-        recipient.Street,
-        recipient.address1,
-        recipient.address,
-      ),
-      line2: firstString(
-        recipient.line2,
-        recipient.address2,
-        recipient.address_2,
-      ),
-      city: firstString(recipient.city, recipient.City),
-      state: firstString(recipient.state, recipient.State),
-      postalCode: firstString(
-        recipient.postalCode,
-        recipient.zip,
-        recipient.Zip,
-        recipient.post_code,
-        recipient.zip_code,
-      ),
-      country: firstString(
-        recipient.country,
-        recipient.countryCode,
-        recipient.CountryCode,
-      ),
-    });
+  const recipientAddress = compactJsonObject({
+    line1: firstString(
+      recipientAddressObject?.line1,
+      recipientAddressObject?.address,
+      recipientAddressObject?.street,
+      recipientAddressObject?.address1,
+      recipient.line1,
+      recipient.street,
+      recipient.Street,
+      recipient.address1,
+      recipient.address,
+    ),
+    line2: firstString(
+      recipientAddressObject?.line2,
+      recipientAddressObject?.address2,
+      recipientAddressObject?.address_2,
+      recipient.line2,
+      recipient.address2,
+      recipient.address_2,
+    ),
+    city: firstString(
+      recipientAddressObject?.city,
+      recipientAddressObject?.City,
+      recipient.city,
+      recipient.City,
+    ),
+    state: firstString(
+      recipientAddressObject?.state,
+      recipientAddressObject?.State,
+      recipient.state,
+      recipient.State,
+    ),
+    postalCode: firstString(
+      recipientAddressObject?.postalCode,
+      recipientAddressObject?.zip,
+      recipientAddressObject?.Zip,
+      recipientAddressObject?.post_code,
+      recipientAddressObject?.zip_code,
+      recipient.postalCode,
+      recipient.zip,
+      recipient.Zip,
+      recipient.post_code,
+      recipient.zip_code,
+    ),
+    country: firstString(
+      recipientAddressObject?.country,
+      recipientAddressObject?.countryCode,
+      recipientAddressObject?.CountryCode,
+      recipient.country,
+      recipient.countryCode,
+      recipient.CountryCode,
+    ),
+  });
   const destinationCountry = firstString(
     recipient.country,
     recipient.countryCode,

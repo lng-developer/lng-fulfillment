@@ -871,8 +871,14 @@ function getRecipientAddress(value: unknown): RecipientAddress | null {
   const record = value as Record<string, unknown>;
 
   return {
-    line1: readString(record.line1) ?? readString(record.address),
-    line2: readString(record.line2) ?? readString(record.address2),
+    line1:
+      readString(record.line1) ??
+      readString(record.address) ??
+      readString(record.address1),
+    line2:
+      readString(record.line2) ??
+      readString(record.address2) ??
+      readString(record.address_2),
     city: readString(record.city),
     state: readString(record.state),
     postalCode: readString(record.postalCode) ?? readString(record.zip),
