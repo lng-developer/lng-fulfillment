@@ -48,7 +48,10 @@ export function mapCreateShipmentToYunExpressPayload(
       FirstName: receiverName.firstName,
       LastName: receiverName.lastName,
       Company: sanitizeReceiverText(metadataString(input.metadata, "receiverCompany", "")),
-      Street: sanitizeReceiverText(input.recipient?.line1),
+      Street: combineReceiverStreet(
+        input.recipient?.line1,
+        input.recipient?.line2,
+      ),
       City: sanitizeReceiverText(input.recipient?.city),
       State: sanitizeReceiverText(input.recipient?.state),
       Zip: sanitizeReceiverText(input.recipient?.postalCode),
@@ -143,6 +146,17 @@ function sanitizeReceiverText(value: string | undefined) {
     .trim();
 
   return normalized || undefined;
+}
+
+function combineReceiverStreet(
+  line1: string | undefined,
+  line2: string | undefined,
+) {
+  const lines = [line1, line2]
+    .map(sanitizeReceiverText)
+    .filter((line): line is string => Boolean(line));
+
+  return [...new Set(lines)].join(", ") || undefined;
 }
 
 function normalizeReceiverPhone(phone: string | undefined) {
