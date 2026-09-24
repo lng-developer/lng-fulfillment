@@ -943,6 +943,8 @@ export async function updateShipmentTrackingSyncResult(input: {
   status: ShipmentStatus;
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
+  actualShipAt?: Date;
+  actualShipEvidence?: Prisma.InputJsonValue;
   statusChanged: boolean;
   statusNote?: string;
   actorType: AuditActorType;
@@ -962,6 +964,12 @@ export async function updateShipmentTrackingSyncResult(input: {
       ...(input.carrierShipmentId === undefined
         ? {}
         : { carrierShipmentId: input.carrierShipmentId }),
+      ...(input.actualShipAt === undefined
+        ? {}
+        : {
+            actualShipAt: input.actualShipAt,
+            actualShipEvidence: input.actualShipEvidence,
+          }),
       ...(input.statusChanged
         ? {
             statusHistory: {
@@ -991,6 +999,8 @@ const shipmentDetailSelect = {
   carrierAccountId: true,
   carrierShipmentId: true,
   trackingNumber: true,
+  actualShipAt: true,
+  actualShipEvidence: true,
   labelUrl: true,
   createdAt: true,
   updatedAt: true,
@@ -1058,6 +1068,8 @@ function toShipmentDetail(row: {
   carrierAccountId: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
+  actualShipAt: Date | null;
+  actualShipEvidence: Prisma.JsonValue | null;
   labelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -1101,6 +1113,8 @@ function toShipmentDetail(row: {
     carrierAccountId: row.carrierAccountId,
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,
+    actualShipAt: row.actualShipAt,
+    actualShipEvidence: row.actualShipEvidence,
     labelUrl: row.labelUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

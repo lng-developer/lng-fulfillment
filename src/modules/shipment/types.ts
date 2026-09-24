@@ -1,6 +1,7 @@
 import type {
   AuditActorType,
   OrderSourceChannel,
+  Prisma,
   ShipmentStatus,
 } from "@prisma/client";
 import type {
@@ -75,6 +76,8 @@ export type ShipmentDetail = {
   carrierAccountId: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
+  actualShipAt: Date | null;
+  actualShipEvidence: Prisma.JsonValue | null;
   labelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -281,6 +284,7 @@ export type ShipmentTrackingSyncResult = {
     carrierCode: string | null;
     carrierShipmentId: string | null;
     trackingNumber: string | null;
+    actualShipAt: Date | null;
     updatedAt: Date;
   };
   tracking: {

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { recordUserAuditLog } from "@/modules/audit";
 import {
+  deriveActualShipEvent,
   getCarrierAdapter,
   hasCarrierAdapter,
   isKnownCarrierCode,
@@ -1002,6 +1003,9 @@ export async function syncShipmentTracking(
       !shipment.carrierShipmentId && tracking.carrierShipmentId
         ? tracking.carrierShipmentId
         : undefined;
+    const actualShipEvent = shipment.actualShipAt
+      ? null
+      : deriveActualShipEvent(tracking.events);
 
     const updatedShipment = await updateShipmentTrackingSyncResult({
       tenantId,
@@ -1009,6 +1013,13 @@ export async function syncShipmentTracking(
       status: statusDecision.nextStatus,
       trackingNumber: nextTrackingNumber,
       carrierShipmentId: nextCarrierShipmentId,
+      actualShipAt: actualShipEvent?.eventTime,
+      actualShipEvidence: actualShipEvent
+        ? {
+            ...actualShipEvent,
+            eventTime: actualShipEvent.eventTime.toISOString(),
+          }
+        : undefined,
       statusChanged: statusDecision.nextStatus !== shipment.status,
       statusNote: statusDecision.note,
       actorType: actor.actorType,
@@ -1232,6 +1243,7 @@ function buildShipmentTrackingSyncResult(
       carrierCode: shipment.carrierCode,
       carrierShipmentId: shipment.carrierShipmentId,
       trackingNumber: shipment.trackingNumber,
+      actualShipAt: shipment.actualShipAt,
       updatedAt: shipment.updatedAt,
     },
     tracking: {

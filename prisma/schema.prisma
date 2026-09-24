@@ -380,6 +380,8 @@ model Shipment {
   carrierAccountId  String?
   carrierShipmentId String?
   trackingNumber    String?
+  actualShipAt      DateTime?
+  actualShipEvidence Json?
   status            ShipmentStatus          @default(DRAFT)
   labelUrl          String?
   metadata          Json?
