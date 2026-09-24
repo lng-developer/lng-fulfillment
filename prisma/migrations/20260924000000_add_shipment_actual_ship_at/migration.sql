@@ -1,3 +1,3 @@
 ALTER TABLE "Shipment"
-ADD COLUMN "actualShipAt" TIMESTAMP(3),
-ADD COLUMN "actualShipEvidence" JSONB;
+ADD COLUMN IF NOT EXISTS "actualShipAt" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "actualShipEvidence" JSONB;
