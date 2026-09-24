@@ -1,7 +1,11 @@
 "use client";
 
-import { Inbox, Search } from "lucide-react";
+import { Inbox, Loader2, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  getTrackingSyncStatus,
+  type TrackingSyncBatchUiResult,
+} from "./tracking-sync-status";
 import { CopyButton } from "@/components/ui/CopyButton";
 import {
   DataTable,
@@ -58,6 +62,8 @@ export function ShipmentsTable({
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+  const [lastBatchResult, setLastBatchResult] =
+    useState<TrackingSyncBatchUiResult | null>(null);
   const [sort, setSort] = useState<DataTableSort>({
     key: "createdAt",
     direction: "desc",
@@ -248,6 +254,7 @@ export function ShipmentsTable({
       toastSuccess(
         `Tracking batch: ${result.synced} synced, ${result.noActualShipEvent} no carrier event, ${result.failed} failed.`,
       );
+      setLastBatchResult({ ...result, completedAt: new Date().toISOString() });
       setReloadKey((value) => value + 1);
     } catch (batchError) {
       toastError(getErrorMessage(batchError));
@@ -255,6 +262,11 @@ export function ShipmentsTable({
       setIsBatchSyncing(false);
     }
   }
+
+  const batchStatus = getTrackingSyncStatus({
+    isSyncing: isBatchSyncing,
+    result: lastBatchResult,
+  });
 
   return (
     <div className="grid gap-4">
@@ -313,6 +325,39 @@ export function ShipmentsTable({
         </div>
       </div>
 
+      {batchStatus?.state === "syncing" ? (
+        <section
+          aria-live="polite"
+          className="flex items-center gap-3 rounded-sm border border-[var(--brand-mid)] bg-[var(--brand-soft)] px-4 py-3 text-sm text-[var(--text-primary)]"
+        >
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--brand)]" aria-hidden />
+          <div>
+            <p className="font-medium">{batchStatus.title}</p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Carrier được kiểm tra tuần tự. Kết quả sẽ hiển thị ngay khi batch hoàn tất.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {batchStatus?.state === "completed" && lastBatchResult ? (
+        <section className="rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-[var(--text-primary)]">{batchStatus.title}</p>
+            <time className="text-xs text-[var(--text-muted)]" dateTime={lastBatchResult.completedAt}>
+              {formatDate(lastBatchResult.completedAt)}
+            </time>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <BatchMetric label="Đã kiểm tra" value={lastBatchResult.attempted} />
+            <BatchMetric label="Có evidence" value={lastBatchResult.synced} />
+            <BatchMetric label="Chưa có pickup" value={lastBatchResult.noActualShipEvent} />
+            <BatchMetric label="Lỗi" value={lastBatchResult.failed} />
+          </div>
+          <p className="mt-3 text-xs text-[var(--text-secondary)]">Chỉ đồng bộ đơn Amazon; chưa gửi tracking lên Seller Central.</p>
+        </section>
+      ) : null}
+
       {isLoading ? <LoadingSkeleton rows={10} /> : null}
 
       {!isLoading && error ? (
@@ -341,6 +386,15 @@ export function ShipmentsTable({
           sort={sort}
         />
       ) : null}
+    </div>
+  );
+}
+
+function BatchMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-sm bg-[var(--bg-muted)] px-3 py-2">
+      <p className="text-[var(--text-muted)]">{label}</p>
+      <p className="mt-1 font-semibold text-[var(--text-primary)]">{value}</p>
     </div>
   );
 }
