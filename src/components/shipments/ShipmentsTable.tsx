@@ -293,7 +293,7 @@ export function ShipmentsTable({
               onClick={handleBatchSync}
               type="button"
             >
-              {isBatchSyncing ? "Syncing 20..." : "Sync 20"}
+              {isBatchSyncing ? "Syncing Amazon 20..." : "Sync Amazon 20 (14d)"}
             </button>
           ) : null}
           <select

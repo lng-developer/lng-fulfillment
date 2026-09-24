@@ -13,7 +13,7 @@ export function getTrackingSyncStatus(input: {
   if (input.isSyncing) {
     return {
       state: "syncing" as const,
-      title: "Đang đồng bộ tối đa 20 đơn Amazon",
+      title: "Đang đồng bộ tối đa 20 đơn Amazon trong 14 ngày gần nhất",
     };
   }
 

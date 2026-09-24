@@ -4,7 +4,7 @@ import { getTrackingSyncStatus } from "@/components/shipments/tracking-sync-stat
 
 assert.deepEqual(getTrackingSyncStatus({ isSyncing: true, result: null }), {
   state: "syncing",
-  title: "Đang đồng bộ tối đa 20 đơn Amazon",
+  title: "Đang đồng bộ tối đa 20 đơn Amazon trong 14 ngày gần nhất",
 });
 
 assert.deepEqual(
