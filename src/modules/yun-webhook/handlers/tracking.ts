@@ -1,4 +1,7 @@
-import type { CarrierNormalizedTrackingStatus } from "@/modules/carrier";
+import {
+  deriveActualShipEvent,
+  type CarrierNormalizedTrackingStatus,
+} from "@/modules/carrier";
 import {
   applyYunWebhookTrackingUpdate,
   resolveYunWebhookShipment,
@@ -8,7 +11,11 @@ import type {
   YunWebhookDispatchContext,
   YunWebhookDispatchResult,
 } from "../types";
-import { readString, asRecord } from "../extractor";
+import {
+  readString,
+  asRecord,
+  extractYunWebhookTrackingEvent,
+} from "../extractor";
 
 export async function handleYunTrackingWebhook(
   context: YunWebhookDispatchContext,
@@ -23,11 +30,23 @@ export async function handleYunTrackingWebhook(
     };
   }
 
+  const carrierStatus = readCarrierStatus(context.payload);
+  const webhookTrackingEvent = extractYunWebhookTrackingEvent(
+    context.payload,
+    carrierStatus ?? "UNKNOWN",
+  );
+  const actualShipEvent = webhookTrackingEvent
+    ? deriveActualShipEvent([webhookTrackingEvent])
+    : null;
   const result = await applyYunWebhookTrackingUpdate({
     shipment,
-    carrierStatus: readCarrierStatus(context.payload),
+    carrierStatus,
     trackingNumber: context.meta.trackingNumber,
     carrierShipmentId: context.meta.waybillNumber,
+    actualShipAt: actualShipEvent?.eventTime,
+    actualShipEvidence: actualShipEvent
+      ? { ...actualShipEvent, eventTime: actualShipEvent.eventTime.toISOString() }
+      : undefined,
   });
 
   return {
@@ -35,6 +54,7 @@ export async function handleYunTrackingWebhook(
     shipment: result.shipment,
     safeMetadata: {
       trackingNumberPresent: Boolean(result.shipment.trackingNumber),
+      actualShipAtPresent: Boolean(result.shipment.actualShipAt),
       portalTrackingAttempted: result.portalTrackingSync?.attempted ?? false,
     },
   };

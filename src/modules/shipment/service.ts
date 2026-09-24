@@ -1149,6 +1149,8 @@ export async function applyYunWebhookTrackingUpdate(input: {
   carrierStatus: CarrierNormalizedTrackingStatus | null;
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
+  actualShipAt?: Date;
+  actualShipEvidence?: Prisma.InputJsonValue;
 }) {
   const nextTrackingNumber =
     !input.shipment.trackingNumber && input.trackingNumber
@@ -1162,6 +1164,7 @@ export async function applyYunWebhookTrackingUpdate(input: {
     input.shipment.status,
     input.carrierStatus,
   );
+  const actualShipAt = input.shipment.actualShipAt ? undefined : input.actualShipAt;
 
   const updatedShipment = await updateShipmentTrackingSyncResult({
     tenantId: input.shipment.tenantId,
@@ -1169,6 +1172,8 @@ export async function applyYunWebhookTrackingUpdate(input: {
     status: statusDecision.nextStatus,
     trackingNumber: nextTrackingNumber,
     carrierShipmentId: nextCarrierShipmentId,
+    actualShipAt,
+    actualShipEvidence: actualShipAt ? input.actualShipEvidence : undefined,
     statusChanged: statusDecision.nextStatus !== input.shipment.status,
     statusNote: statusDecision.note,
     actorType: "SYSTEM",
@@ -1176,12 +1181,17 @@ export async function applyYunWebhookTrackingUpdate(input: {
   });
 
   let portalTrackingSync = null;
-  if (!input.shipment.trackingNumber && updatedShipment.trackingNumber) {
+  if (
+    (!input.shipment.trackingNumber && updatedShipment.trackingNumber) ||
+    actualShipAt
+  ) {
     portalTrackingSync = await sendPortalTrackingUpdate({
       orderId: input.shipment.externalOrderId,
       tracking: updatedShipment.trackingNumber,
       fulfillment: "LNG Group",
       sourceChannel: input.shipment.sourceChannel,
+      actualShipAt: updatedShipment.actualShipAt,
+      shipEvidence: toPortalShipEvidence(updatedShipment.actualShipEvidence),
     });
   }
 

@@ -15,6 +15,7 @@ import {
 } from "@/modules/yun-webhook/debug";
 import {
   classifyYunWebhookEvent,
+  extractYunWebhookTrackingEvent,
   extractYunWebhookMeta,
 } from "@/modules/yun-webhook/extractor";
 
@@ -75,6 +76,47 @@ assert.deepEqual(meta, {
   type: null,
 });
 assert.equal(classifyYunWebhookEvent(decryptedPayload, meta), "TRACKING");
+
+assert.deepEqual(
+  extractYunWebhookMeta({
+    data: {
+      waybill_number: "YT-NESTED",
+      tracking_number: "TRK-NESTED",
+      customer_order_number: "ORDER-NESTED",
+    },
+  }),
+  {
+    eventId: null,
+    eventType: null,
+    dataCode: null,
+    waybillNumber: "YT-NESTED",
+    trackingNumber: "TRK-NESTED",
+    customerOrderNumber: "ORDER-NESTED",
+    type: null,
+  },
+);
+
+assert.deepEqual(
+  extractYunWebhookTrackingEvent(
+    {
+      TrackingStatus: 3,
+      TrackNodeCode: "PICKUP",
+      ProcessDate: "2026-09-24T08:50:43.409Z",
+      ProcessTimezone: "UTC",
+      ProcessContent: "Picked up by shipping partner",
+      ProcessLocation: "Los Angeles, CA",
+    },
+    "IN_TRANSIT",
+  ),
+  {
+    eventCode: "PICKUP",
+    eventStatus: "IN_TRANSIT",
+    eventTime: new Date("2026-09-24T08:50:43.409Z"),
+    timezone: "UTC",
+    message: "Picked up by shipping partner",
+    location: "Los Angeles, CA",
+  },
+);
 
 const feeMeta = extractYunWebhookMeta({
   dataCode: "FEE_DETAIL_PUSH",
