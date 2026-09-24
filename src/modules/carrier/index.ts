@@ -15,6 +15,8 @@ export {
   registerCarrierAdapter,
 } from "./registry";
 export { preflightCarrierShipmentCreation } from "./preflight";
+export { deriveActualShipEvent } from "./actual-ship-date";
+export type { ActualShipEvent } from "./actual-ship-date";
 export {
   createCarrierAccount,
   disableCarrierCredential,
