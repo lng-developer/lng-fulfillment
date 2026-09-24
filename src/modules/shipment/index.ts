@@ -12,6 +12,7 @@ export {
   resolveYunWebhookShipment,
   shipOrderWithYun,
   shipOrdersBatchWithYun,
+  syncTrackingBatch,
   syncShipmentTracking,
 } from "./service";
 export {

@@ -19,6 +19,7 @@ export function ShipmentsPageContent({ role: roleProp }: { role?: Role }) {
       <ShipmentsTable
         onShipmentSelect={setSelectedShipmentId}
         reloadKey={listReloadKey}
+        role={role}
       />
       <ShipmentDetailPanel
         onChanged={() => setListReloadKey((value) => value + 1)}

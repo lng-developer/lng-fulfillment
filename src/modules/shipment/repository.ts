@@ -768,6 +768,27 @@ export async function countShipments(
   });
 }
 
+export async function listTrackingSyncCandidates(
+  tenantId: string,
+  limit: number,
+) {
+  return prisma.shipment.findMany({
+    where: {
+      tenantId,
+      actualShipAt: null,
+      carrierCode: { not: null },
+      status: { notIn: ["CANCELLED", "RETURNED"] },
+      OR: [
+        { carrierShipmentId: { not: null } },
+        { trackingNumber: { not: null } },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: { id: true },
+  });
+}
+
 export async function getShipmentDetail(
   tenantId: string,
   shipmentId: string,

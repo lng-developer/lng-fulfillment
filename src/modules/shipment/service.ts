@@ -34,6 +34,7 @@ import {
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   findYunWebhookShipment,
+  listTrackingSyncCandidates,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
   updateOrderWorkflowStatus,
@@ -67,6 +68,10 @@ import type {
   ShipOrdersBatchInput,
   ShipOrdersBatchResult,
 } from "./types";
+import {
+  TRACKING_SYNC_BATCH_LIMIT,
+  classifyTrackingSyncBatchResult,
+} from "./tracking-sync-batch";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
 const DIRECT_SHIP_ORDER_STATUSES = ["FULFILLED", "READY_TO_SHIP"] as const;
@@ -1088,6 +1093,47 @@ export async function syncShipmentTracking(
 
     throw appError;
   }
+}
+
+export async function syncTrackingBatch(
+  tenantId: string,
+  actor: ShipmentActor,
+) {
+  const candidates = await listTrackingSyncCandidates(
+    tenantId,
+    TRACKING_SYNC_BATCH_LIMIT,
+  );
+  const results: Array<{
+    shipmentId: string;
+    outcome: "synced" | "no_actual_ship_event" | "failed";
+    errorCode?: string;
+  }> = [];
+
+  for (const candidate of candidates) {
+    try {
+      const result = await syncShipmentTracking(tenantId, candidate.id, actor);
+      results.push({
+        shipmentId: candidate.id,
+        outcome: classifyTrackingSyncBatchResult(result.shipment),
+      });
+    } catch (error) {
+      results.push({
+        shipmentId: candidate.id,
+        outcome: "failed",
+        errorCode: error instanceof AppError ? error.code : "CARRIER_ERROR",
+      });
+    }
+  }
+
+  return {
+    attempted: candidates.length,
+    synced: results.filter((result) => result.outcome === "synced").length,
+    noActualShipEvent: results.filter(
+      (result) => result.outcome === "no_actual_ship_event",
+    ).length,
+    failed: results.filter((result) => result.outcome === "failed").length,
+    results,
+  };
 }
 
 export async function resolveYunWebhookShipment(input: {

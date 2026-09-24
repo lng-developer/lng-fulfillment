@@ -164,6 +164,22 @@ export async function syncTracking(shipmentId: string) {
   return response.data;
 }
 
+export type TrackingSyncBatchResult = {
+  attempted: number;
+  synced: number;
+  noActualShipEvent: number;
+  failed: number;
+};
+
+export async function syncTrackingBatch() {
+  const response = await apiFetch<ApiSuccess<TrackingSyncBatchResult>>(
+    "/api/shipments/tracking/batch",
+    { method: "POST" },
+  );
+
+  return response.data;
+}
+
 export async function syncShipmentTracking(shipmentId: string) {
   const result = await syncTracking(shipmentId);
   return { success: true as const, data: result };

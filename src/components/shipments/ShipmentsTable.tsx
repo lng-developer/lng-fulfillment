@@ -13,7 +13,9 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { getShipments } from "@/lib/api/shipments";
+import { getShipments, syncTrackingBatch } from "@/lib/api/shipments";
+import { can, type Role } from "@/lib/rbac";
+import { toastError, toastSuccess } from "@/lib/toast";
 import type { ShipmentListItem } from "@/types/shipments";
 
 const SHIPMENT_STATUSES = [
@@ -32,9 +34,11 @@ const SHIPMENT_STATUSES = [
 
 export function ShipmentsTable({
   onShipmentSelect,
+  role,
   reloadKey: externalReloadKey = 0,
 }: {
   onShipmentSelect: (shipmentId: string) => void;
+  role: Role;
   reloadKey?: number;
 }) {
   const [shipments, setShipments] = useState<ShipmentListItem[]>([]);
@@ -53,6 +57,7 @@ export function ShipmentsTable({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [sort, setSort] = useState<DataTableSort>({
     key: "createdAt",
     direction: "desc",
@@ -236,6 +241,21 @@ export function ShipmentsTable({
     [],
   );
 
+  async function handleBatchSync() {
+    setIsBatchSyncing(true);
+    try {
+      const result = await syncTrackingBatch();
+      toastSuccess(
+        `Tracking batch: ${result.synced} synced, ${result.noActualShipEvent} no carrier event, ${result.failed} failed.`,
+      );
+      setReloadKey((value) => value + 1);
+    } catch (batchError) {
+      toastError(getErrorMessage(batchError));
+    } finally {
+      setIsBatchSyncing(false);
+    }
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -254,6 +274,16 @@ export function ShipmentsTable({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {can.syncTracking(role) ? (
+            <button
+              className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isBatchSyncing}
+              onClick={handleBatchSync}
+              type="button"
+            >
+              {isBatchSyncing ? "Syncing 20..." : "Sync 20"}
+            </button>
+          ) : null}
           <select
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
             onChange={(event) => {
