@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   TRACKING_SYNC_BATCH_LIMIT,
+  amazonTrackingSyncOrderFilter,
   classifyTrackingSyncBatchResult,
 } from "@/modules/shipment/tracking-sync-batch";
 
@@ -11,5 +12,6 @@ assert.equal(
   "synced",
 );
 assert.equal(classifyTrackingSyncBatchResult({ actualShipAt: null }), "no_actual_ship_event");
+assert.deepEqual(amazonTrackingSyncOrderFilter(), { sourceChannel: "AMAZON" });
 
 console.log("tracking sync batch policy: ok");

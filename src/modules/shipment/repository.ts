@@ -6,6 +6,7 @@ import type {
   ShipmentStatus,
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import { amazonTrackingSyncOrderFilter } from "./tracking-sync-batch";
 import type {
   CreateDraftShipmentInput,
   ShipmentDetail,
@@ -778,6 +779,7 @@ export async function listTrackingSyncCandidates(
       actualShipAt: null,
       carrierCode: { not: null },
       status: { not: "CANCELLED" },
+      order: amazonTrackingSyncOrderFilter(),
       OR: [
         { carrierShipmentId: { not: null } },
         { trackingNumber: { not: null } },
