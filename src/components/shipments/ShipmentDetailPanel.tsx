@@ -19,6 +19,7 @@ import {
   getShipment,
   syncTracking as syncTrackingRequest,
 } from "@/lib/api/shipments";
+import { canSyncShipmentTracking } from "@/lib/shipment/tracking-sync-policy";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { PreflightResult, ShipmentDetail } from "@/types/shipments";
@@ -130,9 +131,7 @@ export function ShipmentDetailPanel({
   );
   const canSyncTracking =
     shipment &&
-    can.syncTracking(role) &&
-    shipment.status === "CREATED" &&
-    hasTrackingLookup;
+    canSyncShipmentTracking(role, hasTrackingLookup);
 
   async function syncTracking() {
     if (!shipment || !canSyncTracking) {
@@ -309,11 +308,6 @@ export function ShipmentDetailPanel({
                   {!hasTrackingLookup ? (
                     <p className="text-[10px] text-[var(--text-muted)]">
                       Tracking sync requires a waybill, tracking number, or customer order number.
-                    </p>
-                  ) : null}
-                  {hasTrackingLookup && shipment.status !== "CREATED" ? (
-                    <p className="text-[10px] text-[var(--text-muted)]">
-                      Tracking sync is available after the shipment is created.
                     </p>
                   ) : null}
                   <button
