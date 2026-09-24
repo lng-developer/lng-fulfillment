@@ -777,7 +777,7 @@ export async function listTrackingSyncCandidates(
       tenantId,
       actualShipAt: null,
       carrierCode: { not: null },
-      status: { notIn: ["CANCELLED", "RETURNED"] },
+      status: { not: "CANCELLED" },
       OR: [
         { carrierShipmentId: { not: null } },
         { trackingNumber: { not: null } },
