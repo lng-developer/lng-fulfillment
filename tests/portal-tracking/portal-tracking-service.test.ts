@@ -31,6 +31,8 @@ async function main() {
     const result = await sendPortalTrackingUpdate({
       orderId: "112-4001151-4732212",
       tracking: "YT2605600704990185",
+      carrier: "USPS",
+      fulfillment: "LNG Group",
       sourceChannel: "AMAZON",
     });
 
@@ -43,6 +45,8 @@ async function main() {
       JSON.stringify({
         orderId: "112-4001151-4732212",
         tracking: "YT2605600704990185",
+        carrier: "USPS",
+        fulfillment: "LNG Group",
       }),
     );
   });

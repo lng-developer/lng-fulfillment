@@ -6,6 +6,8 @@ const DEFAULT_PORTAL_ETSY_TRACKING_BASE_URL = "https://api.lngmerch.co";
 export type PortalTrackingUpdateInput = {
   orderId: string | null | undefined;
   tracking: string | null | undefined;
+  carrier?: string | null | undefined;
+  fulfillment?: string | null | undefined;
   sourceChannel?: string | null | undefined;
 };
 
@@ -33,12 +35,19 @@ export async function sendPortalTrackingUpdate(
     return sendPortalEtsyTrackingUpdate({ orderId, tracking });
   }
 
-  return sendPortalAmazonTrackingUpdate({ orderId, tracking });
+  return sendPortalAmazonTrackingUpdate({
+    orderId,
+    tracking,
+    carrier: normalizeOptionalField(input.carrier),
+    fulfillment: normalizeOptionalField(input.fulfillment),
+  });
 }
 
 async function sendPortalAmazonTrackingUpdate(input: {
   orderId: string;
   tracking: string;
+  carrier?: string;
+  fulfillment?: string;
 }): Promise<PortalTrackingUpdateResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -58,7 +67,12 @@ async function sendPortalAmazonTrackingUpdate(input: {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        orderId: input.orderId,
+        tracking: input.tracking,
+        ...(input.carrier ? { carrier: input.carrier } : {}),
+        ...(input.fulfillment ? { fulfillment: input.fulfillment } : {}),
+      }),
       signal: controller.signal,
     });
     const responseBody = await readSafeResponseBody(response);
@@ -81,6 +95,11 @@ async function sendPortalAmazonTrackingUpdate(input: {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function normalizeOptionalField(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }
 
 async function sendPortalEtsyTrackingUpdate(input: {

@@ -337,6 +337,7 @@ export async function shipOrderWithYun(
   const portalTrackingSync = await sendPortalTrackingUpdate({
     orderId: order.externalOrderId,
     tracking: shipment.trackingNumber,
+    fulfillment: "LNG Group",
     sourceChannel: order.sourceChannel,
   });
   timing("portalTrackingSyncCompleted", {
@@ -1014,10 +1015,17 @@ export async function syncShipmentTracking(
       actorId: actor.actorId,
     });
 
-    if (!shipment.trackingNumber && updatedShipment.trackingNumber) {
+    // Re-send when the carrier lookup resolves a name so legacy orders that
+    // already received their tracking can backfill the missing carrier.
+    if (
+      updatedShipment.trackingNumber &&
+      (!shipment.trackingNumber || tracking.provider?.carrierName)
+    ) {
       const portalTrackingSync = await sendPortalTrackingUpdate({
         orderId: shipment.externalOrderId,
         tracking: updatedShipment.trackingNumber,
+        carrier: tracking.provider?.carrierName,
+        fulfillment: "LNG Group",
         sourceChannel: shipment.sourceChannel,
       });
       logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
@@ -1113,6 +1121,7 @@ export async function applyYunWebhookTrackingUpdate(input: {
     portalTrackingSync = await sendPortalTrackingUpdate({
       orderId: input.shipment.externalOrderId,
       tracking: updatedShipment.trackingNumber,
+      fulfillment: "LNG Group",
       sourceChannel: input.shipment.sourceChannel,
     });
   }
