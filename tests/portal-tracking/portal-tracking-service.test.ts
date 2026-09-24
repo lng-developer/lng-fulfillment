@@ -34,6 +34,11 @@ async function main() {
       carrier: "USPS",
       fulfillment: "LNG Group",
       sourceChannel: "AMAZON",
+      actualShipAt: new Date("2026-09-19T01:20:23.000Z"),
+      shipEvidence: {
+        source: "carrier_event",
+        message: "Picked up by Shipping Partner",
+      },
     });
 
     assert.deepEqual(result, { attempted: true, delivered: true });
@@ -47,6 +52,11 @@ async function main() {
         tracking: "YT2605600704990185",
         carrier: "USPS",
         fulfillment: "LNG Group",
+        actualShipAt: "2026-09-19T01:20:23.000Z",
+        shipEvidence: {
+          source: "carrier_event",
+          message: "Picked up by Shipping Partner",
+        },
       }),
     );
   });

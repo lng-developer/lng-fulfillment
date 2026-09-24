@@ -9,6 +9,8 @@ export type PortalTrackingUpdateInput = {
   carrier?: string | null | undefined;
   fulfillment?: string | null | undefined;
   sourceChannel?: string | null | undefined;
+  actualShipAt?: Date | null | undefined;
+  shipEvidence?: Record<string, unknown> | null | undefined;
 };
 
 export type PortalTrackingUpdateResult =
@@ -40,6 +42,8 @@ export async function sendPortalTrackingUpdate(
     tracking,
     carrier: normalizeOptionalField(input.carrier),
     fulfillment: normalizeOptionalField(input.fulfillment),
+    actualShipAt: input.actualShipAt ?? undefined,
+    shipEvidence: input.shipEvidence ?? undefined,
   });
 }
 
@@ -48,6 +52,8 @@ async function sendPortalAmazonTrackingUpdate(input: {
   tracking: string;
   carrier?: string;
   fulfillment?: string;
+  actualShipAt?: Date;
+  shipEvidence?: Record<string, unknown>;
 }): Promise<PortalTrackingUpdateResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -72,6 +78,8 @@ async function sendPortalAmazonTrackingUpdate(input: {
         tracking: input.tracking,
         ...(input.carrier ? { carrier: input.carrier } : {}),
         ...(input.fulfillment ? { fulfillment: input.fulfillment } : {}),
+        ...(input.actualShipAt ? { actualShipAt: input.actualShipAt.toISOString() } : {}),
+        ...(input.shipEvidence ? { shipEvidence: input.shipEvidence } : {}),
       }),
       signal: controller.signal,
     });

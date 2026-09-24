@@ -1038,6 +1038,8 @@ export async function syncShipmentTracking(
         carrier: tracking.provider?.carrierName,
         fulfillment: "LNG Group",
         sourceChannel: shipment.sourceChannel,
+        actualShipAt: updatedShipment.actualShipAt,
+        shipEvidence: toPortalShipEvidence(updatedShipment.actualShipEvidence),
       });
       logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
     }
@@ -1258,6 +1260,12 @@ function buildShipmentTrackingSyncResult(
       eventsCount: tracking.events.length,
     },
   };
+}
+
+function toPortalShipEvidence(value: ShipmentDetail["actualShipEvidence"]) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : undefined;
 }
 
 function assertOrderCanBeCancelled(orderState: {
