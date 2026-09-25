@@ -45,6 +45,8 @@ export type ShipmentListItem = {
   carrierCode: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
+  actualShipAt: string | null;
+  portalTrackingSyncState: "SYNCED" | "FAILED" | null;
   labelUrl: string | null;
   createdAt: string;
   updatedAt: string;

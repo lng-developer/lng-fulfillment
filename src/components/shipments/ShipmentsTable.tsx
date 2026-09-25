@@ -229,6 +229,39 @@ export function ShipmentsTable({
           ),
       },
       {
+        key: "actualShipAt",
+        header: "Carrier nhận hàng",
+        className: "hidden w-[170px] lg:table-cell",
+        render: (shipment) =>
+          shipment.actualShipAt ? (
+            <time
+              className="text-xs text-[var(--text-secondary)]"
+              dateTime={shipment.actualShipAt}
+              title={formatDate(shipment.actualShipAt)}
+            >
+              {formatDate(shipment.actualShipAt)}
+            </time>
+          ) : (
+            <span className="text-xs text-[var(--text-muted)]">Chờ event</span>
+          ),
+      },
+      {
+        key: "portalTrackingSyncState",
+        header: "Đồng bộ Portal",
+        className: "hidden w-[145px] lg:table-cell",
+        render: (shipment) => {
+          if (shipment.portalTrackingSyncState === "SYNCED") {
+            return <span className="text-xs text-emerald-700">Đã sync</span>;
+          }
+
+          if (shipment.portalTrackingSyncState === "FAILED") {
+            return <span className="text-xs text-red-700">Lỗi sync</span>;
+          }
+
+          return <span className="text-xs text-[var(--text-muted)]">Chưa xác nhận</span>;
+        },
+      },
+      {
         key: "createdAt",
         header: "Created",
         className: "hidden w-[140px] md:table-cell",

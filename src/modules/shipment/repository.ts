@@ -10,6 +10,10 @@ import {
   amazonTrackingSyncOrderFilter,
   getTrackingSyncPurchaseAfter,
 } from "./tracking-sync-batch";
+import {
+  getPortalTrackingSyncState,
+  withPortalTrackingSyncState,
+} from "./portal-tracking-sync-state";
 import type {
   CreateDraftShipmentInput,
   ShipmentDetail,
@@ -730,6 +734,8 @@ export async function listShipments(
       carrierCode: true,
       carrierShipmentId: true,
       trackingNumber: true,
+      actualShipAt: true,
+      metadata: true,
       labelUrl: true,
       createdAt: true,
       updatedAt: true,
@@ -756,11 +762,35 @@ export async function listShipments(
     carrierCode: row.carrierCode,
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,
+    actualShipAt: row.actualShipAt,
+    portalTrackingSyncState: getPortalTrackingSyncState(row.metadata),
     labelUrl: row.labelUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     itemCount: row._count.items,
   }));
+}
+
+export async function savePortalTrackingSyncState(input: {
+  tenantId: string;
+  shipmentId: string;
+  result: { attempted: true; delivered: boolean; status?: number };
+}) {
+  const shipment = await prisma.shipment.findFirst({
+    where: { id: input.shipmentId, tenantId: input.tenantId },
+    select: { metadata: true },
+  });
+
+  if (!shipment) {
+    return;
+  }
+
+  await prisma.shipment.update({
+    where: { id: input.shipmentId },
+    data: {
+      metadata: withPortalTrackingSyncState(shipment.metadata, input.result),
+    },
+  });
 }
 
 export async function countShipments(
@@ -791,7 +821,7 @@ export async function listTrackingSyncCandidates(
         { trackingNumber: { not: null } },
       ],
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { updatedAt: "asc" },
     take: limit,
     select: { id: true },
   });

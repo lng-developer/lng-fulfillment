@@ -14,6 +14,7 @@ import type {
   ActualPackageInput,
   ShipmentCostSummary,
 } from "@/modules/shipment-cost/types";
+import type { PortalTrackingSyncState } from "./portal-tracking-sync-state";
 
 export const DEFAULT_SHIPMENT_PAGE = 1;
 export const DEFAULT_SHIPMENT_PAGE_SIZE = 20;
@@ -58,6 +59,8 @@ export type ShipmentListItem = {
   carrierCode: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
+  actualShipAt: Date | null;
+  portalTrackingSyncState: PortalTrackingSyncState | null;
   labelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;

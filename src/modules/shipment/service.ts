@@ -14,6 +14,7 @@ import {
   type CreateCarrierShipmentInput,
 } from "@/modules/carrier";
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
+import { shouldSendPortalTrackingUpdate } from "./portal-tracking-resync";
 import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
@@ -37,6 +38,7 @@ import {
   listTrackingSyncCandidates,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
+  savePortalTrackingSyncState,
   updateOrderWorkflowStatus,
   updateShipmentExecutionFailed,
   updateShipmentExecutionStarted,
@@ -346,6 +348,13 @@ export async function shipOrderWithYun(
     fulfillment: "LNG Group",
     sourceChannel: order.sourceChannel,
   });
+  if (portalTrackingSync.attempted) {
+    await savePortalTrackingSyncState({
+      tenantId,
+      shipmentId: shipment.id,
+      result: portalTrackingSync,
+    });
+  }
   timing("portalTrackingSyncCompleted", {
     attempted: portalTrackingSync.attempted,
     delivered:
@@ -1034,8 +1043,12 @@ export async function syncShipmentTracking(
     // Re-send when the carrier lookup resolves a name so legacy orders that
     // already received their tracking can backfill the missing carrier.
     if (
-      updatedShipment.trackingNumber &&
-      (!shipment.trackingNumber || tracking.provider?.carrierName)
+      shouldSendPortalTrackingUpdate({
+        trackingNumber: updatedShipment.trackingNumber,
+        hadTrackingNumber: Boolean(shipment.trackingNumber),
+        carrierName: tracking.provider?.carrierName,
+        actualShipAt: updatedShipment.actualShipAt,
+      })
     ) {
       const portalTrackingSync = await sendPortalTrackingUpdate({
         orderId: shipment.externalOrderId,
@@ -1046,6 +1059,13 @@ export async function syncShipmentTracking(
         actualShipAt: updatedShipment.actualShipAt,
         shipEvidence: toPortalShipEvidence(updatedShipment.actualShipEvidence),
       });
+      if (portalTrackingSync.attempted) {
+        await savePortalTrackingSyncState({
+          tenantId,
+          shipmentId,
+          result: portalTrackingSync,
+        });
+      }
       logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
     }
 
