@@ -1,8 +1,14 @@
+import { OrderSourceChannel } from "@prisma/client";
+
 export const TRACKING_SYNC_BATCH_LIMIT = 20;
 export const TRACKING_SYNC_LOOKBACK_DAYS = 14;
 
-export function amazonTrackingSyncOrderFilter() {
-  return { sourceChannel: "AMAZON" as const };
+export function trackingSyncOrderFilter() {
+  return {
+    sourceChannel: {
+      in: [OrderSourceChannel.AMAZON, OrderSourceChannel.ETSY],
+    },
+  };
 }
 
 export function getTrackingSyncPurchaseAfter(now = new Date()) {

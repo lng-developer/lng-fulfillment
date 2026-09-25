@@ -34,7 +34,11 @@ export async function sendPortalTrackingUpdate(
   }
 
   if (isEtsySourceChannel(input.sourceChannel)) {
-    return sendPortalEtsyTrackingUpdate({ orderId, tracking });
+    return sendPortalEtsyTrackingUpdate({
+      orderId,
+      tracking,
+      actualShipAt: input.actualShipAt ?? undefined,
+    });
   }
 
   return sendPortalAmazonTrackingUpdate({
@@ -113,6 +117,7 @@ function normalizeOptionalField(value: string | null | undefined) {
 async function sendPortalEtsyTrackingUpdate(input: {
   orderId: string;
   tracking: string;
+  actualShipAt?: Date;
 }): Promise<PortalTrackingUpdateResult> {
   const url = buildEtsyTrackingUrl(input.orderId);
   const controller = new AbortController();
@@ -131,7 +136,12 @@ async function sendPortalEtsyTrackingUpdate(input: {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ tracking: input.tracking }),
+      body: JSON.stringify({
+        tracking: input.tracking,
+        ...(input.actualShipAt
+          ? { actualShipAt: input.actualShipAt.toISOString() }
+          : {}),
+      }),
       signal: controller.signal,
     });
     const responseBody = await readSafeResponseBody(response);

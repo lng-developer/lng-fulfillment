@@ -69,6 +69,7 @@ async function main() {
       orderId: "ETSY-ORDER-1",
       tracking: "YT2605600704990185",
       sourceChannel: "ETSY",
+      actualShipAt: new Date("2026-09-19T01:20:23.000Z"),
     });
 
     assert.deepEqual(result, { attempted: true, delivered: true });
@@ -82,6 +83,7 @@ async function main() {
       calls[0]?.init?.body,
       JSON.stringify({
         tracking: "YT2605600704990185",
+        actualShipAt: "2026-09-19T01:20:23.000Z",
       }),
     );
   });

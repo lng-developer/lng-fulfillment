@@ -7,7 +7,7 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import {
-  amazonTrackingSyncOrderFilter,
+  trackingSyncOrderFilter,
   getTrackingSyncPurchaseAfter,
 } from "./tracking-sync-batch";
 import {
@@ -817,7 +817,7 @@ export async function listTrackingSyncCandidates(
       carrierCode: { not: null },
       status: { not: "CANCELLED" },
       order: {
-        ...amazonTrackingSyncOrderFilter(),
+        ...trackingSyncOrderFilter(),
         purchaseAt: { gte: getTrackingSyncPurchaseAfter() },
       },
       OR: [
