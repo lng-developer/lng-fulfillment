@@ -1,4 +1,4 @@
-import { ShipmentStatus } from "@prisma/client";
+import { OrderSourceChannel, ShipmentStatus } from "@prisma/client";
 import { AppError } from "@/shared/errors";
 import {
   DEFAULT_SHIPMENT_PAGE,
@@ -88,6 +88,7 @@ export function validateShipmentListQuery(
     ),
     pageSize: parsePageSize(searchParams.get("pageSize")),
     status: parseShipmentStatus(searchParams.get("status")),
+    sourceChannel: parseOrderSourceChannel(searchParams.get("sourceChannel")),
     orderId: optionalString(searchParams.get("orderId")),
     search: optionalString(searchParams.get("search")),
     sortBy: parseSortBy(searchParams.get("sortBy")),
@@ -445,6 +446,19 @@ function parseShipmentStatus(value: string | null) {
   }
 
   return status as ShipmentStatus;
+}
+
+function parseOrderSourceChannel(value: string | null) {
+  const sourceChannel = optionalString(value);
+  if (!sourceChannel) {
+    return undefined;
+  }
+
+  if (!Object.values(OrderSourceChannel).includes(sourceChannel as OrderSourceChannel)) {
+    throw new AppError("VALIDATION_ERROR", "sourceChannel is invalid.", 400);
+  }
+
+  return sourceChannel as OrderSourceChannel;
 }
 
 function parseSortBy(value: string | null) {

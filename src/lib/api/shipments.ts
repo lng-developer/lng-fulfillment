@@ -14,6 +14,7 @@ export type ShipmentListParams = {
   page?: number;
   pageSize?: number;
   status?: string;
+  sourceChannel?: "AMAZON" | "ETSY" | "MANUAL" | "UNKNOWN";
   orderId?: string;
   from?: string;
   to?: string;
@@ -45,6 +46,7 @@ export async function getShipments(
   });
 
   if (params.status) query.set("status", params.status);
+  if (params.sourceChannel) query.set("sourceChannel", params.sourceChannel);
   if (params.orderId) query.set("orderId", params.orderId);
   if (params.from) query.set("from", params.from);
   if (params.to) query.set("to", params.to);

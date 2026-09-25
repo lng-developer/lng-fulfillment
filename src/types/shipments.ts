@@ -41,8 +41,10 @@ export type ShipmentListItem = {
   orderId: string;
   orderNumber: string | null;
   externalOrderId: string;
+  sourceChannel: "AMAZON" | "ETSY" | "MANUAL" | "UNKNOWN" | null;
   status: ShipmentStatus;
   carrierCode: string | null;
+  carrierName: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   actualShipAt: string | null;

@@ -22,6 +22,9 @@ import type {
 
 type TransactionClient = Prisma.TransactionClient;
 
+// OrderExpandPanel renders only the newest related shipment.
+export const EXPANDED_ORDER_LIST_SHIPMENT_LIMIT = 1;
+
 const orderAutoShipmentJobSelect = {
   id: true,
   status: true,
@@ -349,7 +352,7 @@ export async function listOrderDetailPage(
     },
     skip: (query.page - 1) * query.pageSize,
     take: query.pageSize,
-    select: orderDetailSelect,
+    select: orderExpandedListSelect,
   });
 
   return rows.map(toOrderDetail);
@@ -450,6 +453,14 @@ const orderDetailSelect = {
   },
   autoShipmentJob: {
     select: orderAutoShipmentJobSelect,
+  },
+} satisfies Prisma.OrderSelect;
+
+const orderExpandedListSelect = {
+  ...orderDetailSelect,
+  shipments: {
+    ...orderDetailSelect.shipments,
+    take: EXPANDED_ORDER_LIST_SHIPMENT_LIMIT,
   },
 } satisfies Prisma.OrderSelect;
 

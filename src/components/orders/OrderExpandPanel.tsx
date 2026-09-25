@@ -56,7 +56,7 @@ export function OrderExpandPanel({
   const shipmentFailure = getLatestShipmentFailure(order);
 
   return (
-    <div className="bg-[var(--brand-light)] px-3 pb-3 pt-0 sm:pl-12 sm:pr-3.5">
+    <div className="[contain-intrinsic-size:auto_680px] [content-visibility:auto] bg-[var(--brand-light)] px-3 pb-3 pt-0 sm:pl-12 sm:pr-3.5">
       <div className="grid gap-3 pt-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <OrderSummaryCard order={order} />

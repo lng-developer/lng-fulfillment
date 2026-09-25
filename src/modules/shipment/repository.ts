@@ -14,6 +14,7 @@ import {
   getPortalTrackingSyncState,
   withPortalTrackingSyncState,
 } from "./portal-tracking-sync-state";
+import { getFinalMileCarrier, withFinalMileCarrier } from "./carrier-display";
 import type {
   CreateDraftShipmentInput,
   ShipmentDetail,
@@ -743,6 +744,7 @@ export async function listShipments(
         select: {
           orderNumber: true,
           externalOrderId: true,
+          sourceChannel: true,
         },
       },
       _count: {
@@ -758,8 +760,10 @@ export async function listShipments(
     orderId: row.orderId,
     orderNumber: row.order.orderNumber,
     externalOrderId: row.order.externalOrderId,
+    sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
+    carrierName: getFinalMileCarrier(row.metadata),
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,
     actualShipAt: row.actualShipAt,
@@ -1002,6 +1006,7 @@ export async function updateShipmentTrackingSyncResult(input: {
   status: ShipmentStatus;
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
+  carrierName?: string | null;
   actualShipAt?: Date;
   actualShipEvidence?: Prisma.InputJsonValue;
   statusChanged: boolean;
@@ -1009,6 +1014,13 @@ export async function updateShipmentTrackingSyncResult(input: {
   actorType: AuditActorType;
   actorId?: string;
 }): Promise<ShipmentDetail> {
+  const shipmentMetadata = input.carrierName
+    ? await prisma.shipment.findFirst({
+        where: { id: input.shipmentId, tenantId: input.tenantId },
+        select: { metadata: true },
+      })
+    : null;
+
   const row = await prisma.shipment.update({
     where: {
       id: input.shipmentId,
@@ -1023,6 +1035,9 @@ export async function updateShipmentTrackingSyncResult(input: {
       ...(input.carrierShipmentId === undefined
         ? {}
         : { carrierShipmentId: input.carrierShipmentId }),
+      ...(input.carrierName && shipmentMetadata
+        ? { metadata: withFinalMileCarrier(shipmentMetadata.metadata, input.carrierName) }
+        : {}),
       ...(input.actualShipAt === undefined
         ? {}
         : {
@@ -1225,6 +1240,7 @@ function buildShipmentWhereInput(
   return {
     tenantId,
     ...(query.status ? { status: query.status } : {}),
+    ...(query.sourceChannel ? { order: { sourceChannel: query.sourceChannel } } : {}),
     ...(query.orderId ? { orderId: query.orderId } : {}),
     ...(query.search
       ? {

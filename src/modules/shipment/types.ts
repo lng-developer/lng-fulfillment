@@ -44,6 +44,7 @@ export type ShipmentListQuery = {
   page: number;
   pageSize: number;
   status?: ShipmentStatus;
+  sourceChannel?: OrderSourceChannel;
   orderId?: string;
   search?: string;
   sortBy: ShipmentListSortField;
@@ -55,8 +56,10 @@ export type ShipmentListItem = {
   orderId: string;
   orderNumber: string | null;
   externalOrderId: string;
+  sourceChannel: OrderSourceChannel | null;
   status: ShipmentStatus;
   carrierCode: string | null;
+  carrierName: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   actualShipAt: Date | null;

@@ -36,6 +36,16 @@ const SHIPMENT_STATUSES = [
   { label: "Returned", value: "RETURNED" },
 ];
 
+const SHIPMENT_SOURCES = [
+  { label: "All sources", value: "" },
+  { label: "Amazon", value: "AMAZON" },
+  { label: "Etsy", value: "ETSY" },
+  { label: "Manual", value: "MANUAL" },
+  { label: "Unknown", value: "UNKNOWN" },
+] as const;
+
+type ShipmentSource = Exclude<ShipmentListItem["sourceChannel"], null>;
+
 export function ShipmentsTable({
   onShipmentSelect,
   role,
@@ -54,6 +64,7 @@ export function ShipmentsTable({
   });
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [sourceChannel, setSourceChannel] = useState<ShipmentSource | "">("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
@@ -92,6 +103,7 @@ export function ShipmentsTable({
             pageSize: 20,
             search,
             status,
+            sourceChannel: sourceChannel || undefined,
             from: from ? new Date(from).toISOString() : undefined,
             to: to ? new Date(to).toISOString() : undefined,
             sortBy: "createdAt",
@@ -128,7 +140,7 @@ export function ShipmentsTable({
     loadShipments();
 
     return () => controller.abort();
-  }, [externalReloadKey, from, page, reloadKey, search, status, to]);
+  }, [externalReloadKey, from, page, reloadKey, search, sourceChannel, status, to]);
 
   const filteredShipments = useMemo(() => {
     return shipments.filter((shipment) => {
@@ -201,12 +213,25 @@ export function ShipmentsTable({
         render: (shipment) => <StatusBadge status={shipment.status} />,
       },
       {
+        key: "source",
+        header: "Source",
+        className: "hidden w-[100px] md:table-cell",
+        render: (shipment) => (
+          <span className="text-xs text-[var(--text-secondary)]">
+            {shipment.sourceChannel ?? "Unknown"}
+          </span>
+        ),
+      },
+      {
         key: "carrier",
         header: "Carrier",
         className: "hidden w-[150px] md:table-cell",
         render: (shipment) => (
           <span className="block truncate text-xs text-[var(--text-secondary)]">
-            {shipment.carrierCode ?? "-"}
+            {shipment.carrierName ??
+              (shipment.carrierCode === "YUNEXPRESS_OMS"
+                ? "YunExpress"
+                : shipment.carrierCode ?? "-")}
           </span>
         ),
       },
@@ -339,6 +364,20 @@ export function ShipmentsTable({
           >
             {SHIPMENT_STATUSES.map((option) => (
               <option key={option.label} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
+            onChange={(event) => {
+              setSourceChannel(event.target.value as ShipmentSource | "");
+              setPage(1);
+            }}
+            value={sourceChannel}
+          >
+            {SHIPMENT_SOURCES.map((option) => (
+              <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}

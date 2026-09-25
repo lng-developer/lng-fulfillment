@@ -6,7 +6,7 @@ import {
   validateShipmentListQuery,
 } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
-import { getCurrentUserWithTenants } from "@/shared/auth/context";
+import { requireTenantActor } from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
 import {
   RATE_LIMIT_POLICIES,
@@ -58,27 +58,11 @@ export async function POST(request: Request) {
 }
 
 async function requireCurrentTenantContext(allowedRoles?: TenantRole[]) {
-  const context = await getCurrentUserWithTenants();
-
-  if (!context) {
-    throw new AppError("UNAUTHORIZED", "Authentication required.", 401);
-  }
-
-  const tenant = context.tenants.find(
-    (membership) => membership.membershipStatus === "ACTIVE",
-  );
-
-  if (!tenant) {
-    throw new AppError("FORBIDDEN", "Tenant access denied.", 403);
-  }
-
-  if (allowedRoles?.length && !allowedRoles.includes(tenant.role)) {
-    throw new AppError("FORBIDDEN", "Insufficient tenant role.", 403);
-  }
+  const context = await requireTenantActor(allowedRoles);
 
   return {
-    actorUserId: context.user.id,
-    tenantId: tenant.tenantId,
+    actorUserId: context.actorUserId,
+    tenantId: context.tenantId,
   };
 }
 

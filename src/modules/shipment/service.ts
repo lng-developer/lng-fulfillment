@@ -1027,6 +1027,7 @@ export async function syncShipmentTracking(
       status: statusDecision.nextStatus,
       trackingNumber: nextTrackingNumber,
       carrierShipmentId: nextCarrierShipmentId,
+      carrierName: tracking.provider?.carrierName,
       actualShipAt: actualShipEvent?.eventTime,
       actualShipEvidence: actualShipEvent
         ? {
