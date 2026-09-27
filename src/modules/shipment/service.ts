@@ -1135,6 +1135,7 @@ export async function syncTrackingBatch(
   const results: Array<{
     shipmentId: string;
     outcome: "synced" | "no_actual_ship_event" | "failed";
+    portalTrackingSyncState?: "SYNCED" | "FAILED" | null;
     errorCode?: string;
   }> = [];
 
@@ -1144,6 +1145,7 @@ export async function syncTrackingBatch(
       results.push({
         shipmentId: candidate.id,
         outcome: classifyTrackingSyncBatchResult(result.shipment),
+        portalTrackingSyncState: result.portalTrackingSyncState,
       });
     } catch (error) {
       results.push({
@@ -1161,6 +1163,12 @@ export async function syncTrackingBatch(
       (result) => result.outcome === "no_actual_ship_event",
     ).length,
     failed: results.filter((result) => result.outcome === "failed").length,
+    portalSynced: results.filter(
+      (result) => result.portalTrackingSyncState === "SYNCED",
+    ).length,
+    portalFailed: results.filter(
+      (result) => result.portalTrackingSyncState === "FAILED",
+    ).length,
     results,
   };
 }

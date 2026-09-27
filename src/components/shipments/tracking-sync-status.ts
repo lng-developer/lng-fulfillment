@@ -1,4 +1,5 @@
 export type TrackingSyncBatchUiResult = {
+  source: "AMAZON" | "ETSY" | "ALL";
   attempted: number;
   yunSynced: number;
   noActualShipEvent: number;
@@ -15,14 +16,14 @@ export function getTrackingSyncStatus(input: {
   if (input.isSyncing) {
     return {
       state: "syncing" as const,
-      title: "Đang đồng bộ tối đa 20 đơn Etsy trong 7 ngày gần nhất",
+      title: "Đang đồng bộ tracking theo nguồn đã chọn",
     };
   }
 
   if (input.result) {
     return {
       state: "completed" as const,
-      title: "Kết quả batch Etsy gần nhất",
+      title: "Kết quả batch tracking gần nhất",
     };
   }
 

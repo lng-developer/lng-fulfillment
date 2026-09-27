@@ -14,7 +14,7 @@ assert.equal(
 );
 assert.equal(classifyTrackingSyncBatchResult({ actualShipAt: null }), "no_actual_ship_event");
 assert.deepEqual(trackingSyncOrderFilter(), {
-  sourceChannel: { in: ["AMAZON", "ETSY"] },
+  sourceChannel: "AMAZON",
 });
 assert.equal(
   getTrackingSyncPurchaseAfter(new Date("2026-09-24T01:00:00.000Z")).toISOString(),

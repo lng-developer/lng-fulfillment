@@ -171,6 +171,8 @@ export type TrackingSyncBatchResult = {
   synced: number;
   noActualShipEvent: number;
   failed: number;
+  portalSynced: number;
+  portalFailed: number;
 };
 
 export type EtsyTrackingSyncBatchResult = {

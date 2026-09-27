@@ -17,7 +17,11 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { getShipments, syncEtsyTrackingBatch } from "@/lib/api/shipments";
+import {
+  getShipments,
+  syncEtsyTrackingBatch,
+  syncTrackingBatch,
+} from "@/lib/api/shipments";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { ShipmentListItem } from "@/types/shipments";
@@ -45,6 +49,7 @@ const SHIPMENT_SOURCES = [
 ] as const;
 
 type ShipmentSource = Exclude<ShipmentListItem["sourceChannel"], null>;
+type BatchSource = "AMAZON" | "ETSY" | "ALL";
 
 export function ShipmentsTable({
   onShipmentSelect,
@@ -73,6 +78,7 @@ export function ShipmentsTable({
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+  const [batchSource, setBatchSource] = useState<BatchSource>("ALL");
   const [lastBatchResult, setLastBatchResult] =
     useState<TrackingSyncBatchUiResult | null>(null);
   const [sort, setSort] = useState<DataTableSort>({
@@ -308,9 +314,9 @@ export function ShipmentsTable({
   async function handleBatchSync() {
     setIsBatchSyncing(true);
     try {
-      const result = await syncEtsyTrackingBatch();
+      const result = await runTrackingBatch(batchSource);
       toastSuccess(
-        `Etsy batch: ${result.yunSynced} Yun updated, ${result.portalSynced} Portal synced.`,
+        `Tracking batch: ${result.yunSynced} Yun updated, ${result.portalSynced} Portal synced.`,
       );
       setLastBatchResult({ ...result, completedAt: new Date().toISOString() });
       setReloadKey((value) => value + 1);
@@ -345,14 +351,27 @@ export function ShipmentsTable({
 
         <div className="flex flex-wrap gap-2">
           {can.syncTracking(role) ? (
-            <button
-              className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={isBatchSyncing}
-              onClick={handleBatchSync}
-              type="button"
-            >
-              {isBatchSyncing ? "Đang sync Etsy..." : "Sync Etsy 20 (7 ngày)"}
-            </button>
+            <div className="flex gap-2">
+              <select
+                aria-label="Tracking sync source"
+                className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
+                disabled={isBatchSyncing}
+                onChange={(event) => setBatchSource(event.target.value as BatchSource)}
+                value={batchSource}
+              >
+                <option value="ALL">Tất cả nguồn</option>
+                <option value="AMAZON">Amazon</option>
+                <option value="ETSY">Etsy</option>
+              </select>
+              <button
+                className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isBatchSyncing}
+                onClick={handleBatchSync}
+                type="button"
+              >
+                {isBatchSyncing ? "Đang sync tracking..." : "Sync tracking"}
+              </button>
+            </div>
           ) : null}
           <select
             className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
@@ -415,7 +434,9 @@ export function ShipmentsTable({
       {batchStatus?.state === "completed" && lastBatchResult ? (
         <section className="rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-[var(--text-primary)]">{batchStatus.title}</p>
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              {batchStatus.title} · {batchSourceLabel(lastBatchResult.source)}
+            </p>
             <time className="text-xs text-[var(--text-muted)]" dateTime={lastBatchResult.completedAt}>
               {formatDate(lastBatchResult.completedAt)}
             </time>
@@ -462,6 +483,55 @@ export function ShipmentsTable({
       ) : null}
     </div>
   );
+}
+
+async function runTrackingBatch(source: BatchSource): Promise<TrackingSyncBatchUiResult> {
+  if (source === "AMAZON") {
+    return normalizeAmazonBatch(await syncTrackingBatch(), source);
+  }
+
+  if (source === "ETSY") {
+    return {
+      ...(await syncEtsyTrackingBatch()),
+      source,
+      completedAt: new Date().toISOString(),
+    };
+  }
+
+  const amazon = normalizeAmazonBatch(await syncTrackingBatch(), source);
+  const etsy = await syncEtsyTrackingBatch();
+  return {
+    source,
+    attempted: amazon.attempted + etsy.attempted,
+    yunSynced: amazon.yunSynced + etsy.yunSynced,
+    noActualShipEvent: amazon.noActualShipEvent + etsy.noActualShipEvent,
+    yunFailed: amazon.yunFailed + etsy.yunFailed,
+    portalSynced: amazon.portalSynced + etsy.portalSynced,
+    portalFailed: amazon.portalFailed + etsy.portalFailed,
+    completedAt: new Date().toISOString(),
+  };
+}
+
+function normalizeAmazonBatch(
+  result: Awaited<ReturnType<typeof syncTrackingBatch>>,
+  source: BatchSource,
+): TrackingSyncBatchUiResult {
+  return {
+    source,
+    attempted: result.attempted,
+    yunSynced: result.synced,
+    noActualShipEvent: result.noActualShipEvent,
+    yunFailed: result.failed,
+    portalSynced: result.portalSynced,
+    portalFailed: result.portalFailed,
+    completedAt: new Date().toISOString(),
+  };
+}
+
+function batchSourceLabel(source: BatchSource) {
+  if (source === "AMAZON") return "Amazon";
+  if (source === "ETSY") return "Etsy";
+  return "Tất cả nguồn";
 }
 
 function BatchMetric({ label, value }: { label: string; value: number }) {

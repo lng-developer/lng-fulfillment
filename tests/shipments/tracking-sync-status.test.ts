@@ -4,13 +4,14 @@ import { getTrackingSyncStatus } from "@/components/shipments/tracking-sync-stat
 
 assert.deepEqual(getTrackingSyncStatus({ isSyncing: true, result: null }), {
   state: "syncing",
-  title: "Đang đồng bộ tối đa 20 đơn Etsy trong 7 ngày gần nhất",
+  title: "Đang đồng bộ tracking theo nguồn đã chọn",
 });
 
 assert.deepEqual(
   getTrackingSyncStatus({
     isSyncing: false,
     result: {
+      source: "ETSY",
       attempted: 20,
       yunSynced: 14,
       noActualShipEvent: 5,
@@ -22,7 +23,7 @@ assert.deepEqual(
   }),
   {
     state: "completed",
-    title: "Kết quả batch Etsy gần nhất",
+    title: "Kết quả batch tracking gần nhất",
   },
 );
 

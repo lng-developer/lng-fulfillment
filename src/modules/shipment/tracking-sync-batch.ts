@@ -7,9 +7,7 @@ export const ETSY_TRACKING_SYNC_LOOKBACK_DAYS = 7;
 
 export function trackingSyncOrderFilter() {
   return {
-    sourceChannel: {
-      in: [OrderSourceChannel.AMAZON, OrderSourceChannel.ETSY],
-    },
+    sourceChannel: OrderSourceChannel.AMAZON,
   };
 }
 
