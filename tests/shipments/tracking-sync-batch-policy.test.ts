@@ -6,6 +6,7 @@ import {
   trackingSyncOrderFilter,
   classifyTrackingSyncBatchResult,
   getTrackingSyncStep,
+  getPendingTrackingSyncStep,
 } from "@/modules/shipment/tracking-sync-batch";
 
 assert.equal(TRACKING_SYNC_BATCH_LIMIT, 20);
@@ -31,6 +32,20 @@ assert.equal(
     portalTrackingSyncState: "SYNCED",
   }),
   "complete",
+);
+assert.equal(
+  getPendingTrackingSyncStep({
+    actualShipAt: new Date("2026-09-25T01:00:00.000Z"),
+    portalTrackingSyncState: "FAILED",
+  }),
+  "portal",
+);
+assert.equal(
+  getPendingTrackingSyncStep({
+    actualShipAt: new Date("2026-09-25T01:00:00.000Z"),
+    portalTrackingSyncState: "SYNCED",
+  }),
+  "skip",
 );
 assert.deepEqual(trackingSyncOrderFilter(), {
   sourceChannel: "AMAZON",

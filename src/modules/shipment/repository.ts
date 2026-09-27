@@ -10,6 +10,7 @@ import {
   etsyTrackingSyncOrderFilter,
   getEtsyTrackingSyncCreatedAfter,
   getEtsyTrackingSyncStep,
+  getPendingTrackingSyncStep,
   trackingSyncOrderFilter,
   getTrackingSyncPurchaseAfter,
 } from "./tracking-sync-batch";
@@ -813,10 +814,9 @@ export async function listTrackingSyncCandidates(
   tenantId: string,
   limit: number,
 ) {
-  return prisma.shipment.findMany({
+  const rows = await prisma.shipment.findMany({
     where: {
       tenantId,
-      actualShipAt: null,
       carrierCode: { not: null },
       status: { not: "CANCELLED" },
       order: {
@@ -829,9 +829,20 @@ export async function listTrackingSyncCandidates(
       ],
     },
     orderBy: { updatedAt: "asc" },
-    take: limit,
-    select: { id: true },
+    take: limit * 10,
+    select: { id: true, actualShipAt: true, metadata: true },
   });
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      step: getPendingTrackingSyncStep({
+        actualShipAt: row.actualShipAt,
+        portalTrackingSyncState: getPortalTrackingSyncState(row.metadata),
+      }),
+    }))
+    .filter((row) => row.step !== "skip")
+    .slice(0, limit);
 }
 
 export async function listEtsyTrackingSyncCandidates(

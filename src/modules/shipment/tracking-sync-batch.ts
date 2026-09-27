@@ -46,6 +46,13 @@ export function getEtsyTrackingSyncStep(input: {
   actualShipAt: Date | null;
   portalTrackingSyncState: "SYNCED" | "FAILED" | null;
 }) {
+  return getPendingTrackingSyncStep(input);
+}
+
+export function getPendingTrackingSyncStep(input: {
+  actualShipAt: Date | null;
+  portalTrackingSyncState: "SYNCED" | "FAILED" | null;
+}) {
   const step = getTrackingSyncStep(input);
   return step === "complete" ? "skip" : step;
 }

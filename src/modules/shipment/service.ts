@@ -1193,12 +1193,34 @@ export async function syncTrackingBatch(
   );
   const results: Array<{
     shipmentId: string;
-    outcome: "synced" | "no_actual_ship_event" | "failed";
+    outcome: "synced" | "no_actual_ship_event" | "failed" | "portal";
     portalTrackingSyncState?: "SYNCED" | "FAILED" | null;
     errorCode?: string;
   }> = [];
 
   for (const candidate of candidates) {
+    if (candidate.step === "portal") {
+      try {
+        const portalTrackingSyncState = await syncShipmentPortalTracking(
+          tenantId,
+          candidate.id,
+        );
+        results.push({
+          shipmentId: candidate.id,
+          outcome: "portal",
+          portalTrackingSyncState:
+            portalTrackingSyncState === "SKIPPED" ? null : portalTrackingSyncState,
+        });
+      } catch {
+        results.push({
+          shipmentId: candidate.id,
+          outcome: "portal",
+          portalTrackingSyncState: "FAILED",
+        });
+      }
+      continue;
+    }
+
     try {
       const result = await syncShipmentTracking(tenantId, candidate.id, actor);
       results.push({
