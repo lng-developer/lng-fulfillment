@@ -1111,6 +1111,7 @@ const shipmentDetailSelect = {
   trackingNumber: true,
   actualShipAt: true,
   actualShipEvidence: true,
+  metadata: true,
   labelUrl: true,
   createdAt: true,
   updatedAt: true,
@@ -1180,6 +1181,7 @@ function toShipmentDetail(row: {
   trackingNumber: string | null;
   actualShipAt: Date | null;
   actualShipEvidence: Prisma.JsonValue | null;
+  metadata: Prisma.JsonValue | null;
   labelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -1225,6 +1227,7 @@ function toShipmentDetail(row: {
     trackingNumber: row.trackingNumber,
     actualShipAt: row.actualShipAt,
     actualShipEvidence: row.actualShipEvidence,
+    portalTrackingSyncState: getPortalTrackingSyncState(row.metadata),
     labelUrl: row.labelUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

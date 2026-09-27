@@ -132,6 +132,8 @@ export function ShipmentDetailPanel({
   const canSyncTracking =
     shipment &&
     canSyncShipmentTracking(role, hasTrackingLookup);
+  const trackingSyncComplete =
+    shipment?.actualShipAt && shipment.portalTrackingSyncState === "SYNCED";
 
   async function syncTracking() {
     if (!shipment || !canSyncTracking) {
@@ -310,16 +312,19 @@ export function ShipmentDetailPanel({
                       Tracking sync requires a waybill, tracking number, or customer order number.
                     </p>
                   ) : null}
+                  {trackingSyncComplete ? (
+                    <p className="text-[10px] text-emerald-700">Yun và Portal đã đồng bộ.</p>
+                  ) : null}
                   <button
                     className="inline-flex h-9 items-center justify-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--bg-surface2)] disabled:text-[var(--text-muted)]"
-                    disabled={!canSyncTracking || isTrackingSyncing}
+                    disabled={!canSyncTracking || Boolean(trackingSyncComplete) || isTrackingSyncing}
                     onClick={syncTracking}
                     type="button"
                   >
                     {isTrackingSyncing ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     ) : null}
-                    {isTrackingSyncing ? "Syncing..." : "Sync Tracking"}
+                    {isTrackingSyncing ? "Đang đồng bộ..." : "Sync now"}
                   </button>
                   {trackingError ? (
                     <p className="text-sm text-red-700" role="alert">

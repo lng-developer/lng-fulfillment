@@ -76,6 +76,7 @@ import {
   TRACKING_SYNC_BATCH_LIMIT,
   classifyTrackingSyncBatchResult,
   ETSY_TRACKING_SYNC_BATCH_LIMIT,
+  getTrackingSyncStep,
 } from "./tracking-sync-batch";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
@@ -961,6 +962,57 @@ export async function syncShipmentTracking(
   actor: ShipmentActor,
 ): Promise<ShipmentTrackingSyncResult> {
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
+  const syncStep = getTrackingSyncStep({
+    actualShipAt: shipment.actualShipAt,
+    portalTrackingSyncState: shipment.portalTrackingSyncState,
+  });
+
+  if (syncStep === "complete") {
+    return buildStoredTrackingSyncResult(shipment, "SYNCED");
+  }
+
+  if (syncStep === "portal") {
+    const portalTrackingSyncState = await syncShipmentPortalTracking(
+      tenantId,
+      shipmentId,
+      shipment,
+    );
+    const result = buildStoredTrackingSyncResult(
+      shipment,
+      portalTrackingSyncState === "SKIPPED" ? null : portalTrackingSyncState,
+    );
+
+    if (actor.actorType === "USER" && actor.actorId) {
+      await recordUserAuditLog({
+        tenantId,
+        actorUserId: actor.actorId,
+        action:
+          portalTrackingSyncState === "SYNCED"
+            ? "SHIPMENT_TRACKING_SYNCED"
+            : "SHIPMENT_TRACKING_SYNC_FAILED",
+        resourceType: "Shipment",
+        resourceId: shipmentId,
+        metadata: {
+          shipmentId,
+          syncTarget: "PORTAL",
+          trackingNumberPresent: Boolean(shipment.trackingNumber),
+          portalTrackingSyncState,
+        },
+      });
+    }
+
+    return result;
+  }
+
+  return syncShipmentYunTracking(tenantId, shipmentId, actor);
+}
+
+async function syncShipmentYunTracking(
+  tenantId: string,
+  shipmentId: string,
+  actor: ShipmentActor,
+): Promise<ShipmentTrackingSyncResult> {
+  const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
 
   if (!shipment.carrierCode) {
     throw new AppError("CONFLICT", "Shipment does not have a carrier.", 409);
@@ -1218,16 +1270,17 @@ export async function syncEtsyTrackingBatch(
 async function syncShipmentPortalTracking(
   tenantId: string,
   shipmentId: string,
+  shipment = undefined as ShipmentDetail | undefined,
 ): Promise<"SYNCED" | "FAILED" | "SKIPPED"> {
-  const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
-  if (!shipment.actualShipAt || !shipment.trackingNumber) return "SKIPPED";
+  const currentShipment = shipment ?? (await getTenantShipmentDetail(tenantId, shipmentId));
+  if (!currentShipment.actualShipAt || !currentShipment.trackingNumber) return "SKIPPED";
 
   const portalTrackingSync = await sendPortalTrackingUpdate({
-    orderId: shipment.externalOrderId,
-    tracking: shipment.trackingNumber,
+    orderId: currentShipment.externalOrderId,
+    tracking: currentShipment.trackingNumber,
     fulfillment: "LNG Group",
-    sourceChannel: shipment.sourceChannel,
-    actualShipAt: shipment.actualShipAt,
+    sourceChannel: currentShipment.sourceChannel,
+    actualShipAt: currentShipment.actualShipAt,
   });
   if (!portalTrackingSync.attempted) return "SKIPPED";
 
@@ -1419,6 +1472,25 @@ function buildShipmentTrackingSyncResult(
       eventsCount: tracking.events.length,
     },
     portalTrackingSyncState: null,
+  };
+}
+
+function buildStoredTrackingSyncResult(
+  shipment: ShipmentDetail,
+  portalTrackingSyncState: ShipmentTrackingSyncResult["portalTrackingSyncState"],
+): ShipmentTrackingSyncResult {
+  return {
+    shipment: {
+      id: shipment.id,
+      status: shipment.status,
+      carrierCode: shipment.carrierCode,
+      carrierShipmentId: shipment.carrierShipmentId,
+      trackingNumber: shipment.trackingNumber,
+      actualShipAt: shipment.actualShipAt,
+      updatedAt: shipment.updatedAt,
+    },
+    tracking: { status: null, latestEvent: null, eventsCount: 0 },
+    portalTrackingSyncState,
   };
 }
 

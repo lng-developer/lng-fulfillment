@@ -34,12 +34,20 @@ export function getEtsyTrackingSyncCreatedAfter(now = new Date()) {
   );
 }
 
-export function getEtsyTrackingSyncStep(input: {
+export function getTrackingSyncStep(input: {
   actualShipAt: Date | null;
   portalTrackingSyncState: "SYNCED" | "FAILED" | null;
 }) {
   if (!input.actualShipAt) return "yun" as const;
-  return input.portalTrackingSyncState === "SYNCED" ? "skip" as const : "portal" as const;
+  return input.portalTrackingSyncState === "SYNCED" ? "complete" as const : "portal" as const;
+}
+
+export function getEtsyTrackingSyncStep(input: {
+  actualShipAt: Date | null;
+  portalTrackingSyncState: "SYNCED" | "FAILED" | null;
+}) {
+  const step = getTrackingSyncStep(input);
+  return step === "complete" ? "skip" : step;
 }
 
 export function getTrackingSyncPurchaseAfter(now = new Date()) {

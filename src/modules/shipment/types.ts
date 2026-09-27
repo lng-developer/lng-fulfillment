@@ -84,6 +84,7 @@ export type ShipmentDetail = {
   trackingNumber: string | null;
   actualShipAt: Date | null;
   actualShipEvidence: Prisma.JsonValue | null;
+  portalTrackingSyncState: PortalTrackingSyncState | null;
   labelUrl: string | null;
   createdAt: Date;
   updatedAt: Date;

@@ -78,7 +78,6 @@ export function ShipmentsTable({
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
-  const [batchSource, setBatchSource] = useState<BatchSource>("ALL");
   const [lastBatchResult, setLastBatchResult] =
     useState<TrackingSyncBatchUiResult | null>(null);
   const [sort, setSort] = useState<DataTableSort>({
@@ -261,7 +260,7 @@ export function ShipmentsTable({
       },
       {
         key: "actualShipAt",
-        header: "Carrier nhận hàng",
+        header: "Sync Yun",
         className: "hidden w-[170px] lg:table-cell",
         render: (shipment) =>
           shipment.actualShipAt ? (
@@ -273,12 +272,12 @@ export function ShipmentsTable({
               {formatDate(shipment.actualShipAt)}
             </time>
           ) : (
-            <span className="text-xs text-[var(--text-muted)]">Chờ event</span>
+            <span className="text-xs text-[var(--text-muted)]">Chờ pickup</span>
           ),
       },
       {
         key: "portalTrackingSyncState",
-        header: "Đồng bộ Portal",
+        header: "Sync Portal",
         className: "hidden w-[145px] lg:table-cell",
         render: (shipment) => {
           if (shipment.portalTrackingSyncState === "SYNCED") {
@@ -314,7 +313,9 @@ export function ShipmentsTable({
   async function handleBatchSync() {
     setIsBatchSyncing(true);
     try {
-      const result = await runTrackingBatch(batchSource);
+      const result = await runTrackingBatch(
+        sourceChannel === "AMAZON" || sourceChannel === "ETSY" ? sourceChannel : "ALL",
+      );
       toastSuccess(
         `Tracking batch: ${result.yunSynced} Yun updated, ${result.portalSynced} Portal synced.`,
       );
@@ -352,24 +353,13 @@ export function ShipmentsTable({
         <div className="flex flex-wrap gap-2">
           {can.syncTracking(role) ? (
             <div className="flex gap-2">
-              <select
-                aria-label="Tracking sync source"
-                className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-                disabled={isBatchSyncing}
-                onChange={(event) => setBatchSource(event.target.value as BatchSource)}
-                value={batchSource}
-              >
-                <option value="ALL">Tất cả nguồn</option>
-                <option value="AMAZON">Amazon</option>
-                <option value="ETSY">Etsy</option>
-              </select>
               <button
                 className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isBatchSyncing}
                 onClick={handleBatchSync}
                 type="button"
               >
-                {isBatchSyncing ? "Đang sync tracking..." : "Sync tracking"}
+                {isBatchSyncing ? "Đang đồng bộ..." : "Sync pending"}
               </button>
             </div>
           ) : null}
@@ -449,7 +439,7 @@ export function ShipmentsTable({
             <BatchMetric label="Portal đã sync" value={lastBatchResult.portalSynced} />
             <BatchMetric label="Portal lỗi" value={lastBatchResult.portalFailed} />
           </div>
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">Batch chỉ gọi Yun cho shipment chưa có pickup; Portal chỉ nhận shipment đã có event.</p>
+          <p className="mt-3 text-xs text-[var(--text-secondary)]">Yun chỉ được gọi khi chưa có pickup; shipment đã có pickup sẽ gửi lại Portal.</p>
         </section>
       ) : null}
 
