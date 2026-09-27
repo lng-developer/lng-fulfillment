@@ -313,11 +313,11 @@ export function ShipmentDetailPanel({
                     </p>
                   ) : null}
                   {trackingSyncComplete ? (
-                    <p className="text-[10px] text-emerald-700">Yun và Portal đã đồng bộ.</p>
+                    <p className="text-[10px] text-emerald-700">Yun và Portal đã đồng bộ. Có thể đối soát lại Yun.</p>
                   ) : null}
                   <button
                     className="inline-flex h-9 items-center justify-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--bg-surface2)] disabled:text-[var(--text-muted)]"
-                    disabled={!canSyncTracking || Boolean(trackingSyncComplete) || isTrackingSyncing}
+                    disabled={!canSyncTracking || isTrackingSyncing}
                     onClick={syncTracking}
                     type="button"
                   >

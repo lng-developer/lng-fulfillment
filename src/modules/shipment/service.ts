@@ -78,6 +78,7 @@ import {
   ETSY_TRACKING_SYNC_BATCH_LIMIT,
   getTrackingSyncStep,
 } from "./tracking-sync-batch";
+import { shouldApplyTrackingStatusTransition } from "./tracking-status-reconciliation";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
 const DIRECT_SHIP_ORDER_STATUSES = ["FULFILLED", "READY_TO_SHIP"] as const;
@@ -960,6 +961,7 @@ export async function syncShipmentTracking(
   tenantId: string,
   shipmentId: string,
   actor: ShipmentActor,
+  options: { refreshCompleted?: boolean } = {},
 ): Promise<ShipmentTrackingSyncResult> {
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
   const syncStep = getTrackingSyncStep({
@@ -967,7 +969,7 @@ export async function syncShipmentTracking(
     portalTrackingSyncState: shipment.portalTrackingSyncState,
   });
 
-  if (syncStep === "complete") {
+  if (syncStep === "complete" && !options.refreshCompleted) {
     return buildStoredTrackingSyncResult(shipment, "SYNCED");
   }
 
@@ -1004,13 +1006,16 @@ export async function syncShipmentTracking(
     return result;
   }
 
-  return syncShipmentYunTracking(tenantId, shipmentId, actor);
+  return syncShipmentYunTracking(tenantId, shipmentId, actor, {
+    syncPortal: syncStep !== "complete",
+  });
 }
 
 async function syncShipmentYunTracking(
   tenantId: string,
   shipmentId: string,
   actor: ShipmentActor,
+  options: { syncPortal?: boolean } = {},
 ): Promise<ShipmentTrackingSyncResult> {
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
 
@@ -1061,8 +1066,9 @@ async function syncShipmentYunTracking(
     );
 
     const statusDecision = chooseTrackingShipmentStatus(
-      shipment.status,
+      shipment,
       tracking.status ?? null,
+      tracking.latestEvent?.eventTime ?? null,
     );
     const nextTrackingNumber =
       !shipment.trackingNumber && tracking.trackingNumber
@@ -1100,6 +1106,7 @@ async function syncShipmentYunTracking(
     // already received their tracking can backfill the missing carrier.
     let portalTrackingSyncState: ShipmentTrackingSyncResult["portalTrackingSyncState"] = null;
     if (
+      options.syncPortal !== false &&
       shouldSendPortalTrackingUpdate({
         trackingNumber: updatedShipment.trackingNumber,
         hadTrackingNumber: Boolean(shipment.trackingNumber),
@@ -1317,7 +1324,7 @@ export async function applyYunWebhookTrackingUpdate(input: {
       ? input.carrierShipmentId
       : undefined;
   const statusDecision = chooseTrackingShipmentStatus(
-    input.shipment.status,
+    input.shipment,
     input.carrierStatus,
   );
   const actualShipAt = input.shipment.actualShipAt ? undefined : input.actualShipAt;
@@ -1358,9 +1365,11 @@ export async function applyYunWebhookTrackingUpdate(input: {
 }
 
 function chooseTrackingShipmentStatus(
-  currentStatus: ShipmentDetail["status"],
+  shipment: Pick<ShipmentDetail, "status" | "statusHistory">,
   carrierStatus: CarrierNormalizedTrackingStatus | null,
+  carrierEventAt: Date | null = null,
 ): { nextStatus: ShipmentDetail["status"]; note: string } {
+  const currentStatus = shipment.status;
   if (!carrierStatus) {
     return {
       nextStatus: currentStatus,
@@ -1380,8 +1389,17 @@ function chooseTrackingShipmentStatus(
   }
 
   if (carrierStatus === "IN_TRANSIT") {
+    const deliveredStatus = [...shipment.statusHistory]
+      .reverse()
+      .find((entry) => entry.status === "DELIVERED");
     return {
-      nextStatus: ["DELIVERED", "CANCELLED"].includes(currentStatus)
+      nextStatus: currentStatus === "CANCELLED" ||
+        !shouldApplyTrackingStatusTransition({
+          currentStatus,
+          carrierStatus,
+          carrierEventAt,
+          currentStatusRecordedAt: deliveredStatus?.createdAt ?? null,
+        })
         ? currentStatus
         : "IN_TRANSIT",
       note: "Shipment tracking synced: in transit.",

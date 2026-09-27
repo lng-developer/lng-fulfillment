@@ -40,7 +40,7 @@ export async function POST(
     const result = await syncShipmentTracking(context.tenantId, shipmentId, {
       actorType: "USER",
       actorId: context.actorUserId,
-    });
+    }, { refreshCompleted: true });
 
     return ok(result);
   } catch (error) {
