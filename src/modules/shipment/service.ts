@@ -35,6 +35,7 @@ import {
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   findYunWebhookShipment,
+  listEtsyTrackingSyncCandidates,
   listTrackingSyncCandidates,
   listShipments as listShipmentRecords,
   resetCancelledOrderRecords,
@@ -63,6 +64,7 @@ import type {
   ShipmentListItem,
   ShipmentListQuery,
   ShipmentTrackingSyncResult,
+  EtsyTrackingSyncBatchResult,
   ShipmentYunEnvironment,
   ShipParcelOverride,
   ShipOrderInput,
@@ -73,6 +75,7 @@ import type {
 import {
   TRACKING_SYNC_BATCH_LIMIT,
   classifyTrackingSyncBatchResult,
+  ETSY_TRACKING_SYNC_BATCH_LIMIT,
 } from "./tracking-sync-batch";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
@@ -1043,6 +1046,7 @@ export async function syncShipmentTracking(
 
     // Re-send when the carrier lookup resolves a name so legacy orders that
     // already received their tracking can backfill the missing carrier.
+    let portalTrackingSyncState: ShipmentTrackingSyncResult["portalTrackingSyncState"] = null;
     if (
       shouldSendPortalTrackingUpdate({
         trackingNumber: updatedShipment.trackingNumber,
@@ -1066,6 +1070,7 @@ export async function syncShipmentTracking(
           shipmentId,
           result: portalTrackingSync,
         });
+        portalTrackingSyncState = portalTrackingSync.delivered ? "SYNCED" : "FAILED";
       }
       logShipmentTrackingFlow("portalTrackingSyncResult", portalTrackingSync);
     }
@@ -1088,7 +1093,10 @@ export async function syncShipmentTracking(
       });
     }
 
-    return buildShipmentTrackingSyncResult(updatedShipment, tracking);
+    return {
+      ...buildShipmentTrackingSyncResult(updatedShipment, tracking),
+      portalTrackingSyncState,
+    };
   } catch (error) {
     const appError =
       error instanceof AppError ? error : mapCarrierErrorToAppError(error);
@@ -1155,6 +1163,72 @@ export async function syncTrackingBatch(
     failed: results.filter((result) => result.outcome === "failed").length,
     results,
   };
+}
+
+export async function syncEtsyTrackingBatch(
+  tenantId: string,
+  actor: ShipmentActor,
+): Promise<EtsyTrackingSyncBatchResult> {
+  const candidates = await listEtsyTrackingSyncCandidates(
+    tenantId,
+    ETSY_TRACKING_SYNC_BATCH_LIMIT,
+  );
+  const result: EtsyTrackingSyncBatchResult = {
+    attempted: candidates.length,
+    yunSynced: 0,
+    noActualShipEvent: 0,
+    yunFailed: 0,
+    portalSynced: 0,
+    portalFailed: 0,
+  };
+
+  for (const candidate of candidates) {
+    if (candidate.step === "portal") {
+      const portalState = await syncShipmentPortalTracking(tenantId, candidate.id);
+      if (portalState === "SYNCED") result.portalSynced += 1;
+      if (portalState === "FAILED") result.portalFailed += 1;
+      continue;
+    }
+
+    try {
+      const synced = await syncShipmentTracking(tenantId, candidate.id, actor);
+      if (!synced.shipment.actualShipAt) {
+        result.noActualShipEvent += 1;
+      } else {
+        result.yunSynced += 1;
+        if (synced.portalTrackingSyncState === "SYNCED") result.portalSynced += 1;
+        if (synced.portalTrackingSyncState === "FAILED") result.portalFailed += 1;
+      }
+    } catch {
+      result.yunFailed += 1;
+    }
+  }
+
+  return result;
+}
+
+async function syncShipmentPortalTracking(
+  tenantId: string,
+  shipmentId: string,
+): Promise<"SYNCED" | "FAILED" | "SKIPPED"> {
+  const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
+  if (!shipment.actualShipAt || !shipment.trackingNumber) return "SKIPPED";
+
+  const portalTrackingSync = await sendPortalTrackingUpdate({
+    orderId: shipment.externalOrderId,
+    tracking: shipment.trackingNumber,
+    fulfillment: "LNG Group",
+    sourceChannel: shipment.sourceChannel,
+    actualShipAt: shipment.actualShipAt,
+  });
+  if (!portalTrackingSync.attempted) return "SKIPPED";
+
+  await savePortalTrackingSyncState({
+    tenantId,
+    shipmentId,
+    result: portalTrackingSync,
+  });
+  return portalTrackingSync.delivered ? "SYNCED" : "FAILED";
 }
 
 export async function resolveYunWebhookShipment(input: {
@@ -1336,6 +1410,7 @@ function buildShipmentTrackingSyncResult(
         : null,
       eventsCount: tracking.events.length,
     },
+    portalTrackingSyncState: null,
   };
 }
 

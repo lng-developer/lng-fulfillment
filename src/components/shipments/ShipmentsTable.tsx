@@ -17,7 +17,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getErrorMessage } from "@/lib/api/base";
-import { getShipments, syncTrackingBatch } from "@/lib/api/shipments";
+import { getShipments, syncEtsyTrackingBatch } from "@/lib/api/shipments";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { ShipmentListItem } from "@/types/shipments";
@@ -308,9 +308,9 @@ export function ShipmentsTable({
   async function handleBatchSync() {
     setIsBatchSyncing(true);
     try {
-      const result = await syncTrackingBatch();
+      const result = await syncEtsyTrackingBatch();
       toastSuccess(
-        `Tracking batch: ${result.synced} synced, ${result.noActualShipEvent} no carrier event, ${result.failed} failed.`,
+        `Etsy batch: ${result.yunSynced} Yun updated, ${result.portalSynced} Portal synced.`,
       );
       setLastBatchResult({ ...result, completedAt: new Date().toISOString() });
       setReloadKey((value) => value + 1);
@@ -351,7 +351,7 @@ export function ShipmentsTable({
               onClick={handleBatchSync}
               type="button"
             >
-              {isBatchSyncing ? "Syncing Amazon 20..." : "Sync Amazon 20 (14d)"}
+              {isBatchSyncing ? "Đang sync Etsy..." : "Sync Etsy 20 (7 ngày)"}
             </button>
           ) : null}
           <select
@@ -422,11 +422,13 @@ export function ShipmentsTable({
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
             <BatchMetric label="Đã kiểm tra" value={lastBatchResult.attempted} />
-            <BatchMetric label="Có evidence" value={lastBatchResult.synced} />
-            <BatchMetric label="Chưa có pickup" value={lastBatchResult.noActualShipEvent} />
-            <BatchMetric label="Lỗi" value={lastBatchResult.failed} />
+            <BatchMetric label="Yun có event" value={lastBatchResult.yunSynced} />
+            <BatchMetric label="Yun chờ event" value={lastBatchResult.noActualShipEvent} />
+            <BatchMetric label="Yun lỗi" value={lastBatchResult.yunFailed} />
+            <BatchMetric label="Portal đã sync" value={lastBatchResult.portalSynced} />
+            <BatchMetric label="Portal lỗi" value={lastBatchResult.portalFailed} />
           </div>
-          <p className="mt-3 text-xs text-[var(--text-secondary)]">Chỉ đồng bộ đơn Amazon; chưa gửi tracking lên Seller Central.</p>
+          <p className="mt-3 text-xs text-[var(--text-secondary)]">Batch chỉ gọi Yun cho shipment chưa có pickup; Portal chỉ nhận shipment đã có event.</p>
         </section>
       ) : null}
 

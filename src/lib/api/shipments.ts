@@ -173,9 +173,27 @@ export type TrackingSyncBatchResult = {
   failed: number;
 };
 
+export type EtsyTrackingSyncBatchResult = {
+  attempted: number;
+  yunSynced: number;
+  noActualShipEvent: number;
+  yunFailed: number;
+  portalSynced: number;
+  portalFailed: number;
+};
+
 export async function syncTrackingBatch() {
   const response = await apiFetch<ApiSuccess<TrackingSyncBatchResult>>(
     "/api/shipments/tracking/batch",
+    { method: "POST" },
+  );
+
+  return response.data;
+}
+
+export async function syncEtsyTrackingBatch() {
+  const response = await apiFetch<ApiSuccess<EtsyTrackingSyncBatchResult>>(
+    "/api/shipments/tracking/etsy-batch",
     { method: "POST" },
   );
 

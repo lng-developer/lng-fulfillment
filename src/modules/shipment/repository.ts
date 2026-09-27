@@ -7,6 +7,9 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import {
+  etsyTrackingSyncOrderFilter,
+  getEtsyTrackingSyncCreatedAfter,
+  getEtsyTrackingSyncStep,
   trackingSyncOrderFilter,
   getTrackingSyncPurchaseAfter,
 } from "./tracking-sync-batch";
@@ -829,6 +832,39 @@ export async function listTrackingSyncCandidates(
     take: limit,
     select: { id: true },
   });
+}
+
+export async function listEtsyTrackingSyncCandidates(
+  tenantId: string,
+  limit: number,
+) {
+  const rows = await prisma.shipment.findMany({
+    where: {
+      tenantId,
+      carrierCode: { not: null },
+      status: { not: "CANCELLED" },
+      createdAt: { gte: getEtsyTrackingSyncCreatedAfter() },
+      order: etsyTrackingSyncOrderFilter(),
+      OR: [
+        { carrierShipmentId: { not: null } },
+        { trackingNumber: { not: null } },
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: limit * 10,
+    select: { id: true, actualShipAt: true, metadata: true },
+  });
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      step: getEtsyTrackingSyncStep({
+        actualShipAt: row.actualShipAt,
+        portalTrackingSyncState: getPortalTrackingSyncState(row.metadata),
+      }),
+    }))
+    .filter((row) => row.step !== "skip")
+    .slice(0, limit);
 }
 
 export async function getShipmentDetail(

@@ -301,6 +301,16 @@ export type ShipmentTrackingSyncResult = {
     > | null;
     eventsCount: number;
   };
+  portalTrackingSyncState: "SYNCED" | "FAILED" | null;
+};
+
+export type EtsyTrackingSyncBatchResult = {
+  attempted: number;
+  yunSynced: number;
+  noActualShipEvent: number;
+  yunFailed: number;
+  portalSynced: number;
+  portalFailed: number;
 };
 
 export type PaginationMeta = {

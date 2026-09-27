@@ -13,6 +13,7 @@ export {
   shipOrderWithYun,
   shipOrdersBatchWithYun,
   syncTrackingBatch,
+  syncEtsyTrackingBatch,
   syncShipmentTracking,
 } from "./service";
 export {
@@ -50,6 +51,7 @@ export type {
   ShipmentListQuery,
   ShipmentListSortField,
   ShipmentTrackingSyncResult,
+  EtsyTrackingSyncBatchResult,
   ShipmentYunEnvironment,
   ResetCancelledOrderResult,
   ShipOrderInput,
