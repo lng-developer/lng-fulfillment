@@ -1,7 +1,7 @@
 import { OrderSourceChannel } from "@prisma/client";
 
 export const TRACKING_SYNC_BATCH_LIMIT = 20;
-export const TRACKING_SYNC_LOOKBACK_DAYS = 14;
+export const TRACKING_SYNC_LOOKBACK_DAYS = 7;
 export const ETSY_TRACKING_SYNC_BATCH_LIMIT = 20;
 export const ETSY_TRACKING_SYNC_LOOKBACK_DAYS = 7;
 

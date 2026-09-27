@@ -37,7 +37,7 @@ assert.deepEqual(trackingSyncOrderFilter(), {
 });
 assert.equal(
   getTrackingSyncPurchaseAfter(new Date("2026-09-24T01:00:00.000Z")).toISOString(),
-  "2026-09-10T17:00:00.000Z",
+  "2026-09-17T17:00:00.000Z",
 );
 
 console.log("tracking sync batch policy: ok");
