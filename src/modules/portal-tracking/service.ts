@@ -37,6 +37,7 @@ export async function sendPortalTrackingUpdate(
     return sendPortalEtsyTrackingUpdate({
       orderId,
       tracking,
+      fulfillment: normalizeOptionalField(input.fulfillment),
       actualShipAt: input.actualShipAt ?? undefined,
     });
   }
@@ -95,7 +96,7 @@ async function sendPortalAmazonTrackingUpdate(input: {
       body: responseBody,
     });
 
-    return response.ok
+    return response.ok && confirmsPortalTrackingUpdate(responseBody, input)
       ? { attempted: true, delivered: true }
       : { attempted: true, delivered: false, status: response.status };
   } catch (error) {
@@ -117,6 +118,7 @@ function normalizeOptionalField(value: string | null | undefined) {
 async function sendPortalEtsyTrackingUpdate(input: {
   orderId: string;
   tracking: string;
+  fulfillment?: string;
   actualShipAt?: Date;
 }): Promise<PortalTrackingUpdateResult> {
   const url = buildEtsyTrackingUrl(input.orderId);
@@ -138,6 +140,7 @@ async function sendPortalEtsyTrackingUpdate(input: {
       },
       body: JSON.stringify({
         tracking: input.tracking,
+        ...(input.fulfillment ? { fulfillment: input.fulfillment } : {}),
         ...(input.actualShipAt
           ? { actualShipAt: input.actualShipAt.toISOString() }
           : {}),
@@ -153,7 +156,7 @@ async function sendPortalEtsyTrackingUpdate(input: {
       body: responseBody,
     });
 
-    return response.ok
+    return response.ok && confirmsPortalTrackingUpdate(responseBody, input)
       ? { attempted: true, delivered: true }
       : { attempted: true, delivered: false, status: response.status };
   } catch (error) {
@@ -179,6 +182,23 @@ function buildEtsyTrackingUrl(orderId: string) {
 
 function isEtsySourceChannel(sourceChannel: string | null | undefined) {
   return sourceChannel?.trim().toUpperCase() === "ETSY";
+}
+
+function confirmsPortalTrackingUpdate(
+  responseBody: unknown,
+  input: Pick<PortalTrackingUpdateInput, "orderId" | "tracking">,
+) {
+  if (!isRecord(responseBody)) return false;
+
+  const orderId = normalizeOptionalField(responseBody.orderId as string | null | undefined);
+  const tracking = normalizeOptionalField(responseBody.tracking as string | null | undefined);
+  const applied = isRecord(responseBody.applied) ? responseBody.applied : null;
+  const appliedTracking = applied
+    ? normalizeOptionalField(applied.tracking as string | null | undefined)
+    : undefined;
+
+  return orderId === input.orderId?.trim() &&
+    (tracking === input.tracking?.trim() || appliedTracking === input.tracking?.trim());
 }
 
 async function readSafeResponseBody(response: Response) {

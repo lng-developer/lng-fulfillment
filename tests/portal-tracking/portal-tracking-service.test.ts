@@ -9,11 +9,14 @@ type FetchCall = {
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
 
-async function withMockFetch<T>(fn: (calls: FetchCall[]) => Promise<T>) {
+async function withMockFetch<T>(
+  fn: (calls: FetchCall[]) => Promise<T>,
+  responseBody: unknown = { ok: true },
+) {
   const calls: FetchCall[] = [];
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), init });
-    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    return new Response(JSON.stringify(responseBody), { status: 200 });
   }) as typeof fetch;
 
   try {
@@ -25,6 +28,22 @@ async function withMockFetch<T>(fn: (calls: FetchCall[]) => Promise<T>) {
 }
 
 async function main() {
+  await withMockFetch(async () => {
+    process.env.PORTAL_ETSY_TRACKING_BASE_URL = "https://portal.example";
+
+    const result = await sendPortalTrackingUpdate({
+      orderId: "ETSY-ORDER-UNCONFIRMED",
+      tracking: "YT2605600704990185",
+      sourceChannel: "ETSY",
+    });
+
+    assert.deepEqual(
+      result,
+      { attempted: true, delivered: false, status: 200 },
+      "a 2xx response without the Portal tracking acknowledgement must not mark the shipment synced",
+    );
+  });
+
   await withMockFetch(async (calls) => {
     process.env.PORTAL_TRACKING_UPDATE_URL = "https://portal.example/api/order/update-tracking";
 
@@ -59,6 +78,9 @@ async function main() {
         },
       }),
     );
+  }, {
+    orderId: "112-4001151-4732212",
+    tracking: "YT2605600704990185",
   });
 
   await withMockFetch(async (calls) => {
@@ -86,6 +108,9 @@ async function main() {
         actualShipAt: "2026-09-19T01:20:23.000Z",
       }),
     );
+  }, {
+    orderId: "ETSY-ORDER-1",
+    applied: { tracking: "YT2605600704990185" },
   });
 }
 
