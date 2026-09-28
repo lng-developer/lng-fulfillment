@@ -25,6 +25,14 @@ export type RecordApiKeyAuditLogInput = {
   metadata?: Prisma.InputJsonValue;
 };
 
+export type RecordSystemAuditLogInput = {
+  tenantId: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  metadata?: Prisma.InputJsonValue;
+};
+
 export type AuditLogListQuery = {
   page: number;
   pageSize: number;
@@ -110,6 +118,17 @@ export async function recordUserAuditLog(input: RecordUserAuditLogInput) {
     tenantId: input.tenantId,
     actorUserId: input.actorUserId,
     actorType: "USER",
+    action: input.action,
+    resourceType: input.resourceType,
+    resourceId: input.resourceId,
+    metadata: input.metadata,
+  });
+}
+
+export async function recordSystemAuditLog(input: RecordSystemAuditLogInput) {
+  return createAuditLog({
+    tenantId: input.tenantId,
+    actorType: "SYSTEM",
     action: input.action,
     resourceType: input.resourceType,
     resourceId: input.resourceId,

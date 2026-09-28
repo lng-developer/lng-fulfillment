@@ -1,4 +1,4 @@
-import { syncTrackingBatch } from "@/modules/shipment";
+import { runTrackingCron } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
 import { AppError } from "@/shared/errors";
 import { assertCronRequestAuthorized } from "@/shared/security/cron";
@@ -12,10 +12,7 @@ export async function GET(request: Request) {
     }
 
     return ok(
-      await syncTrackingBatch(tenantId, {
-        actorType: "SYSTEM",
-        actorId: "vercel-cron",
-      }),
+      await runTrackingCron(tenantId),
     );
   } catch (error) {
     if (error instanceof AppError) {

@@ -16,6 +16,7 @@ export {
   syncEtsyTrackingBatch,
   syncShipmentTracking,
 } from "./service";
+export { runTrackingCron } from "./tracking-cron";
 export {
   validateExecuteShipmentInput,
   validateCreateDraftShipmentInput,

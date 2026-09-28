@@ -5,6 +5,7 @@ export type AuditActorTypeValue = (typeof AUDIT_ACTOR_TYPES)[number];
 export {
   listAuditLogs,
   recordApiKeyAuditLog,
+  recordSystemAuditLog,
   recordUserAuditLog,
   sanitizeAuditMetadata,
   validateAuditLogListQuery,
@@ -14,6 +15,7 @@ export type {
   AuditLogListResult,
   AuditLogRecord,
   RecordApiKeyAuditLogInput,
+  RecordSystemAuditLogInput,
   RecordUserAuditLogInput,
   SanitizedAuditMetadata,
   SanitizedAuditMetadataValue,

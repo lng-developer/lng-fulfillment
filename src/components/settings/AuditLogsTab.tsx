@@ -26,6 +26,7 @@ const ACTION_OPTIONS = [
   "SHIPMENT_EXECUTED",
   "SHIPMENT_EXECUTION_FAILED",
   "TRACKING_SYNCED",
+  "TRACKING_CRON_RUN",
 ];
 
 const ACTOR_TYPES = ["USER", "API_KEY", "SYSTEM"];
@@ -35,6 +36,7 @@ const RESOURCE_TYPES = [
   "CARRIER_ACCOUNT",
   "CREDENTIAL",
   "SHIPMENT",
+  "TrackingCronRun",
 ];
 
 export function AuditLogsTab() {
