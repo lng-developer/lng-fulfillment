@@ -1,5 +1,6 @@
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import { createPendingAutoShipmentJobInTransaction } from "@/modules/auto-shipment/repository";
 import {
   shipmentCostSelect,
   toShipmentCostSummary,
@@ -157,6 +158,11 @@ export async function createPortalOrderWithItems(input: {
         status: true,
         receivedAt: true,
       },
+    });
+
+    await createPendingAutoShipmentJobInTransaction(tx, {
+      tenantId: input.tenantId,
+      orderId: order.id,
     });
 
     return {

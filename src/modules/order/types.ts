@@ -116,6 +116,7 @@ export type PortalReceiveResult = {
 };
 
 export type PortalAutoShipmentSummary = {
+  queued: number;
   attempted: number;
   succeeded: number;
   failed: number;

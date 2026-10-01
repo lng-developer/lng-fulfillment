@@ -292,3 +292,17 @@ export async function upsertAutoShipmentJobRecord(input: {
     select: autoShipmentJobSelect,
   });
 }
+
+export async function createPendingAutoShipmentJobInTransaction(
+  tx: Prisma.TransactionClient,
+  input: { tenantId: string; orderId: string },
+) {
+  return tx.autoShipmentJob.create({
+    data: {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      status: "PENDING",
+    },
+    select: autoShipmentJobSelect,
+  });
+}
