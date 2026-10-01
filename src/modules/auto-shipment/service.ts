@@ -14,7 +14,9 @@ import { resolveOrderShippingMethodFromSkuMappings } from "./resolver";
 import type { AutoShipmentResolution } from "./types";
 import {
   createSkuShippingMethodMappingRecord,
+  claimPendingAutoShipmentJobs,
   deleteSkuShippingMethodMappingRecord,
+  failClaimedAutoShipmentJob,
   getAutoShipmentOrderContext,
   getShipmentAutomationSettingRecord,
   listActiveSkuShippingMethodMappingRecords,
@@ -115,6 +117,35 @@ export type AutoShipmentProcessResult = {
   job: AutoShipmentJobSummary;
   resolution?: AutoShipmentResolution;
 };
+
+export async function processPendingAutoShipmentJobs(input: {
+  tenantId: string;
+  limit?: number;
+}) {
+  const jobs = await claimPendingAutoShipmentJobs({
+    tenantId: input.tenantId,
+    limit: input.limit ?? 5,
+  });
+  let failed = 0;
+
+  for (const job of jobs) {
+    try {
+      const result = await processAutoShipmentForOrder({
+        tenantId: input.tenantId,
+        orderId: job.orderId,
+      });
+      if (result.status === "FAILED") failed += 1;
+    } catch {
+      failed += 1;
+      await failClaimedAutoShipmentJob({
+        tenantId: input.tenantId,
+        jobId: job.id,
+      });
+    }
+  }
+
+  return { claimed: jobs.length, failed };
+}
 
 export async function getShipmentAutomationConfig(
   tenantId: string,

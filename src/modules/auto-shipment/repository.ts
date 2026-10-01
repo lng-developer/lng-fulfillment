@@ -306,3 +306,36 @@ export async function createPendingAutoShipmentJobInTransaction(
     select: autoShipmentJobSelect,
   });
 }
+
+export async function claimPendingAutoShipmentJobs(input: {
+  tenantId: string;
+  limit: number;
+}) {
+  const pending = await prisma.autoShipmentJob.findMany({
+    where: { tenantId: input.tenantId, status: "PENDING" },
+    orderBy: { createdAt: "asc" },
+    take: input.limit,
+    select: { id: true, orderId: true },
+  });
+  const claimed: Array<{ id: string; orderId: string }> = [];
+
+  for (const job of pending) {
+    const result = await prisma.autoShipmentJob.updateMany({
+      where: { id: job.id, tenantId: input.tenantId, status: "PENDING" },
+      data: { status: "PROCESSING" },
+    });
+    if (result.count) claimed.push(job);
+  }
+
+  return claimed;
+}
+
+export async function failClaimedAutoShipmentJob(input: {
+  tenantId: string;
+  jobId: string;
+}) {
+  return prisma.autoShipmentJob.updateMany({
+    where: { id: input.jobId, tenantId: input.tenantId, status: "PROCESSING" },
+    data: { status: "FAILED", errorCode: "INTERNAL_ERROR", errorMessage: "Auto shipment failed." },
+  });
+}
