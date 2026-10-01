@@ -1,5 +1,6 @@
 export {
   getTenantOrderDetail,
+  getPortalOrderProcessingStatus,
   listTenantOrders,
   receivePortalOrders,
 } from "./service";

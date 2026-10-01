@@ -59,6 +59,12 @@ export async function findOrderByExternalId(
       externalOrderId: true,
       status: true,
       receivedAt: true,
+      autoShipmentJob: {
+        select: {
+          status: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 }

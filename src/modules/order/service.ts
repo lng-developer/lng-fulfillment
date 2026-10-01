@@ -3,6 +3,7 @@ import { AppError } from "@/shared/errors";
 import {
   countOrders,
   createPortalOrderWithItems,
+  findOrderByExternalId,
   getOrderDetail as getOrderDetailRecord,
   listOrderDetailPage,
   listOrders as listOrderRecords,
@@ -146,6 +147,23 @@ export async function getTenantOrderDetail(
   }
 
   return order;
+}
+
+export async function getPortalOrderProcessingStatus(
+  tenantId: string,
+  externalOrderId: string,
+) {
+  const order = await findOrderByExternalId(tenantId, externalOrderId);
+  if (!order) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+
+  return {
+    externalOrderId: order.externalOrderId,
+    orderStatus: order.status,
+    receivedAt: order.receivedAt,
+    autoShipment: order.autoShipmentJob,
+  };
 }
 
 function toOrderListItem(order: OrderDetail): OrderListItem {
