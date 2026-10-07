@@ -57,6 +57,15 @@ npm run prisma:generate
 
 Không chạy migrations production nếu chưa có explicit approval.
 
+## LNG lifecycle callback (staging)
+
+Fulfillment giữ Viettel Post credentials, wallet và label. LNG không nhận các secrets này. Fulfillment gửi lifecycle event đã HMAC tới LNG sau khi order/shipment thay đổi.
+
+- Set `FULFILLMENT_LIFECYCLE_CALLBACK_URL` to LNG `POST /api/vendor-webhooks/fulfillment-platform-v2`.
+- Set the same `FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET` on both systems; leave either callback value blank to disable delivery safely.
+- First staging check: replay one mocked/signed `shipment.label_ready` event, then one `shipment.carrier_handoff_confirmed` event. Do not create a Viettel Post shipment in this check.
+- A label or tracking event does not mark marketplace shipment. Only `shipment.carrier_handoff_confirmed` carries the carrier handoff transition.
+
 ## Platform Browser Regression
 
 `npm run test:platform` runs the Platform Admin browser regression suite with Playwright. It is a local/test-only command and is not CI-blocking by default.

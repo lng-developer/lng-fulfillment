@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
-import { buildSignedLifecycleDelivery, deliverLifecycleEvent } from "./service";
+import { buildSignedLifecycleDelivery, deliverLifecycleEvent, deliverPendingLifecycleEvents } from "./service";
 import { buildLifecycleOutboxRecord } from "./repository";
 
 test("signs an immutable lifecycle event body with its event id and timestamp", () => {
@@ -72,4 +72,22 @@ test("builds a replayable outbox record with a stable event id", () => {
   assert.equal(record.eventId, "9c931770-ece2-4bf0-88cd-3fe47f25a85f");
   assert.match(record.body, /"eventType":"fulfillment\.accepted"/);
   assert.doesNotMatch(record.body, /rawPayload|clientSecret|walletBalance/i);
+});
+
+test("disables callback delivery when callback configuration is incomplete", async () => {
+  const previousUrl = process.env.FULFILLMENT_LIFECYCLE_CALLBACK_URL;
+  const previousSecret = process.env.FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET;
+  delete process.env.FULFILLMENT_LIFECYCLE_CALLBACK_URL;
+  delete process.env.FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET;
+
+  try {
+    assert.deepEqual(await deliverPendingLifecycleEvents(), {
+      enabled: false, attempted: 0, delivered: 0, pending: 0, failed: 0,
+    });
+  } finally {
+    if (previousUrl === undefined) delete process.env.FULFILLMENT_LIFECYCLE_CALLBACK_URL;
+    else process.env.FULFILLMENT_LIFECYCLE_CALLBACK_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET;
+    else process.env.FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET = previousSecret;
+  }
 });
