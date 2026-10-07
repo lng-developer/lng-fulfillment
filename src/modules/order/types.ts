@@ -105,6 +105,14 @@ export type ReceivedOrderSummary = {
   receivedAt: Date;
 };
 
+export type PortalOrderAcceptance = {
+  externalOrderId: string;
+  outcome: "accepted" | "duplicate";
+  fulfillmentOrderId: string;
+  status: OrderStatus;
+  receivedAt: Date;
+};
+
 export type PortalReceiveResult = {
   received: number;
   inserted: number;
@@ -112,6 +120,7 @@ export type PortalReceiveResult = {
   skipped: number;
   errors: PortalOrderValidationError[];
   orders: ReceivedOrderSummary[];
+  acceptances: PortalOrderAcceptance[];
   autoShipment?: PortalAutoShipmentSummary;
 };
 

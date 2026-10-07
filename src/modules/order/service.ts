@@ -15,6 +15,7 @@ import type {
   OrderListQuery,
   PaginationMeta,
   PortalReceiveResult,
+  PortalOrderAcceptance,
   PortalAutoShipmentSummary,
   PortalTenantContext,
   ReceivedOrderSummary,
@@ -32,6 +33,7 @@ export async function receivePortalOrders(
 
   const validation = validatePortalOrdersInput(input);
   const orders: ReceivedOrderSummary[] = [];
+  const acceptances: PortalOrderAcceptance[] = [];
   const autoShipment: PortalAutoShipmentSummary = {
     queued: 0,
     attempted: 0,
@@ -61,6 +63,7 @@ export async function receivePortalOrders(
     } else {
       skipped += 1;
     }
+    acceptances.push(toPortalOrderAcceptance(result));
   }
 
   await recordApiKeyAuditLog({
@@ -85,7 +88,21 @@ export async function receivePortalOrders(
     skipped,
     errors: validation.errors,
     orders,
+    acceptances,
     autoShipment,
+  };
+}
+
+export function toPortalOrderAcceptance(input: {
+  action: "inserted" | "skipped";
+  order: ReceivedOrderSummary;
+}): PortalOrderAcceptance {
+  return {
+    externalOrderId: input.order.externalOrderId,
+    outcome: input.action === "inserted" ? "accepted" : "duplicate",
+    fulfillmentOrderId: input.order.id,
+    status: input.order.status,
+    receivedAt: input.order.receivedAt,
   };
 }
 

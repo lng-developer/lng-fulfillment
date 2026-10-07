@@ -21,6 +21,7 @@ export type {
   OrderListSortField,
   PaginationMeta,
   PortalOrderInput,
+  PortalOrderAcceptance,
   PortalOrderItemInput,
   PortalOrdersValidationResult,
   PortalOrderValidationError,
