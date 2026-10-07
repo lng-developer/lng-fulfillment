@@ -25,7 +25,6 @@ type PreflightDependencies = {
     carrierCode: string,
     carrierAccountId?: string | null,
   ) => Promise<CarrierCredentialRuntimeStatus>;
-  fetchImpl?: typeof fetch;
 };
 
 export async function preflightCarrierShipmentCreation(

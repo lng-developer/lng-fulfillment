@@ -1,20 +1,23 @@
 "use client";
 
 import { AlertTriangle, Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getErrorMessage } from "@/lib/api/base";
-import { executeShipment } from "@/lib/api/shipments";
+import { executeShipment, type ShipmentCarrierCode } from "@/lib/api/shipments";
 import { toastError } from "@/lib/toast";
 import { useFocusTrap } from "@/lib/use-focus-trap";
-
-const CONFIRM_TEXT = "CREATE YUNEXPRESS SHIPMENT";
+import { getCarrierPresentation } from "./carrier-presentation";
 
 export function LiveActionConfirmation({
   shipmentId,
+  carrierCode = "YUNEXPRESS_OMS",
+  carrierAccountId = null,
   onSuccess,
   onCancel,
 }: {
   shipmentId: string;
+  carrierCode?: ShipmentCarrierCode;
+  carrierAccountId?: string | null;
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -23,9 +26,17 @@ export function LiveActionConfirmation({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const presentation = getCarrierPresentation(carrierCode);
+
+  useEffect(() => {
+    setChecked(false);
+    setTypedValue("");
+    setHasSubmitted(false);
+    setError(null);
+  }, [carrierAccountId, carrierCode]);
 
   const canConfirm =
-    checked && typedValue === CONFIRM_TEXT && !isSubmitting && !hasSubmitted;
+    checked && typedValue === presentation.confirmationText && !isSubmitting && !hasSubmitted;
   const trapRef = useFocusTrap<HTMLDivElement>(
     true,
     isSubmitting ? undefined : onCancel,
@@ -41,7 +52,7 @@ export function LiveActionConfirmation({
     setError(null);
 
     try {
-      await executeShipment(shipmentId);
+      await executeShipment(shipmentId, carrierCode, carrierAccountId);
       onSuccess();
     } catch (executionError) {
       const safeMessage = getErrorMessage(executionError);
@@ -73,7 +84,7 @@ export function LiveActionConfirmation({
                 LIVE CARRIER ACTION - Cannot be undone
               </h2>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                You are about to create a REAL shipment in YunExpress OMS.
+                {presentation.liveWarning}
               </p>
             </div>
           </div>
@@ -92,7 +103,7 @@ export function LiveActionConfirmation({
           <div className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] p-3 text-[11px] text-[var(--danger-text)]">
             <p>This action:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Will be submitted to YunExpress immediately</li>
+              <li>Will be submitted to {presentation.name} immediately</li>
               <li>Cannot be automatically reversed</li>
               <li>May incur carrier charges</li>
             </ul>
@@ -112,7 +123,7 @@ export function LiveActionConfirmation({
           <label className="grid gap-2 text-xs font-medium text-[var(--text-secondary)]">
             Type to confirm:
             <span className="font-mono text-[10px] text-[var(--text-muted)]">
-              {CONFIRM_TEXT}
+              {presentation.confirmationText}
             </span>
             <input
               className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 font-mono text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"

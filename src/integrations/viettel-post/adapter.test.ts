@@ -19,28 +19,25 @@ const viettelPostShipmentInput = {
 
 test("preflights a complete Viettel Post shipment without calling the carrier", async () => {
   let calls = 0;
-  const result = await preflightCarrierShipmentCreation(
-    viettelPostShipmentInput,
-    { tenantId: "tenant-1" },
-    {
-      getCredentialRuntimeStatus: async () => ({
-        credentialSource: "tenantCredential" as const,
-        credentialConfigured: true,
-        liveEnabled: true,
-        carrierAccountId: "carrier-account-1",
-        credentialId: "credential-1",
-        warnings: [],
-      }),
-      fetchImpl: async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
         calls += 1;
         return Response.error();
-      },
-    },
-  );
+  };
 
-  assert.deepEqual(result.warnings, []);
-  assert.equal(result.liveEnabled, true);
-  assert.equal(calls, 0);
+  try {
+    const result = await preflightCarrierShipmentCreation(
+      viettelPostShipmentInput,
+      { tenantId: "tenant-1" },
+      { getCredentialRuntimeStatus: async () => ({ credentialSource: "tenantCredential" as const, credentialConfigured: true, liveEnabled: true, carrierAccountId: "carrier-account-1", credentialId: "credential-1", warnings: [] }) },
+    );
+
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.liveEnabled, true);
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("preflight reports each missing Viettel Post shipment data group", async () => {

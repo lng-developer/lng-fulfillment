@@ -8,6 +8,8 @@ import type {
 } from "@/types/shipments";
 import { apiFetch, ApiError } from "./base";
 
+export type ShipmentCarrierCode = "YUNEXPRESS_OMS" | "VIETTEL_POST";
+
 export { ApiError as ApiClientError };
 
 export type ShipmentListParams = {
@@ -112,10 +114,14 @@ export async function getShipmentDetail(
 
 export async function getPreflight(
   shipmentId: string,
+  carrierCode: ShipmentCarrierCode = "YUNEXPRESS_OMS",
+  carrierAccountId?: string | null,
   signal?: AbortSignal,
 ) {
+  const query = new URLSearchParams({ carrierCode });
+  if (carrierAccountId) query.set("carrierAccountId", carrierAccountId);
   const response = await apiFetch<ApiSuccess<PreflightResult>>(
-    `/api/shipments/${shipmentId}/preflight`,
+    `/api/shipments/${shipmentId}/preflight?${query.toString()}`,
     { signal },
   );
 
@@ -124,9 +130,11 @@ export async function getPreflight(
 
 export async function runShipmentPreflight(
   shipmentId: string,
+  carrierCode: ShipmentCarrierCode = "YUNEXPRESS_OMS",
+  carrierAccountId?: string | null,
   signal?: AbortSignal,
 ) {
-  const result = await getPreflight(shipmentId, signal);
+  const result = await getPreflight(shipmentId, carrierCode, carrierAccountId, signal);
   return { success: true as const, data: result };
 }
 
@@ -145,12 +153,16 @@ export async function createDraftShipment(
   return response.data.shipment;
 }
 
-export async function executeShipment(shipmentId: string) {
+export async function executeShipment(
+  shipmentId: string,
+  carrierCode: ShipmentCarrierCode = "YUNEXPRESS_OMS",
+  carrierAccountId: string | null = null,
+) {
   const response = await apiFetch<ApiSuccess<unknown>>(`/api/shipments/${shipmentId}/execute`, {
     method: "POST",
     body: JSON.stringify({
-      carrierCode: "YUNEXPRESS_OMS",
-      carrierAccountId: null,
+      carrierCode,
+      carrierAccountId,
     }),
   });
 
