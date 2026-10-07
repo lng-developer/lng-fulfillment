@@ -151,6 +151,12 @@ enum CarrierCredentialType {
   OTHER
 }
 
+enum LifecycleEventOutboxStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
 model User {
   id           String             @id @default(cuid())
   email        String             @unique
@@ -197,6 +203,7 @@ model Tenant {
   yunAbnormalCases   YunAbnormalCase[]
   carrierAccounts    CarrierAccount[]
   carrierCredentials CarrierCredential[]
+  lifecycleEventOutbox LifecycleEventOutbox[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -306,6 +313,7 @@ model Order {
   shipments             Shipment[]
   shipmentCosts         ShipmentCost[]
   autoShipmentJob       AutoShipmentJob?
+  lifecycleEventOutbox  LifecycleEventOutbox[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -394,6 +402,7 @@ model Shipment {
   autoShipmentJob   AutoShipmentJob?
   yunWebhookEvents  YunWebhookEvent[]
   yunAbnormalCases  YunAbnormalCase[]
+  lifecycleEventOutbox LifecycleEventOutbox[]
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
@@ -652,4 +661,31 @@ model CarrierCredential {
   @@index([tenantId, carrierAccountId])
   @@index([tenantId, status])
   @@index([tenantId, credentialType])
+}
+
+model LifecycleEventOutbox {
+  id             String                    @id @default(cuid())
+  eventId        String                    @unique
+  tenantId       String
+  orderId        String
+  shipmentId     String?
+  eventType      String
+  body           String
+  status         LifecycleEventOutboxStatus @default(PENDING)
+  attemptCount   Int                       @default(0)
+  nextAttemptAt  DateTime                  @default(now())
+  lastAttemptAt  DateTime?
+  deliveredAt    DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  tenant         Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order          Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment       Shipment?                 @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([shipmentId, createdAt])
 }

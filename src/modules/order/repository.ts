@@ -1,6 +1,7 @@
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import { createPendingAutoShipmentJobInTransaction } from "@/modules/auto-shipment/repository";
+import { createLifecycleOutboxInTransaction } from "@/modules/callback/repository";
 import {
   shipmentCostSelect,
   toShipmentCostSummary,
@@ -169,6 +170,12 @@ export async function createPortalOrderWithItems(input: {
     await createPendingAutoShipmentJobInTransaction(tx, {
       tenantId: input.tenantId,
       orderId: order.id,
+    });
+    await createLifecycleOutboxInTransaction(tx, {
+      eventType: "fulfillment.accepted",
+      tenantId: input.tenantId,
+      orderId: order.id,
+      externalOrderId: order.externalOrderId,
     });
 
     return {

@@ -6,6 +6,7 @@ import type {
   ShipmentStatus,
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import { createLifecycleOutboxInTransaction } from "@/modules/callback/repository";
 import {
   etsyTrackingSyncOrderFilter,
   getEtsyTrackingSyncCreatedAfter,
@@ -989,28 +990,51 @@ export async function updateShipmentExecutionSucceeded(input: {
   actorType: AuditActorType;
   actorId?: string;
 }): Promise<ShipmentDetail> {
-  const row = await prisma.shipment.update({
-    where: {
-      id: input.shipmentId,
-      tenantId: input.tenantId,
-    },
-    data: {
-      status: input.status,
-      carrierShipmentId: input.carrierShipmentId,
-      trackingNumber: input.trackingNumber,
-      labelUrl: input.labelUrl,
-      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
-      statusHistory: {
-        create: {
-          tenantId: input.tenantId,
-          status: input.status,
-          note: "Shipment execution completed.",
-          actorType: input.actorType,
-          actorId: input.actorId,
+  const row = await prisma.$transaction(async (tx) => {
+    const row = await tx.shipment.update({
+      where: {
+        id: input.shipmentId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: input.status,
+        carrierShipmentId: input.carrierShipmentId,
+        trackingNumber: input.trackingNumber,
+        labelUrl: input.labelUrl,
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: input.status,
+            note: "Shipment execution completed.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
         },
       },
-    },
-    select: shipmentDetailSelect,
+      select: shipmentDetailSelect,
+    });
+
+    if (row.carrierCode === "VIETTEL_POST") {
+      await createLifecycleOutboxInTransaction(tx, {
+        eventType: input.status === "LABEL_READY" ? "shipment.label_ready" : "shipment.created",
+        tenantId: input.tenantId,
+        orderId: row.orderId,
+        shipmentId: row.id,
+        externalOrderId: row.order.externalOrderId,
+        shipment: {
+          shipmentId: row.id,
+          carrierCode: "VIETTEL_POST",
+          carrierShipmentId: row.carrierShipmentId,
+          trackingNumber: row.trackingNumber,
+          labelUrl: row.labelUrl,
+          status: row.status,
+          actualShipAt: row.actualShipAt?.toISOString() ?? null,
+        },
+      });
+    }
+
+    return row;
   });
 
   return toShipmentDetail(row);
@@ -1023,25 +1047,49 @@ export async function updateShipmentExecutionFailed(input: {
   actorType: AuditActorType;
   actorId?: string;
 }): Promise<ShipmentDetail> {
-  const row = await prisma.shipment.update({
-    where: {
-      id: input.shipmentId,
-      tenantId: input.tenantId,
-    },
-    data: {
-      status: "FAILED_CREATE",
-      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
-      statusHistory: {
-        create: {
-          tenantId: input.tenantId,
-          status: "FAILED_CREATE",
-          note: "Shipment execution failed.",
-          actorType: input.actorType,
-          actorId: input.actorId,
+  const row = await prisma.$transaction(async (tx) => {
+    const row = await tx.shipment.update({
+      where: {
+        id: input.shipmentId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: "FAILED_CREATE",
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+        statusHistory: {
+          create: {
+            tenantId: input.tenantId,
+            status: "FAILED_CREATE",
+            note: "Shipment execution failed.",
+            actorType: input.actorType,
+            actorId: input.actorId,
+          },
         },
       },
-    },
-    select: shipmentDetailSelect,
+      select: shipmentDetailSelect,
+    });
+
+    if (row.carrierCode === "VIETTEL_POST") {
+      await createLifecycleOutboxInTransaction(tx, {
+        eventType: "shipment.failed",
+        tenantId: input.tenantId,
+        orderId: row.orderId,
+        shipmentId: row.id,
+        externalOrderId: row.order.externalOrderId,
+        shipment: {
+          shipmentId: row.id,
+          carrierCode: "VIETTEL_POST",
+          carrierShipmentId: row.carrierShipmentId,
+          trackingNumber: row.trackingNumber,
+          labelUrl: row.labelUrl,
+          status: row.status,
+          actualShipAt: row.actualShipAt?.toISOString() ?? null,
+        },
+        failure: { code: "SHIPMENT_CREATE_FAILED", message: "Shipment creation failed." },
+      });
+    }
+
+    return row;
   });
 
   return toShipmentDetail(row);
@@ -1061,51 +1109,76 @@ export async function updateShipmentTrackingSyncResult(input: {
   actorType: AuditActorType;
   actorId?: string;
 }): Promise<ShipmentDetail> {
-  const shipmentMetadata = input.carrierName
-    ? await prisma.shipment.findFirst({
-        where: { id: input.shipmentId, tenantId: input.tenantId },
-        select: { metadata: true },
-      })
-    : null;
+  const row = await prisma.$transaction(async (tx) => {
+    const shipmentMetadata = input.carrierName
+      ? await tx.shipment.findFirst({
+          where: { id: input.shipmentId, tenantId: input.tenantId },
+          select: { metadata: true },
+        })
+      : null;
 
-  const row = await prisma.shipment.update({
-    where: {
-      id: input.shipmentId,
-      tenantId: input.tenantId,
-    },
-    data: {
-      status: input.status,
-      updatedAt: new Date(),
-      ...(input.trackingNumber === undefined
-        ? {}
-        : { trackingNumber: input.trackingNumber }),
-      ...(input.carrierShipmentId === undefined
-        ? {}
-        : { carrierShipmentId: input.carrierShipmentId }),
-      ...(input.carrierName && shipmentMetadata
-        ? { metadata: withFinalMileCarrier(shipmentMetadata.metadata, input.carrierName) }
-        : {}),
-      ...(input.actualShipAt === undefined
-        ? {}
-        : {
-            actualShipAt: input.actualShipAt,
-            actualShipEvidence: input.actualShipEvidence,
-          }),
-      ...(input.statusChanged
-        ? {
-            statusHistory: {
-              create: {
-                tenantId: input.tenantId,
-                status: input.status,
-                note: input.statusNote ?? "Shipment tracking synced.",
-                actorType: input.actorType,
-                actorId: input.actorId,
+    const row = await tx.shipment.update({
+      where: {
+        id: input.shipmentId,
+        tenantId: input.tenantId,
+      },
+      data: {
+        status: input.status,
+        updatedAt: new Date(),
+        ...(input.trackingNumber === undefined
+          ? {}
+          : { trackingNumber: input.trackingNumber }),
+        ...(input.carrierShipmentId === undefined
+          ? {}
+          : { carrierShipmentId: input.carrierShipmentId }),
+        ...(input.carrierName && shipmentMetadata
+          ? { metadata: withFinalMileCarrier(shipmentMetadata.metadata, input.carrierName) }
+          : {}),
+        ...(input.actualShipAt === undefined
+          ? {}
+          : {
+              actualShipAt: input.actualShipAt,
+              actualShipEvidence: input.actualShipEvidence,
+            }),
+        ...(input.statusChanged
+          ? {
+              statusHistory: {
+                create: {
+                  tenantId: input.tenantId,
+                  status: input.status,
+                  note: input.statusNote ?? "Shipment tracking synced.",
+                  actorType: input.actorType,
+                  actorId: input.actorId,
+                },
               },
-            },
-          }
-        : {}),
-    },
-    select: shipmentDetailSelect,
+            }
+          : {}),
+      },
+      select: shipmentDetailSelect,
+    });
+
+    if (row.carrierCode === "VIETTEL_POST") {
+      await createLifecycleOutboxInTransaction(tx, {
+        eventType: input.actualShipAt
+          ? "shipment.carrier_handoff_confirmed"
+          : "tracking.updated",
+        tenantId: input.tenantId,
+        orderId: row.orderId,
+        shipmentId: row.id,
+        externalOrderId: row.order.externalOrderId,
+        shipment: {
+          shipmentId: row.id,
+          carrierCode: "VIETTEL_POST",
+          carrierShipmentId: row.carrierShipmentId,
+          trackingNumber: row.trackingNumber,
+          labelUrl: row.labelUrl,
+          status: row.status,
+          actualShipAt: row.actualShipAt?.toISOString() ?? null,
+        },
+      });
+    }
+
+    return row;
   });
 
   return toShipmentDetail(row);
