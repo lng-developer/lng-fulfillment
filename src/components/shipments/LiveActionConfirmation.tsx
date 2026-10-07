@@ -7,17 +7,20 @@ import { executeShipment, type ShipmentCarrierCode } from "@/lib/api/shipments";
 import { toastError } from "@/lib/toast";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 import { getCarrierPresentation } from "./carrier-presentation";
+import type { ShipOrderOptions } from "@/modules/shipment/types";
 
 export function LiveActionConfirmation({
   shipmentId,
   carrierCode = "YUNEXPRESS_OMS",
   carrierAccountId = null,
+  options,
   onSuccess,
   onCancel,
 }: {
   shipmentId: string;
   carrierCode?: ShipmentCarrierCode;
   carrierAccountId?: string | null;
+  options?: ShipOrderOptions;
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -33,7 +36,7 @@ export function LiveActionConfirmation({
     setTypedValue("");
     setHasSubmitted(false);
     setError(null);
-  }, [carrierAccountId, carrierCode]);
+  }, [carrierAccountId, carrierCode, options]);
 
   const canConfirm =
     checked && typedValue === presentation.confirmationText && !isSubmitting && !hasSubmitted;
@@ -52,7 +55,7 @@ export function LiveActionConfirmation({
     setError(null);
 
     try {
-      await executeShipment(shipmentId, carrierCode, carrierAccountId);
+      await executeShipment(shipmentId, carrierCode, carrierAccountId, options);
       onSuccess();
     } catch (executionError) {
       const safeMessage = getErrorMessage(executionError);

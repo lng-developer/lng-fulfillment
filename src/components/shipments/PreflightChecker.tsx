@@ -1,30 +1,41 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getErrorMessage } from "@/lib/api/base";
-import { getPreflight } from "@/lib/api/shipments";
+import { getPreflight, type ShipmentCarrierCode } from "@/lib/api/shipments";
+import type { ShipOrderOptions } from "@/modules/shipment/types";
 import type { PreflightResult } from "@/types/shipments";
 
 type PreflightState = "idle" | "loading" | "success" | "error";
 
 export function PreflightChecker({
   shipmentId,
+  carrierCode = "YUNEXPRESS_OMS",
+  options,
   onResult,
 }: {
   shipmentId: string;
+  carrierCode?: ShipmentCarrierCode;
+  options?: ShipOrderOptions;
   onResult?: (result: PreflightResult) => void;
 }) {
   const [state, setState] = useState<PreflightState>("idle");
   const [result, setResult] = useState<PreflightResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setState("idle");
+    setResult(null);
+    setError(null);
+  }, [carrierCode, options]);
+
   async function runPreflight() {
     setState("loading");
     setError(null);
 
     try {
-      const response = await getPreflight(shipmentId);
+      const response = await getPreflight(shipmentId, carrierCode, null, options);
       setResult(response);
       onResult?.(response);
       setState("success");

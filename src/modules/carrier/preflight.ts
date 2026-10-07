@@ -62,7 +62,7 @@ async function preflightYunExpressOms(
   context: CarrierAdapterContext,
   getCredentialRuntimeStatus: PreflightDependencies["getCredentialRuntimeStatus"] & {},
 ): Promise<CarrierShipmentPreflightResult> {
-  const credentialStatus = await getCarrierCredentialRuntimeStatus(
+  const credentialStatus = await getCredentialRuntimeStatus(
     context.tenantId,
     carrierCode,
     input.carrierAccountId,

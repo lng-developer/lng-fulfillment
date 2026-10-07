@@ -1,6 +1,7 @@
 import type { TenantRole } from "@prisma/client";
 import {
   preflightShipmentExecution,
+  validateExecuteShipmentInput,
   validatePreflightShipmentExecutionInput,
 } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
@@ -8,6 +9,7 @@ import { getCurrentUserWithTenants } from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
 import {
   RATE_LIMIT_POLICIES,
+  assertSameOriginRequest,
   buildRateLimitKey,
   getClientIp,
   rateLimitOrThrow,
@@ -46,6 +48,26 @@ export async function GET(
   }
 }
 
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ shipmentId: string }> },
+) {
+  try {
+    const context = await requireCurrentTenantContext(SHIPMENT_PREFLIGHT_ROLES);
+    assertSameOriginRequest(request);
+    rateLimitOrThrow({
+      key: buildRateLimitKey("dashboard:shipments:preflight", getClientIp(request), context.actorUserId, context.tenantId),
+      ...RATE_LIMIT_POLICIES.expensiveRead,
+    });
+
+    const { shipmentId } = await params;
+    const input = validateExecuteShipmentInput(await readJson(request));
+    return ok(await preflightShipmentExecution(context.tenantId, shipmentId, input));
+  } catch (error) {
+    return handleShipmentPreflightError(error);
+  }
+}
+
 async function requireCurrentTenantContext(allowedRoles: TenantRole[]) {
   const context = await getCurrentUserWithTenants();
 
@@ -69,6 +91,14 @@ async function requireCurrentTenantContext(allowedRoles: TenantRole[]) {
     actorUserId: context.user.id,
     tenantId: tenant.tenantId,
   };
+}
+
+async function readJson(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new AppError("VALIDATION_ERROR", "Request body must be valid JSON.", 400);
+  }
 }
 
 function handleShipmentPreflightError(error: unknown) {

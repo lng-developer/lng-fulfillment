@@ -26,7 +26,6 @@ import {
   getOrder,
   getOrders,
   resetOrder,
-  shipOrder,
   shipOrdersBatch,
 } from "@/lib/api/orders";
 import { syncTracking } from "@/lib/api/shipments";
@@ -46,7 +45,7 @@ import { ConfirmShipModal } from "./ConfirmShipModal";
 import { OrderExpandPanel } from "./OrderExpandPanel";
 import { OrderStatusSummary } from "./OrderStatusSummary";
 import { ResetOrderModal } from "./ResetOrderModal";
-import { ShipOrderModal, type ShipOrderSubmitInput } from "./ShipOrderModal";
+import { OrderDetailDrawer } from "./OrderDetailDrawer";
 
 const ORDER_STATUSES = [
   { label: "All statuses", value: "" },
@@ -439,37 +438,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       delete next[orderId];
       return next;
     });
-  }
-
-  async function runShipOrderInBackground(
-    order: OrderListItem,
-    input: ShipOrderSubmitInput,
-  ) {
-    if (pendingOrderActions[order.id]) {
-      return;
-    }
-
-    setShipTarget(null);
-    setPendingOrderActions((current) => ({ ...current, [order.id]: "ship" }));
-
-    try {
-      const result = await shipOrder(
-        order.id,
-        input.environment,
-        input.options,
-      );
-      toastSuccess("Shipment created successfully.");
-      applyOrderMutation({
-        ...result,
-        orderId: result.orderId ?? order.id,
-        orderStatus: result.orderStatus ?? "IN_PROCESSING",
-      });
-    } catch (error) {
-      toastError(getErrorMessage(error));
-      void reloadOrderDetail(order.id);
-    } finally {
-      clearPendingOrderAction(order.id);
-    }
   }
 
   async function runBatchShipInBackground(input: BatchShipSubmitInput) {
@@ -954,13 +922,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       ) : null}
 
       {shipTarget ? (
-        <ShipOrderModal
-          detail={detailCache[shipTarget.id] ?? null}
+        <OrderDetailDrawer
           onClose={() => setShipTarget(null)}
-          onSubmit={(input) => {
-            void runShipOrderInBackground(shipTarget, input);
+          onShipmentCreated={() => {
+            void reloadOrderDetail(shipTarget.id);
+            setReloadKey((value) => value + 1);
           }}
-          order={shipTarget}
+          orderId={shipTarget.id}
+          role={role}
         />
       ) : null}
 

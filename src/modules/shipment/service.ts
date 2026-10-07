@@ -722,6 +722,7 @@ export async function preflightShipmentExecution(
     shipment,
     normalizedCarrierCode,
     input.carrierAccountId ?? shipment.carrierAccountId,
+    input.options,
   );
   const carrierPreflight = await preflightCarrierShipmentCreation(carrierInput, {
     tenantId,
@@ -1677,6 +1678,7 @@ function buildCreateCarrierShipmentInputFromPreparation(
         ? { insuranceOption: options.insuranceOption }
         : {}),
       ...(options?.iossNumber ? { iossNumber: options.iossNumber } : {}),
+      ...(options?.hsCode ? { hsCode: options.hsCode } : {}),
     },
   };
 }

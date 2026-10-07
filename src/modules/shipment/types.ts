@@ -198,12 +198,14 @@ export type ShipOrderOptions = {
   tariffPrepay?: number;
   insuranceOption?: number;
   iossNumber?: string;
+  hsCode?: string;
   parcels?: ShipParcelOverride[];
 };
 
 export type PreflightShipmentExecutionInput = {
   carrierCode: string;
   carrierAccountId?: string | null;
+  options?: ShipOrderOptions;
 };
 
 export type ShipmentExecutionPreflightResult = {

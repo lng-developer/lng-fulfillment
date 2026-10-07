@@ -110,6 +110,7 @@ export function validateExecuteShipmentInput(input: unknown): ExecuteShipmentInp
         ? null
         : optionalString(body.carrierAccountId),
     environment: parseYunEnvironment(body.environment),
+    options: parseShipOrderOptions(body.options),
   };
 }
 
@@ -256,6 +257,7 @@ function parseShipOrderOptions(value: unknown): ShipOrderOptions | undefined {
     tariffPrepay: parseNonNegativeInteger(body.tariffPrepay, "tariffPrepay"),
     insuranceOption: parseNonNegativeInteger(body.insuranceOption, "insuranceOption"),
     iossNumber: optionalString(body.iossNumber),
+    hsCode: optionalString(body.hsCode),
     parcels: parseShipParcelOverrides(body.parcels),
   };
 

@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge, formatStatus } from "@/components/ui/StatusBadge";
+import { ShipmentDetailPanel } from "@/components/shipments/ShipmentDetailPanel";
 import { getErrorMessage } from "@/lib/api/base";
 import { getOrder } from "@/lib/api/orders";
 import { createDraftShipment, getShipments } from "@/lib/api/shipments";
@@ -45,6 +46,7 @@ export function OrderDetailDrawer({
   const [detailError, setDetailError] = useState<string | null>(null);
   const [shipmentsError, setShipmentsError] = useState<string | null>(null);
   const [shipmentsReloadKey, setShipmentsReloadKey] = useState(0);
+  const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -334,8 +336,9 @@ export function OrderDetailDrawer({
               {can.createShipment(role) ? (
                 <CreateDraftShipmentForm
                   items={detail.items}
-                  onCreated={() => {
+                  onCreated={(shipmentId) => {
                     setShipmentsReloadKey((value) => value + 1);
+                    setSelectedShipmentId(shipmentId);
                     onShipmentCreated?.();
                   }}
                   orderId={detail.id}
@@ -345,6 +348,15 @@ export function OrderDetailDrawer({
           ) : null}
         </div>
       </aside>
+      <ShipmentDetailPanel
+        onChanged={() => {
+          setShipmentsReloadKey((value) => value + 1);
+          onShipmentCreated?.();
+        }}
+        onClose={() => setSelectedShipmentId(null)}
+        role={role}
+        shipmentId={selectedShipmentId}
+      />
     </div>
   );
 }
@@ -356,7 +368,7 @@ function CreateDraftShipmentForm({
 }: {
   orderId: string;
   items: OrderDetailItem[];
-  onCreated: () => void;
+  onCreated: (shipmentId: string) => void;
 }) {
   const initialSelection = useMemo(
     () =>
@@ -393,7 +405,7 @@ function CreateDraftShipmentForm({
 
     setIsPending(true);
     try {
-      await createDraftShipment(
+      const shipment = await createDraftShipment(
         orderId,
         selectedItems.map(({ orderItemId, quantity }) => ({
           orderItemId,
@@ -403,7 +415,7 @@ function CreateDraftShipmentForm({
 
       setMessage("Draft shipment created.");
       toastSuccess("Draft shipment created.");
-      onCreated();
+      onCreated(shipment.id);
     } catch {
       setError("We could not create a draft shipment.");
       toastError("Failed to create shipment. Please try again.");

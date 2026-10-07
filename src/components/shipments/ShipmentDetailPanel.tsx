@@ -18,12 +18,15 @@ import { getErrorMessage } from "@/lib/api/base";
 import {
   getShipment,
   syncTracking as syncTrackingRequest,
+  type ShipmentCarrierCode,
 } from "@/lib/api/shipments";
+import type { ShipOrderOptions } from "@/modules/shipment/types";
 import { canSyncShipmentTracking } from "@/lib/shipment/tracking-sync-policy";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { PreflightResult, ShipmentDetail } from "@/types/shipments";
 import { LiveActionConfirmation } from "./LiveActionConfirmation";
+import { getCarrierPresentation } from "./carrier-presentation";
 import { PreflightChecker } from "./PreflightChecker";
 import { ShipmentTimeline } from "./ShipmentTimeline";
 import {
@@ -50,6 +53,8 @@ export function ShipmentDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showLiveConfirmation, setShowLiveConfirmation] = useState(false);
+  const [carrierCode, setCarrierCode] = useState<ShipmentCarrierCode>("YUNEXPRESS_OMS");
+  const [carrierOptions, setCarrierOptions] = useState<ShipOrderOptions>({});
   const [isTrackingSyncing, setIsTrackingSyncing] = useState(false);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [trackingResult, setTrackingResult] =
@@ -74,6 +79,8 @@ export function ShipmentDetailPanel({
     setPreflight(null);
     setTrackingResult(null);
     setTrackingError(null);
+    setShowLiveConfirmation(false);
+    setCarrierOptions({});
     const currentShipmentId = shipmentId;
     const controller = new AbortController();
 
@@ -134,6 +141,25 @@ export function ShipmentDetailPanel({
     canSyncShipmentTracking(role, hasTrackingLookup);
   const trackingSyncComplete =
     shipment?.actualShipAt && shipment.portalTrackingSyncState === "SYNCED";
+  const presentation = getCarrierPresentation(carrierCode);
+
+  function updateCarrierOption(key: keyof ShipOrderOptions, value: string) {
+    setCarrierOptions((current) => ({
+      ...current,
+      [key]: key === "hsCode" ? value : (value === "" ? undefined : Number(value)),
+    }));
+    setPreflight(null);
+    setShowLiveConfirmation(false);
+  }
+
+  function updateParcelOption(orderItemId: string, key: "unitWeight" | "unitPrice", value: string) {
+    setCarrierOptions((current) => {
+      const parcels = current.parcels?.filter((parcel) => parcel.orderItemId !== orderItemId) ?? [];
+      return { ...current, parcels: [...parcels, { orderItemId, [key]: value === "" ? undefined : Number(value) }] };
+    });
+    setPreflight(null);
+    setShowLiveConfirmation(false);
+  }
 
   async function syncTracking() {
     if (!shipment || !canSyncTracking) {
@@ -243,7 +269,54 @@ export function ShipmentDetailPanel({
               </PanelSection>
 
               <PanelSection icon={<ShieldCheck />} title="Preflight Check">
-                <PreflightChecker shipmentId={shipment.id} onResult={setPreflight} />
+                {canShowExecute ? (
+                  <div className="grid gap-3">
+                    <label className="grid gap-1 text-xs text-[var(--text-secondary)]">
+                      Carrier
+                      <select
+                        aria-label="Carrier"
+                        className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 text-xs"
+                        onChange={(event) => {
+                          setCarrierCode(event.target.value as ShipmentCarrierCode);
+                          setCarrierOptions({});
+                          setPreflight(null);
+                          setShowLiveConfirmation(false);
+                        }}
+                        value={carrierCode}
+                      >
+                        <option value="YUNEXPRESS_OMS">YunExpress OMS</option>
+                        <option value="VIETTEL_POST">Viettel Post</option>
+                      </select>
+                    </label>
+                    {carrierCode === "VIETTEL_POST" ? (
+                      <div className="grid gap-2 rounded-sm border border-[var(--border)] p-3">
+                        <p className="text-xs font-medium text-[var(--text-primary)]">Viettel Post parcel details</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["weight", "length", "width", "height"] as const).map((field) => (
+                            <label className="grid gap-1 text-[11px] text-[var(--text-secondary)]" key={field}>
+                              {field} {field === "weight" ? "(kg)" : "(cm)"}
+                              <input aria-label={`Viettel Post ${field}`} className="h-8 rounded-sm border border-[var(--border-strong)] px-2" min="0" onChange={(event) => updateCarrierOption(field, event.target.value)} type="number" value={carrierOptions[field] ?? ""} />
+                            </label>
+                          ))}
+                        </div>
+                        <label className="grid gap-1 text-[11px] text-[var(--text-secondary)]">
+                          HS code
+                          <input aria-label="Viettel Post HS code" className="h-8 rounded-sm border border-[var(--border-strong)] px-2" onChange={(event) => updateCarrierOption("hsCode", event.target.value)} value={carrierOptions.hsCode ?? ""} />
+                        </label>
+                        {shipment.items.map((item) => {
+                          const parcel = carrierOptions.parcels?.find((entry) => entry.orderItemId === item.orderItemId);
+                          return <div className="grid grid-cols-2 gap-2" key={item.id}>
+                            <label className="grid gap-1 text-[11px] text-[var(--text-secondary)]">{item.sku ?? item.id} weight (kg)<input aria-label={`Viettel Post item weight ${item.id}`} className="h-8 rounded-sm border border-[var(--border-strong)] px-2" min="0" onChange={(event) => updateParcelOption(item.orderItemId, "unitWeight", event.target.value)} type="number" value={parcel?.unitWeight ?? ""} /></label>
+                            <label className="grid gap-1 text-[11px] text-[var(--text-secondary)]">Declared value<input aria-label={`Viettel Post declared value ${item.id}`} className="h-8 rounded-sm border border-[var(--border-strong)] px-2" min="0" onChange={(event) => updateParcelOption(item.orderItemId, "unitPrice", event.target.value)} type="number" value={parcel?.unitPrice ?? ""} /></label>
+                          </div>;
+                        })}
+                      </div>
+                    ) : null}
+                    <PreflightChecker carrierCode={carrierCode} options={carrierOptions} shipmentId={shipment.id} onResult={setPreflight} />
+                  </div>
+                ) : (
+                  <PreflightChecker shipmentId={shipment.id} onResult={setPreflight} />
+                )}
               </PanelSection>
 
               <PanelSection icon={<Truck />} title="Execute">
@@ -264,7 +337,7 @@ export function ShipmentDetailPanel({
                       disabled
                       type="button"
                     >
-                      Create YunExpress Shipment
+                      Create {presentation.name} Shipment
                     </button>
                   </div>
                 ) : null}
@@ -272,7 +345,7 @@ export function ShipmentDetailPanel({
                 {preflight && preflight.liveEnabled && canShowExecute ? (
                   <div className="grid gap-3">
                     <WarningBox
-                      message="LIVE MODE ACTIVE. This will send a REAL order to YunExpress OMS."
+                      message={`LIVE MODE ACTIVE. This will send a REAL order to ${presentation.name}.`}
                       variant="danger"
                     />
                     <button
@@ -280,7 +353,7 @@ export function ShipmentDetailPanel({
                       onClick={() => setShowLiveConfirmation(true)}
                       type="button"
                     >
-                      Create YunExpress Shipment
+                      Create {presentation.name} Shipment
                     </button>
                   </div>
                 ) : null}
@@ -356,8 +429,10 @@ export function ShipmentDetailPanel({
             setPreflight(null);
             setReloadKey((value) => value + 1);
             onChanged?.();
-            toastSuccess("Shipment submitted to YunExpress.");
+            toastSuccess(`Shipment submitted to ${presentation.name}.`);
           }}
+          carrierCode={carrierCode}
+          options={carrierOptions}
           shipmentId={shipment.id}
         />
       ) : null}
