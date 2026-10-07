@@ -4,6 +4,16 @@ export const TRACKING_SYNC_BATCH_LIMIT = 20;
 export const TRACKING_SYNC_LOOKBACK_DAYS = 7;
 export const ETSY_TRACKING_SYNC_BATCH_LIMIT = 20;
 export const ETSY_TRACKING_SYNC_LOOKBACK_DAYS = 7;
+export const VIETTEL_POST_ACTIVE_TRACKING_STATUSES = [
+  "CREATED",
+  "LABEL_READY",
+  "TRACKING_PENDING",
+  "IN_TRANSIT",
+] as const;
+
+export function isActiveViettelPostTrackingStatus(status: string) {
+  return (VIETTEL_POST_ACTIVE_TRACKING_STATUSES as readonly string[]).includes(status);
+}
 
 export function trackingSyncOrderFilter() {
   return {
@@ -77,4 +87,13 @@ export function classifyTrackingSyncBatchResult(input: {
   actualShipAt: Date | null;
 }) {
   return input.actualShipAt ? "synced" : "no_actual_ship_event";
+}
+
+export function shouldEmitTrackingLifecycleEvent(input: {
+  statusChanged: boolean;
+  trackingNumberChanged: boolean;
+  carrierShipmentIdChanged: boolean;
+  actualShipAtChanged: boolean;
+}) {
+  return input.statusChanged || input.trackingNumberChanged || input.carrierShipmentIdChanged || input.actualShipAtChanged;
 }

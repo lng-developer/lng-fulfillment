@@ -77,6 +77,7 @@ import {
   classifyTrackingSyncBatchResult,
   ETSY_TRACKING_SYNC_BATCH_LIMIT,
   getTrackingSyncStep,
+  shouldEmitTrackingLifecycleEvent,
 } from "./tracking-sync-batch";
 import { shouldApplyTrackingStatusTransition } from "./tracking-status-reconciliation";
 
@@ -1082,6 +1083,10 @@ async function syncShipmentYunTracking(
       ? null
       : deriveActualShipEvent(tracking.events);
 
+    const statusChanged = statusDecision.nextStatus !== shipment.status;
+    const trackingNumberChanged = Boolean(nextTrackingNumber);
+    const carrierShipmentIdChanged = Boolean(nextCarrierShipmentId);
+    const actualShipAtChanged = Boolean(actualShipEvent);
     const updatedShipment = await updateShipmentTrackingSyncResult({
       tenantId,
       shipmentId,
@@ -1096,7 +1101,15 @@ async function syncShipmentYunTracking(
             eventTime: actualShipEvent.eventTime.toISOString(),
           }
         : undefined,
-      statusChanged: statusDecision.nextStatus !== shipment.status,
+      statusChanged,
+      emitLifecycleEvent:
+        normalizedCarrierCode === "VIETTEL_POST" &&
+        shouldEmitTrackingLifecycleEvent({
+          statusChanged,
+          trackingNumberChanged,
+          carrierShipmentIdChanged,
+          actualShipAtChanged,
+        }),
       statusNote: statusDecision.note,
       actorType: actor.actorType,
       actorId: actor.actorId,
@@ -1107,6 +1120,7 @@ async function syncShipmentYunTracking(
     let portalTrackingSyncState: ShipmentTrackingSyncResult["portalTrackingSyncState"] = null;
     if (
       options.syncPortal !== false &&
+      normalizedCarrierCode !== "VIETTEL_POST" &&
       shouldSendPortalTrackingUpdate({
         trackingNumber: updatedShipment.trackingNumber,
         hadTrackingNumber: Boolean(shipment.trackingNumber),

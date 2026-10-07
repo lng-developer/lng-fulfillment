@@ -14,6 +14,7 @@ import {
   getPendingTrackingSyncStep,
   trackingSyncOrderFilter,
   getTrackingSyncPurchaseAfter,
+  VIETTEL_POST_ACTIVE_TRACKING_STATUSES,
 } from "./tracking-sync-batch";
 import {
   getPortalTrackingSyncState,
@@ -820,10 +821,20 @@ export async function listTrackingSyncCandidates(
       tenantId,
       carrierCode: { not: null },
       status: { not: "CANCELLED" },
-      order: {
-        ...trackingSyncOrderFilter(),
-        purchaseAt: { gte: getTrackingSyncPurchaseAfter() },
-      },
+      AND: [{
+        OR: [
+          {
+            carrierCode: "VIETTEL_POST",
+            status: { in: [...VIETTEL_POST_ACTIVE_TRACKING_STATUSES] as ShipmentStatus[] },
+          },
+          {
+            order: {
+              ...trackingSyncOrderFilter(),
+              purchaseAt: { gte: getTrackingSyncPurchaseAfter() },
+            },
+          },
+        ],
+      }],
       OR: [
         { carrierShipmentId: { not: null } },
         { trackingNumber: { not: null } },
@@ -1105,6 +1116,7 @@ export async function updateShipmentTrackingSyncResult(input: {
   actualShipAt?: Date;
   actualShipEvidence?: Prisma.InputJsonValue;
   statusChanged: boolean;
+  emitLifecycleEvent?: boolean;
   statusNote?: string;
   actorType: AuditActorType;
   actorId?: string;
@@ -1157,7 +1169,7 @@ export async function updateShipmentTrackingSyncResult(input: {
       select: shipmentDetailSelect,
     });
 
-    if (row.carrierCode === "VIETTEL_POST") {
+    if (row.carrierCode === "VIETTEL_POST" && input.emitLifecycleEvent) {
       await createLifecycleOutboxInTransaction(tx, {
         eventType: input.actualShipAt
           ? "shipment.carrier_handoff_confirmed"
