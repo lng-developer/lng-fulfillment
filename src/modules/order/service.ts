@@ -99,7 +99,7 @@ export function toPortalOrderAcceptance(input: {
 }): PortalOrderAcceptance {
   return {
     externalOrderId: input.order.externalOrderId,
-    outcome: input.action === "inserted" ? "accepted" : "duplicate",
+    disposition: input.action === "inserted" ? "accepted" : "duplicate",
     fulfillmentOrderId: input.order.id,
     status: input.order.status,
     receivedAt: input.order.receivedAt,

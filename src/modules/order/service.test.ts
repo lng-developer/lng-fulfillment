@@ -16,7 +16,7 @@ test("reports an accepted portal order with its fulfillment order id", () => {
     }),
     {
       externalOrderId: "lng-order-1",
-      outcome: "accepted",
+      disposition: "accepted",
       fulfillmentOrderId: "fulfillment-order-1",
       status: "FULFILLED",
       receivedAt: new Date("2026-10-07T00:00:00.000Z"),
@@ -36,6 +36,6 @@ test("reports an existing portal order as a duplicate", () => {
     },
   });
 
-  assert.equal(acceptance.outcome, "duplicate");
+  assert.equal(acceptance.disposition, "duplicate");
   assert.equal(acceptance.fulfillmentOrderId, "fulfillment-order-1");
 });

@@ -107,7 +107,7 @@ export type ReceivedOrderSummary = {
 
 export type PortalOrderAcceptance = {
   externalOrderId: string;
-  outcome: "accepted" | "duplicate";
+  disposition: "accepted" | "duplicate";
   fulfillmentOrderId: string;
   status: OrderStatus;
   receivedAt: Date;
