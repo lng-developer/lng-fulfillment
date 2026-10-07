@@ -3,8 +3,10 @@ import {
   validateYunExpressLiveConfig,
 } from "@/integrations/yunexpress-oms/config";
 import { mapCreateShipmentToYunExpressPayload } from "@/integrations/yunexpress-oms/mapping";
+import { getViettelPostShipmentMissingFields } from "@/integrations/viettel-post/adapter";
 import { AppError } from "@/shared/errors";
 import { getCarrierCredentialRuntimeStatus } from "./service";
+import type { CarrierCredentialRuntimeStatus } from "./service";
 import {
   hasCarrierAdapter,
   isKnownCarrierCode,
@@ -17,9 +19,19 @@ import type {
   CreateCarrierShipmentInput,
 } from "./types";
 
+type PreflightDependencies = {
+  getCredentialRuntimeStatus?: (
+    tenantId: string,
+    carrierCode: string,
+    carrierAccountId?: string | null,
+  ) => Promise<CarrierCredentialRuntimeStatus>;
+  fetchImpl?: typeof fetch;
+};
+
 export async function preflightCarrierShipmentCreation(
   input: CreateCarrierShipmentInput,
   context: CarrierAdapterContext,
+  dependencies: PreflightDependencies = {},
 ): Promise<CarrierShipmentPreflightResult> {
   const carrierCode = normalizeCarrierCode(input.carrierCode);
 
@@ -36,20 +48,20 @@ export async function preflightCarrierShipmentCreation(
     });
   }
 
-  if (carrierCode !== "YUNEXPRESS_OMS") {
-    throw new AppError("CARRIER_ERROR", "Carrier preflight is not supported.", 501, {
-      carrierCode,
-      retryable: false,
-    });
+  const getCredentialRuntimeStatus = dependencies.getCredentialRuntimeStatus ?? getCarrierCredentialRuntimeStatus;
+
+  if (carrierCode === "VIETTEL_POST") {
+    return preflightViettelPost(input, carrierCode, context, getCredentialRuntimeStatus);
   }
 
-  return preflightYunExpressOms(input, carrierCode, context);
+  return preflightYunExpressOms(input, carrierCode, context, getCredentialRuntimeStatus);
 }
 
 async function preflightYunExpressOms(
   input: CreateCarrierShipmentInput,
   carrierCode: CarrierCode,
   context: CarrierAdapterContext,
+  getCredentialRuntimeStatus: PreflightDependencies["getCredentialRuntimeStatus"] & {},
 ): Promise<CarrierShipmentPreflightResult> {
   const credentialStatus = await getCarrierCredentialRuntimeStatus(
     context.tenantId,
@@ -154,6 +166,68 @@ async function preflightYunExpressOms(
         unitPrice: parcel.UnitPrice,
       })),
       sourceCode: payload.SourceCode,
+    },
+    warnings,
+  };
+}
+
+async function preflightViettelPost(
+  input: CreateCarrierShipmentInput,
+  carrierCode: CarrierCode,
+  context: CarrierAdapterContext,
+  getCredentialRuntimeStatus: PreflightDependencies["getCredentialRuntimeStatus"] & {},
+): Promise<CarrierShipmentPreflightResult> {
+  const credentialStatus = await getCredentialRuntimeStatus(
+    context.tenantId,
+    carrierCode,
+    input.carrierAccountId,
+  );
+  const missing = getViettelPostShipmentMissingFields(input);
+  const warnings = [...credentialStatus.warnings];
+
+  if (!credentialStatus.liveEnabled) {
+    warnings.push("Live Viettel Post shipment creation is disabled.");
+  }
+  if (missing.length > 0) {
+    warnings.push(`Viettel Post shipment data is incomplete: ${missing.join(", ")}.`);
+  }
+
+  return {
+    carrierCode,
+    credentialSource: credentialStatus.credentialSource,
+    credentialConfigured: credentialStatus.credentialConfigured,
+    liveEnabled: credentialStatus.liveEnabled,
+    env: {
+      baseUrlPresent: credentialStatus.credentialConfigured,
+      customerNoPresent: credentialStatus.credentialConfigured,
+      apiSecretPresent: credentialStatus.credentialConfigured,
+      defaultShippingMethodCode: "VIETTEL_POST",
+    },
+    mappingPreview: {
+      customerOrderNumber: input.externalOrderId,
+      shippingMethodCode: "VIETTEL_POST",
+      receiver: {
+        country: input.recipient?.country ?? null,
+        state: input.recipient?.state ?? null,
+        city: input.recipient?.city ?? null,
+        postalCode: input.recipient?.postalCode ?? null,
+      },
+      package: {
+        weight: Number(input.metadata?.weight) || 0,
+        length: Number(input.metadata?.length) || 0,
+        width: Number(input.metadata?.width) || 0,
+        height: Number(input.metadata?.height) || 0,
+        packageCount: 1,
+      },
+      parcels: input.items.map((item) => ({
+        sku: item.sku ?? null,
+        eName: item.name ?? item.sku ?? item.orderItemId,
+        cName: item.name ?? item.sku ?? item.orderItemId,
+        quantity: item.quantity,
+        unitWeight: item.weight ?? null,
+        unitPrice: item.declaredValue ?? null,
+      })),
+      sourceCode: "VIETTEL_POST",
     },
     warnings,
   };

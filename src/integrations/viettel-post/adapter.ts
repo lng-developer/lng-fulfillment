@@ -133,7 +133,7 @@ function getConfig(context: CarrierAdapterContext): ViettelPostConfig {
   };
 }
 
-function assertShipmentInput(input: CreateCarrierShipmentInput) {
+export function getViettelPostShipmentMissingFields(input: CreateCarrierShipmentInput): string[] {
   const dimensions = ["weight", "length", "width", "height"] as const;
   const missing: string[] = dimensions.filter((field) => !positiveNumber(input.metadata?.[field]));
   if (!stringValue(input.metadata?.hsCode)) missing.push("hsCode");
@@ -143,6 +143,11 @@ function assertShipmentInput(input: CreateCarrierShipmentInput) {
   if (input.items.some((item) => !positiveNumber(item.weight) || !positiveNumber(item.declaredValue))) {
     missing.push("itemWeightOrDeclaredValue");
   }
+  return missing;
+}
+
+function assertShipmentInput(input: CreateCarrierShipmentInput) {
+  const missing = getViettelPostShipmentMissingFields(input);
   if (missing.length > 0) {
     throw carrierError("VALIDATION_FAILED", "Viettel Post shipment data is incomplete.", false, 400, { missing });
   }

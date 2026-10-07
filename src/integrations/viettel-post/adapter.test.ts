@@ -1,9 +1,66 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hasCarrierAdapter } from "@/modules/carrier";
+import { preflightCarrierShipmentCreation } from "@/modules/carrier/preflight";
 import { validateCarrierCredentialSaveInput } from "@/modules/carrier/service";
-import { CARRIER_CODES } from "@/modules/carrier/types";
+import { CARRIER_CODES, type CreateCarrierShipmentInput } from "@/modules/carrier/types";
 import { createViettelPostAdapter } from "./adapter";
+
+const viettelPostShipmentInput = {
+  tenantId: "tenant-1",
+  shipmentId: "shipment-1",
+  orderId: "order-1",
+  externalOrderId: "order-reference-1",
+  carrierCode: "VIETTEL_POST",
+  recipient: { name: "Recipient Name", phone: "0123456789", line1: "123 Main Street", country: "US" },
+  items: [{ shipmentItemId: "shipment-item-1", orderItemId: "order-item-1", quantity: 1, weight: 0.25, declaredValue: 20 }],
+  metadata: { weight: 0.25, length: 20, width: 15, height: 5, hsCode: "6109100004" },
+} satisfies CreateCarrierShipmentInput;
+
+test("preflights a complete Viettel Post shipment without calling the carrier", async () => {
+  let calls = 0;
+  const result = await preflightCarrierShipmentCreation(
+    viettelPostShipmentInput,
+    { tenantId: "tenant-1" },
+    {
+      getCredentialRuntimeStatus: async () => ({
+        credentialSource: "tenantCredential" as const,
+        credentialConfigured: true,
+        liveEnabled: true,
+        carrierAccountId: "carrier-account-1",
+        credentialId: "credential-1",
+        warnings: [],
+      }),
+      fetchImpl: async () => {
+        calls += 1;
+        return Response.error();
+      },
+    },
+  );
+
+  assert.deepEqual(result.warnings, []);
+  assert.equal(result.liveEnabled, true);
+  assert.equal(calls, 0);
+});
+
+test("preflight reports each missing Viettel Post shipment data group", async () => {
+  const result = await preflightCarrierShipmentCreation(
+    {
+      ...viettelPostShipmentInput,
+      recipient: { name: "Recipient Name", country: "US" },
+      items: [{ ...viettelPostShipmentInput.items[0], weight: 0, declaredValue: 0 }],
+      metadata: { weight: 0, length: 0, width: 0, height: 0 },
+    },
+    { tenantId: "tenant-1" },
+    { getCredentialRuntimeStatus: async () => ({ credentialSource: "missing" as const, credentialConfigured: false, liveEnabled: false, carrierAccountId: null, credentialId: null, warnings: ["Viettel Post credential is not configured."] }) },
+  );
+
+  assert.deepEqual(result.warnings, [
+    "Viettel Post credential is not configured.",
+    "Live Viettel Post shipment creation is disabled.",
+    "Viettel Post shipment data is incomplete: weight, length, width, height, hsCode, recipient, itemWeightOrDeclaredValue.",
+  ]);
+});
 
 test("registers Viettel Post as a tenant carrier", () => {
   assert.ok(CARRIER_CODES.includes("VIETTEL_POST"));
