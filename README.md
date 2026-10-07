@@ -63,6 +63,7 @@ Fulfillment giữ Viettel Post credentials, wallet và label. LNG không nhận 
 
 - Set `FULFILLMENT_LIFECYCLE_CALLBACK_URL` to LNG `POST /api/vendor-webhooks/fulfillment-platform-v2`.
 - Set the same `FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET` on both systems; leave either callback value blank to disable delivery safely.
+- Vercel invokes `/api/cron/lifecycle-events` every five minutes to drain the retryable callback outbox. `CRON_SECRET` must be configured in Fulfillment.
 - First staging check: replay one mocked/signed `shipment.label_ready` event, then one `shipment.carrier_handoff_confirmed` event. Do not create a Viettel Post shipment in this check.
 - A label or tracking event does not mark marketplace shipment. Only `shipment.carrier_handoff_confirmed` carries the carrier handoff transition.
 
