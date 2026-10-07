@@ -155,7 +155,7 @@ export function OrderDetailDrawer({
   const title = detail?.orderNumber ?? detail?.externalOrderId ?? "Order detail";
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6">
       <button
         aria-label="Close order detail"
         className="absolute inset-0 bg-[rgba(26,29,58,0.4)] backdrop-blur-[2px]"
@@ -164,7 +164,9 @@ export function OrderDetailDrawer({
       />
       <aside
         aria-label="Order detail"
-        className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] shadow-drawer md:max-w-[520px]"
+        aria-modal="true"
+        className="relative flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-drawer"
+        role="dialog"
       >
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
           <button
