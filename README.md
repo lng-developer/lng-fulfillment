@@ -25,6 +25,7 @@ Hệ thống v2 được thiết kế tách biệt với MVP hiện tại. MVP v
 - `docs/08_CODEX_PROMPTS.md`: Prompt templates dùng lại cho Codex.
 - `docs/09_DEPLOYMENT_AND_ENV.md`: Environment, deployment và migration safety.
 - `docs/10_MIGRATION_FROM_MVP.md`: Nguyên tắc migration từ MVP sang v2.
+- `docs/contracts/lng-fulfillment-lifecycle.v1.openapi.yaml`: Canonical contract for LNG order intake and signed fulfillment lifecycle events.
 
 ## Local Setup
 

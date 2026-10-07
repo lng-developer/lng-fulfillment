@@ -1,0 +1,70 @@
+openapi: 3.1.0
+info:
+  title: LNG Fulfillment Lifecycle API
+  version: 1.0.0
+paths:
+  /api/portal/orders:
+    post:
+      summary: Accept idempotent LNG fulfillment orders
+      responses:
+        '200':
+          description: Accepted or duplicate orders
+  /api/portal/orders/{externalOrderId}:
+    get:
+      summary: Read safe processing status for an accepted order
+      parameters:
+        - name: externalOrderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Processing status }
+components:
+  schemas:
+    PortalOrderAccepted:
+      type: object
+      required: [externalOrderId, disposition, fulfillmentOrderId]
+      properties:
+        externalOrderId: { type: string }
+        disposition: { type: string, enum: [accepted, duplicate] }
+        fulfillmentOrderId: { type: string }
+    LifecycleEventEnvelope:
+      type: object
+      required: [eventId, eventType, occurredAt, tenantReference, externalOrderId, fulfillmentOrderId]
+      properties:
+        eventId: { type: string, format: uuid }
+        eventType:
+          type: string
+          enum: [fulfillment.accepted, shipment.created, shipment.label_ready, tracking.updated, shipment.carrier_handoff_confirmed, shipment.cancelled, shipment.failed]
+        occurredAt: { type: string, format: date-time }
+        tenantReference: { type: string }
+        externalOrderId: { type: string }
+        fulfillmentOrderId: { type: string }
+        shipment: { $ref: '#/components/schemas/FulfillmentShipment' }
+        failure: { $ref: '#/components/schemas/Failure' }
+    FulfillmentShipment:
+      type: object
+      properties:
+        shipmentId: { type: string }
+        carrierCode: { type: string, enum: [VIETTEL_POST] }
+        carrierShipmentId: { type: [string, 'null'] }
+        trackingNumber: { type: [string, 'null'] }
+        labelUrl: { type: [string, 'null'], format: uri }
+        status: { type: string }
+        actualShipAt: { type: [string, 'null'], format: date-time }
+    Failure:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+  headers:
+    X-LNG-Event-Id:
+      required: true
+      schema: { type: string, format: uuid }
+    X-LNG-Event-Timestamp:
+      required: true
+      schema: { type: string }
+    X-LNG-Signature:
+      required: true
+      schema: { type: string, pattern: '^sha256=[a-f0-9]{64}$' }

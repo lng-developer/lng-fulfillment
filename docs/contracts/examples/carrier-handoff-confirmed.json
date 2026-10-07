@@ -1,0 +1,18 @@
+{
+  "eventId": "00000000-0000-4000-8000-000000000002",
+  "eventType": "shipment.carrier_handoff_confirmed",
+  "occurredAt": "2026-10-07T01:00:00.000Z",
+  "tenantReference": "lng",
+  "externalOrderId": "order-123",
+  "fulfillmentOrderId": "fulfillment-order-123",
+  "shipment": {
+    "shipmentId": "shipment-123",
+    "carrierCode": "VIETTEL_POST",
+    "carrierShipmentId": "vp-shipment-123",
+    "trackingNumber": "EPK000000001",
+    "labelUrl": "https://example.test/label.pdf",
+    "status": "IN_TRANSIT",
+    "actualShipAt": "2026-10-07T00:55:00.000Z"
+  },
+  "failure": null
+}
