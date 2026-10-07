@@ -1,4 +1,4 @@
-export const CARRIER_CODES = ["YUNEXPRESS_OMS"] as const;
+export const CARRIER_CODES = ["YUNEXPRESS_OMS", "VIETTEL_POST"] as const;
 
 export type CarrierCode = (typeof CARRIER_CODES)[number];
 

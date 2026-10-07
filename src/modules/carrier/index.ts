@@ -1,4 +1,5 @@
 import "@/integrations/yunexpress-oms/register";
+import "@/integrations/viettel-post/register";
 
 export {
   CarrierIntegrationError,

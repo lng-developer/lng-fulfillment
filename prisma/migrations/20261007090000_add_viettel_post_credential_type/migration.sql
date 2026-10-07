@@ -1,0 +1,1 @@
+ALTER TYPE "CarrierCredentialType" ADD VALUE IF NOT EXISTS 'VIETTEL_POST';

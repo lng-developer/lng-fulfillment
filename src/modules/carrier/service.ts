@@ -52,6 +52,14 @@ const MAX_SAFE_STRING_LENGTH = 120;
 const MAX_SECRET_REF_LENGTH = 300;
 const SAFE_TEXT_PATTERN = /^[A-Za-z0-9 _./:@*+-]+$/;
 const SAFE_KEY_PREFIX_PATTERN = /^[A-Za-z0-9_.:*+-]{3,80}$/;
+const VIETTEL_POST_AUTH_HOSTS = new Set([
+  "auth-staging.logistek.com.vn",
+  "auth-global.viettelpost.vn",
+]);
+const VIETTEL_POST_ORDER_HOSTS = new Set([
+  "order-staging.logistek.com.vn",
+  "api-global.viettelpost.vn",
+]);
 const YUNEXPRESS_CREDENTIAL_KEYS = [
   "customerNo",
   "apiSecret",
@@ -60,6 +68,22 @@ const YUNEXPRESS_CREDENTIAL_KEYS = [
   "defaultShippingMethodCode",
   "defaultSourceCode",
   "defaultSizeUnit",
+  "liveEnabled",
+] as const;
+const VIETTEL_POST_CREDENTIAL_KEYS = [
+  "clientId",
+  "clientSecret",
+  "authUrl",
+  "orderUrl",
+  "lineShipId",
+  "shipFromFirstName",
+  "shipFromLastName",
+  "shipFromPhoneNumber",
+  "shipFromAddress1",
+  "shipFromCountry",
+  "shipFromState",
+  "shipFromCity",
+  "shipFromZipCode",
   "liveEnabled",
 ] as const;
 
@@ -116,6 +140,11 @@ export type CarrierCredentialSaveInput =
       credentials: YunExpressOmsCredentialPayload;
     }
   | {
+      credentialType: "VIETTEL_POST";
+      mode: "encryptedPayload";
+      credentials: ViettelPostCredentialPayload;
+    }
+  | {
       credentialType: CarrierCredentialType;
       mode: "secretRef";
       secretRef: string;
@@ -130,6 +159,23 @@ export type YunExpressOmsCredentialPayload = {
   defaultShippingMethodCode: string;
   defaultSourceCode: string;
   defaultSizeUnit: string;
+  liveEnabled: boolean;
+};
+
+export type ViettelPostCredentialPayload = {
+  clientId: string;
+  clientSecret: string;
+  authUrl: string;
+  orderUrl: string;
+  lineShipId: string;
+  shipFromFirstName: string;
+  shipFromLastName: string;
+  shipFromPhoneNumber: string;
+  shipFromAddress1: string;
+  shipFromCountry: string;
+  shipFromState: string;
+  shipFromCity: string;
+  shipFromZipCode: string;
   liveEnabled: boolean;
 };
 
@@ -644,12 +690,6 @@ export async function resolveCarrierRuntimeCredentials(
     carrierAccountId,
   );
 
-  if (resolved.carrierCode !== "YUNEXPRESS_OMS") {
-    throw new AppError("CARRIER_ERROR", "Carrier credential resolver is not supported.", 501, {
-      carrierCode: resolved.carrierCode,
-    });
-  }
-
   if (resolved.source === "env") {
     return {
       source: "envFallback",
@@ -677,7 +717,10 @@ export async function resolveCarrierRuntimeCredentials(
     source: "tenantCredential",
     carrierAccountId: resolved.account.id,
     credentialId: resolved.credential.id,
-    payload: normalizeYunExpressRuntimePayload(resolved.payload),
+    payload:
+      resolved.carrierCode === "YUNEXPRESS_OMS"
+        ? normalizeYunExpressRuntimePayload(resolved.payload)
+        : normalizeViettelPostRuntimePayload(resolved.payload),
   };
 }
 
@@ -801,19 +844,27 @@ export function validateCarrierCredentialSaveInput(
   const mode = validateMode(body.mode);
 
   if (mode === "encryptedPayload") {
-    if (credentialType !== "YUNEXPRESS_OMS") {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        "encryptedPayload mode currently supports YUNEXPRESS_OMS.",
-        400,
-      );
+    if (credentialType === "YUNEXPRESS_OMS") {
+      return {
+        credentialType,
+        mode,
+        credentials: validateYunExpressCredentialPayload(body.credentials),
+      };
     }
 
-    return {
-      credentialType,
-      mode,
-      credentials: validateYunExpressCredentialPayload(body.credentials),
-    };
+    if (credentialType === "VIETTEL_POST") {
+      return {
+        credentialType,
+        mode,
+        credentials: validateViettelPostCredentialPayload(body.credentials),
+      };
+    }
+
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "encryptedPayload mode currently supports YUNEXPRESS_OMS and VIETTEL_POST.",
+      400,
+    );
   }
 
   return {
@@ -883,9 +934,9 @@ function normalizeYunExpressRuntimePayload(
 
   const credentials = payload as Record<string, unknown>;
   return {
-    baseUrl: requireRuntimeString(credentials.baseUrl, "baseUrl"),
-    customerNo: requireRuntimeString(credentials.customerNo, "customerNo"),
-    apiSecret: requireRuntimeString(credentials.apiSecret, "apiSecret"),
+    baseUrl: requireRuntimeString(credentials.baseUrl, "baseUrl", "YUNEXPRESS_OMS"),
+    customerNo: requireRuntimeString(credentials.customerNo, "customerNo", "YUNEXPRESS_OMS"),
+    apiSecret: requireRuntimeString(credentials.apiSecret, "apiSecret", "YUNEXPRESS_OMS"),
     lang: optionalRuntimeString(credentials.lang, YUNEXPRESS_DEFAULT_LANG),
     liveEnabled: optionalRuntimeBoolean(credentials.liveEnabled, false),
     defaultShippingMethodCode: optionalRuntimeString(
@@ -904,10 +955,39 @@ function normalizeYunExpressRuntimePayload(
   };
 }
 
-function requireRuntimeString(value: unknown, field: string) {
+function normalizeViettelPostRuntimePayload(
+  payload: unknown,
+): CarrierRuntimeCredentialPayload {
+  if (!isObject(payload)) {
+    throw new AppError("CARRIER_ERROR", "Carrier credential payload is invalid.", 503, {
+      carrierCode: "VIETTEL_POST",
+      credentialSource: "tenantCredential",
+    });
+  }
+
+  const credentials = payload as Record<string, unknown>;
+  return {
+    clientId: requireRuntimeString(credentials.clientId, "clientId", "VIETTEL_POST"),
+    clientSecret: requireRuntimeString(credentials.clientSecret, "clientSecret", "VIETTEL_POST"),
+    authUrl: requireRuntimeString(credentials.authUrl, "authUrl", "VIETTEL_POST"),
+    orderUrl: requireRuntimeString(credentials.orderUrl, "orderUrl", "VIETTEL_POST"),
+    lineShipId: requireRuntimeString(credentials.lineShipId, "lineShipId", "VIETTEL_POST"),
+    shipFromFirstName: requireRuntimeString(credentials.shipFromFirstName, "shipFromFirstName", "VIETTEL_POST"),
+    shipFromLastName: requireRuntimeString(credentials.shipFromLastName, "shipFromLastName", "VIETTEL_POST"),
+    shipFromPhoneNumber: requireRuntimeString(credentials.shipFromPhoneNumber, "shipFromPhoneNumber", "VIETTEL_POST"),
+    shipFromAddress1: requireRuntimeString(credentials.shipFromAddress1, "shipFromAddress1", "VIETTEL_POST"),
+    shipFromCountry: requireRuntimeString(credentials.shipFromCountry, "shipFromCountry", "VIETTEL_POST"),
+    shipFromState: requireRuntimeString(credentials.shipFromState, "shipFromState", "VIETTEL_POST"),
+    shipFromCity: requireRuntimeString(credentials.shipFromCity, "shipFromCity", "VIETTEL_POST"),
+    shipFromZipCode: requireRuntimeString(credentials.shipFromZipCode, "shipFromZipCode", "VIETTEL_POST"),
+    liveEnabled: optionalRuntimeBoolean(credentials.liveEnabled, false),
+  };
+}
+
+function requireRuntimeString(value: unknown, field: string, carrierCode: string) {
   if (typeof value !== "string" || !value.trim()) {
     throw new AppError("CARRIER_ERROR", "Carrier credential payload is invalid.", 503, {
-      carrierCode: "YUNEXPRESS_OMS",
+      carrierCode,
       credentialSource: "tenantCredential",
       invalidField: field,
     });
@@ -1013,6 +1093,34 @@ function validateYunExpressCredentialPayload(
   };
 }
 
+function validateViettelPostCredentialPayload(
+  value: unknown,
+): ViettelPostCredentialPayload {
+  if (!isObject(value)) {
+    throw new AppError("VALIDATION_ERROR", "credentials must be an object.", 400);
+  }
+
+  const credentials = value as Record<string, unknown>;
+  assertAllowedKeys(credentials, [...VIETTEL_POST_CREDENTIAL_KEYS]);
+
+  return {
+    clientId: validateRequiredSecretString(credentials.clientId, "clientId"),
+    clientSecret: validateRequiredSecretString(credentials.clientSecret, "clientSecret"),
+    authUrl: validateViettelPostUrl(credentials.authUrl, "authUrl", VIETTEL_POST_AUTH_HOSTS),
+    orderUrl: validateViettelPostUrl(credentials.orderUrl, "orderUrl", VIETTEL_POST_ORDER_HOSTS),
+    lineShipId: validateRequiredSecretString(credentials.lineShipId, "lineShipId"),
+    shipFromFirstName: validateRequiredSecretString(credentials.shipFromFirstName, "shipFromFirstName"),
+    shipFromLastName: validateRequiredSecretString(credentials.shipFromLastName, "shipFromLastName"),
+    shipFromPhoneNumber: validateRequiredSecretString(credentials.shipFromPhoneNumber, "shipFromPhoneNumber"),
+    shipFromAddress1: validateRequiredSecretString(credentials.shipFromAddress1, "shipFromAddress1"),
+    shipFromCountry: validateRequiredSecretString(credentials.shipFromCountry, "shipFromCountry"),
+    shipFromState: validateRequiredSecretString(credentials.shipFromState, "shipFromState"),
+    shipFromCity: validateRequiredSecretString(credentials.shipFromCity, "shipFromCity"),
+    shipFromZipCode: validateRequiredSecretString(credentials.shipFromZipCode, "shipFromZipCode"),
+    liveEnabled: validateOptionalBoolean(credentials.liveEnabled, false, "liveEnabled"),
+  };
+}
+
 function validateRequiredSecretString(value: unknown, field: string) {
   if (typeof value !== "string" || !value.trim()) {
     throw new AppError("VALIDATION_ERROR", `${field} is required.`, 400);
@@ -1023,6 +1131,15 @@ function validateRequiredSecretString(value: unknown, field: string) {
   }
 
   return value.trim();
+}
+
+function validateViettelPostUrl(value: unknown, field: string, allowedHosts: Set<string>) {
+  const url = validateUrl(value, field);
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" || !allowedHosts.has(parsed.hostname)) {
+    throw new AppError("VALIDATION_ERROR", `${field} must use a documented Viettel Post endpoint.`, 400);
+  }
+  return url;
 }
 
 function validateSecretRef(value: unknown) {
