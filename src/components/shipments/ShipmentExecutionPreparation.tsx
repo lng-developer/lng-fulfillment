@@ -13,6 +13,16 @@ import {
 } from "@/lib/api/shipments";
 import styles from "./ShipmentExecutionPreparation.module.css";
 
+type ShipmentCarrierCode = "YUNEXPRESS_OMS" | "VIETTEL_POST";
+type ShipmentOptions = {
+  weight?: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  hsCode?: string;
+  parcels?: Array<{ orderItemId?: string; unitWeight?: number; unitPrice?: number }>;
+};
+
 type ShipmentStatus =
   | "DRAFT"
   | "CREATING"
@@ -76,7 +86,7 @@ type ShipmentDetail = Omit<ShipmentListItem, "itemCount"> & {
 type ShipmentPreflight = {
   shipmentId: string;
   shipmentStatus: ShipmentStatus;
-  carrierCode: "YUNEXPRESS_OMS";
+  carrierCode: ShipmentCarrierCode;
   liveEnabled: boolean;
   env: {
     baseUrlPresent: boolean;
@@ -115,7 +125,7 @@ type ShipmentPreflight = {
 
 type ExecuteResult = {
   shipment: ShipmentDetail;
-  carrierCode: "YUNEXPRESS_OMS";
+  carrierCode: ShipmentCarrierCode;
   carrierAccountId: string | null;
 };
 
@@ -149,7 +159,10 @@ type TrackingSyncResult = {
 };
 
 const EXECUTABLE_STATUSES: ShipmentStatus[] = ["DRAFT", "FAILED_CREATE"];
-const CONFIRMATION_TEXT = "CREATE YUNEXPRESS SHIPMENT";
+const CONFIRMATION_TEXT_BY_CARRIER: Record<ShipmentCarrierCode, string> = {
+  YUNEXPRESS_OMS: "CREATE YUNEXPRESS SHIPMENT",
+  VIETTEL_POST: "CREATE VIETTEL POST SHIPMENT",
+};
 const FAILURE_STATUSES: ShipmentStatus[] = [
   "FAILED_CREATE",
   "FAILED_LABEL",
@@ -176,6 +189,10 @@ export function ShipmentExecutionPreparation({
   const [preflightError, setPreflightError] = useState<string | null>(null);
   const [confirmationChecked, setConfirmationChecked] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
+  const [carrierCode, setCarrierCode] = useState<ShipmentCarrierCode>("YUNEXPRESS_OMS");
+  const [carrierOptions, setCarrierOptions] = useState<ShipmentOptions>({});
+  const [viettelItemWeight, setViettelItemWeight] = useState("");
+  const [viettelDeclaredValue, setViettelDeclaredValue] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [executeError, setExecuteError] = useState<string | null>(null);
   const [executeResult, setExecuteResult] = useState<ExecuteResult | null>(null);
@@ -332,7 +349,8 @@ export function ShipmentExecutionPreparation({
       preflight.env.customerNoPresent &&
       preflight.env.apiSecretPresent,
   );
-  const exactConfirmationMatches = confirmationText.trim() === CONFIRMATION_TEXT;
+  const confirmationTextExpected = CONFIRMATION_TEXT_BY_CARRIER[carrierCode];
+  const exactConfirmationMatches = confirmationText.trim() === confirmationTextExpected;
   const canExecute = Boolean(
     preflight?.liveEnabled &&
       envReady &&
@@ -391,7 +409,12 @@ export function ShipmentExecutionPreparation({
     setExecuteResult(null);
 
     try {
-      const body = await getPreflight(selectedShipmentId);
+      const body = await getPreflight(
+        selectedShipmentId,
+        carrierCode,
+        null,
+        buildCarrierOptions(carrierCode, carrierOptions, selectedShipmentDetail, viettelItemWeight, viettelDeclaredValue),
+      );
       setPreflight(body as ShipmentPreflight);
     } catch (error) {
       setPreflightError(getErrorMessage(error));
@@ -410,7 +433,12 @@ export function ShipmentExecutionPreparation({
     setExecuteResult(null);
 
     try {
-      const body = await executeShipmentRequest(selectedShipmentId);
+      const body = await executeShipmentRequest(
+        selectedShipmentId,
+        carrierCode,
+        null,
+        buildCarrierOptions(carrierCode, carrierOptions, selectedShipmentDetail, viettelItemWeight, viettelDeclaredValue),
+      );
       setExecuteResult(body as ExecuteResult);
       setRefreshToken((value) => value + 1);
     } catch (error) {
@@ -625,10 +653,10 @@ export function ShipmentExecutionPreparation({
         <div className={styles.sectionBlock}>
           <div className={styles.blockHeader}>
             <div>
-              <h5>YunExpress OMS preflight</h5>
+              <h5>{carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress OMS"} preflight</h5>
               <p>Safe readiness check and mapping preview.</p>
             </div>
-            <span className={styles.carrierBadge}>YUNEXPRESS_OMS</span>
+            <span className={styles.carrierBadge}>{carrierCode}</span>
           </div>
 
           <div className={styles.controls}>
@@ -650,10 +678,125 @@ export function ShipmentExecutionPreparation({
 
             <label className={styles.field}>
               <span>Carrier</span>
-              <select className={styles.select} disabled value="YUNEXPRESS_OMS">
+              <select
+                className={styles.select}
+                onChange={(event) => {
+                  setCarrierCode(event.target.value as ShipmentCarrierCode);
+                  setPreflight(null);
+                  setConfirmationChecked(false);
+                  setConfirmationText("");
+                }}
+                value={carrierCode}
+              >
                 <option value="YUNEXPRESS_OMS">YUNEXPRESS_OMS</option>
+                <option value="VIETTEL_POST">VIETTEL_POST</option>
               </select>
             </label>
+
+            {carrierCode === "VIETTEL_POST" ? (
+              <div className={styles.carrierOptions}>
+                <label className={styles.field}>
+                  <span>Weight (g)</span>
+                  <input
+                    className={styles.input}
+                    min="1"
+                    onChange={(event) =>
+                      setCarrierOptions((current) => ({
+                        ...current,
+                        weight: toPositiveNumber(event.target.value),
+                      }))
+                    }
+                    placeholder="1000"
+                    type="number"
+                    value={carrierOptions.weight ?? ""}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Length (cm)</span>
+                  <input
+                    className={styles.input}
+                    min="1"
+                    onChange={(event) =>
+                      setCarrierOptions((current) => ({
+                        ...current,
+                        length: toPositiveNumber(event.target.value),
+                      }))
+                    }
+                    placeholder="20"
+                    type="number"
+                    value={carrierOptions.length ?? ""}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Width (cm)</span>
+                  <input
+                    className={styles.input}
+                    min="1"
+                    onChange={(event) =>
+                      setCarrierOptions((current) => ({
+                        ...current,
+                        width: toPositiveNumber(event.target.value),
+                      }))
+                    }
+                    placeholder="15"
+                    type="number"
+                    value={carrierOptions.width ?? ""}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Height (cm)</span>
+                  <input
+                    className={styles.input}
+                    min="1"
+                    onChange={(event) =>
+                      setCarrierOptions((current) => ({
+                        ...current,
+                        height: toPositiveNumber(event.target.value),
+                      }))
+                    }
+                    placeholder="10"
+                    type="number"
+                    value={carrierOptions.height ?? ""}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>HS code</span>
+                  <input
+                    className={styles.input}
+                    onChange={(event) =>
+                      setCarrierOptions((current) => ({
+                        ...current,
+                        hsCode: event.target.value,
+                      }))
+                    }
+                    placeholder="950300"
+                    value={carrierOptions.hsCode ?? ""}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Item weight (g)</span>
+                  <input
+                    className={styles.input}
+                    min="1"
+                    onChange={(event) => setViettelItemWeight(event.target.value)}
+                    placeholder="1000"
+                    type="number"
+                    value={viettelItemWeight}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Declared value</span>
+                  <input
+                    className={styles.input}
+                    min="0"
+                    onChange={(event) => setViettelDeclaredValue(event.target.value)}
+                    placeholder="19.96"
+                    type="number"
+                    value={viettelDeclaredValue}
+                  />
+                </label>
+              </div>
+            ) : null}
 
             <button
               className={styles.primaryButton}
@@ -681,14 +824,14 @@ export function ShipmentExecutionPreparation({
 
           {preflight && !preflight.liveEnabled ? (
             <p className={styles.notice}>
-              Live YunExpress OMS shipment creation is disabled.
+              Live {carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress OMS"} shipment creation is disabled.
             </p>
           ) : null}
 
           {preflight?.liveEnabled ? (
             <div className={styles.confirmation}>
               <p className={styles.dangerText}>
-                This will create a real YunExpress OMS shipment. Only continue if
+                This will create a real {carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress OMS"} shipment. Only continue if
                 you are ready to manage/cancel it.
               </p>
               <label className={styles.checkboxField}>
@@ -700,8 +843,7 @@ export function ShipmentExecutionPreparation({
                   type="checkbox"
                 />
                 <span>
-                  I understand this will create a real or sandbox YunExpress
-                  shipment.
+                  I understand this will create a real or sandbox {carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress OMS"} shipment.
                 </span>
               </label>
               <label className={styles.field}>
@@ -709,7 +851,7 @@ export function ShipmentExecutionPreparation({
                 <input
                   className={styles.input}
                   onChange={(event) => setConfirmationText(event.target.value)}
-                  placeholder={CONFIRMATION_TEXT}
+                  placeholder={CONFIRMATION_TEXT_BY_CARRIER[carrierCode]}
                   value={confirmationText}
                 />
               </label>
@@ -729,7 +871,9 @@ export function ShipmentExecutionPreparation({
             onClick={executeShipment}
             type="button"
           >
-            {isExecuting ? "Creating shipment..." : "Create YunExpress shipment"}
+            {isExecuting
+              ? "Creating shipment..."
+              : `Create ${carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress"} shipment`}
           </button>
         </div>
       ) : null}
@@ -1314,6 +1458,38 @@ function validateDraftPayload(
   }
 
   return null;
+}
+
+function toPositiveNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function buildCarrierOptions(
+  carrierCode: ShipmentCarrierCode,
+  options: ShipmentOptions,
+  shipment: ShipmentDetail | null,
+  itemWeight: string,
+  declaredValue: string,
+): ShipmentOptions {
+  if (carrierCode !== "VIETTEL_POST") {
+    return options;
+  }
+
+  const unitWeight = toPositiveNumber(itemWeight);
+  const unitPrice = toPositiveNumber(declaredValue);
+  if (!shipment?.items.length || (!unitWeight && !unitPrice)) {
+    return options;
+  }
+
+  return {
+    ...options,
+    parcels: shipment.items.map((item) => ({
+      orderItemId: item.orderItemId,
+      ...(unitWeight ? { unitWeight } : {}),
+      ...(unitPrice ? { unitPrice } : {}),
+    })),
+  };
 }
 
 function formatStatus(status: string) {

@@ -60,6 +60,12 @@
   grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) auto;
 }
 
+.carrierOptions {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
 .field,
 .quantityField {
   display: grid;
