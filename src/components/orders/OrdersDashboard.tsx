@@ -498,6 +498,16 @@ function OrderDetailPanel({
         <DetailItem label="Received" value={formatDate(detail.receivedAt)} />
       </div>
 
+      <ShipmentExecutionPreparation
+        orderId={detail.id}
+        orderItems={detail.items.map((item) => ({
+          id: item.id,
+          name: item.title ?? item.name,
+          quantity: item.quantity,
+          sku: item.sku,
+        }))}
+      />
+
       <div className={styles.detailBlock}>
         <h4>Items</h4>
         {detail.items.length ? (
@@ -538,15 +548,6 @@ function OrderDetailPanel({
         )}
       </div>
 
-      <ShipmentExecutionPreparation
-        orderId={detail.id}
-        orderItems={detail.items.map((item) => ({
-          id: item.id,
-          name: item.title ?? item.name,
-          quantity: item.quantity,
-          sku: item.sku,
-        }))}
-      />
     </aside>
   );
 }
