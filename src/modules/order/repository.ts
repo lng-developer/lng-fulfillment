@@ -793,12 +793,27 @@ function buildPortalFileLinks(value: Prisma.JsonValue | null): PortalFileLinks {
     return {};
   }
 
-  return Object.fromEntries(
+  const links = Object.fromEntries(
     Object.entries(record).filter(
       (entry): entry is [string, string] =>
         typeof entry[1] === "string" && entry[1].trim().length > 0,
     ),
   );
+
+  if (Array.isArray(record.assets)) {
+    record.assets.forEach((asset, index) => {
+      const item = asRecord(asset);
+      const url = readOptionalString(item, "url");
+      const key = readOptionalString(item, "slotKey")
+        ?? readOptionalString(item, "slotLabel")
+        ?? `asset-${index + 1}`;
+      if (url && !links[key]) {
+        links[key] = url;
+      }
+    });
+  }
+
+  return links;
 }
 
 function buildPortalCostCenter(
