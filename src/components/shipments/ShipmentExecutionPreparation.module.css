@@ -1,8 +1,8 @@
 .preflight {
   border-top: 1px solid #edf0f5;
   display: grid;
-  gap: 14px;
-  padding-top: 18px;
+  gap: 8px;
+  padding-top: 10px;
 }
 
 .header,
@@ -18,7 +18,7 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   text-transform: uppercase;
 }
 
@@ -31,26 +31,26 @@
 }
 
 .header h4 {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .blockHeader h5 {
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .blockHeader p {
   color: #5d6673;
-  font-size: 13px;
-  line-height: 1.45;
-  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 2px 0 0;
 }
 
 .sectionBlock {
   border: 1px solid #edf0f5;
   border-radius: 8px;
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px;
 }
 
 .controls {
@@ -82,7 +82,7 @@
 
 .quantityField small {
   color: #697586;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .input,
@@ -93,8 +93,8 @@
   border-radius: 8px;
   color: #17202a;
   font: inherit;
-  min-height: 40px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 9px;
   width: 100%;
 }
 
@@ -115,15 +115,114 @@
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 10px;
 }
 
 .secondaryButton {
   background: #ffffff;
   border: 1px solid #c8d0dc;
+  color: #17202a;
+}
+
+.createDraftTrigger {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d9e1ee;
+  border-radius: 8px;
+  color: #17202a;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.createDraftTrigger:hover {
+  border-color: #8da8ff;
+  background: #f8faff;
+}
+
+.createDraftTrigger strong,
+.createDraftTrigger small {
+  display: block;
+}
+
+.createDraftTrigger strong {
+  font-size: 13px;
+}
+
+.createDraftTrigger small {
+  color: #697586;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.modalBackdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 45%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 50;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgb(15 23 42 / 25%);
+  max-height: min(720px, calc(100vh - 32px));
+  max-width: 680px;
+  overflow: auto;
+  padding: 16px;
+  width: 100%;
+}
+
+.modalHeader {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.modalHeader h4 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.modal > .blockHeader {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal > .blockHeader h4 {
+  margin: 0;
+}
+
+.modalActions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.closeButton {
+  background: transparent;
+  border: 0;
+  color: #697586;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.closeButton:hover {
   color: #17202a;
 }
 
@@ -182,7 +281,7 @@
 .shipmentList,
 .detailStack {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .itemSelectionRow {
@@ -190,9 +289,9 @@
   border: 1px solid #edf0f5;
   border-radius: 8px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   grid-template-columns: minmax(220px, 1fr) minmax(120px, 180px);
-  padding: 10px;
+  padding: 7px 8px;
 }
 
 .shipmentRow {

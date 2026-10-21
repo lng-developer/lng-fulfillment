@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Portal image URLs are external and not pre-whitelisted for next/image. */
 
 import type React from "react";
+import { ShipmentExecutionPreparation } from "@/components/shipments/ShipmentExecutionPreparation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -69,6 +70,16 @@ export function OrderExpandPanel({
         </div>
 
         {hasSellerOrScaler ? <StatusHistoryCard order={order} /> : null}
+
+        <ShipmentExecutionPreparation
+          orderId={order.id}
+          orderItems={order.items.map((item) => ({
+            id: item.id,
+            name: item.title ?? item.name,
+            quantity: item.quantity,
+            sku: item.sku,
+          }))}
+        />
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <PanelCard

@@ -178,6 +178,8 @@ export function ShipmentExecutionPreparation({
 }) {
   const [shipments, setShipments] = useState<ShipmentListItem[]>([]);
   const [selectedShipmentId, setSelectedShipmentId] = useState("");
+  const [isShipmentDetailOpen, setIsShipmentDetailOpen] = useState(false);
+  const [isPreflightOpen, setIsPreflightOpen] = useState(false);
   const [selectedShipmentDetail, setSelectedShipmentDetail] =
     useState<ShipmentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,7 +191,7 @@ export function ShipmentExecutionPreparation({
   const [preflightError, setPreflightError] = useState<string | null>(null);
   const [confirmationChecked, setConfirmationChecked] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
-  const [carrierCode, setCarrierCode] = useState<ShipmentCarrierCode>("YUNEXPRESS_OMS");
+  const [carrierCode, setCarrierCode] = useState<ShipmentCarrierCode>("VIETTEL_POST");
   const [carrierOptions, setCarrierOptions] = useState<ShipmentOptions>({});
   const [viettelItemWeight, setViettelItemWeight] = useState("");
   const [viettelDeclaredValue, setViettelDeclaredValue] = useState("");
@@ -200,6 +202,7 @@ export function ShipmentExecutionPreparation({
   const [draftSelection, setDraftSelection] = useState<Record<string, boolean>>({});
   const [draftQuantities, setDraftQuantities] = useState<Record<string, string>>({});
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
   const [createDraftError, setCreateDraftError] = useState<string | null>(null);
   const [createDraftMessage, setCreateDraftMessage] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<TenantRole | null>(null);
@@ -285,9 +288,7 @@ export function ShipmentExecutionPreparation({
           return (
             body.data.find((shipment) =>
               EXECUTABLE_STATUSES.includes(shipment.status as ShipmentStatus),
-            )?.id ??
-            body.data[0]?.id ??
-            ""
+            )?.id ?? ""
           );
         });
       } catch (loadError) {
@@ -493,10 +494,45 @@ export function ShipmentExecutionPreparation({
       ) : null}
 
       {orderId ? (
-        <div className={styles.sectionBlock}>
+        <button
+          className={styles.createDraftTrigger}
+          onClick={() => setIsDraftModalOpen(true)}
+          type="button"
+        >
+          <span>
+            <strong>Create draft shipment</strong>
+            <small>Select order items and quantities. No carrier call.</small>
+          </span>
+          <span className={styles.readinessBadge}>Draft only</span>
+        </button>
+      ) : null}
+
+      {isDraftModalOpen ? (
+        <div
+          aria-labelledby="create-draft-title"
+          aria-modal="true"
+          className={styles.modalBackdrop}
+          role="dialog"
+        >
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <div>
+                <p className={styles.kicker}>Shipments</p>
+                <h4 id="create-draft-title">Create draft shipment</h4>
+              </div>
+              <button
+                aria-label="Close create draft shipment"
+                className={styles.closeButton}
+                onClick={() => setIsDraftModalOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className={styles.sectionBlock}>
           <div className={styles.blockHeader}>
             <div>
-              <h5>Create draft shipment</h5>
               <p>Select order items and quantities. This does not call a carrier.</p>
             </div>
             <span className={styles.readinessBadge}>Draft only</span>
@@ -566,6 +602,8 @@ export function ShipmentExecutionPreparation({
             {isCreatingDraft ? "Creating draft..." : "Create draft shipment"}
           </button>
         </div>
+          </div>
+        </div>
       ) : null}
 
       <div className={styles.sectionBlock}>
@@ -597,7 +635,10 @@ export function ShipmentExecutionPreparation({
                     : styles.shipmentRow
                 }
                 key={shipment.id}
-                onClick={() => setSelectedShipmentId(shipment.id)}
+                onClick={() => {
+                  setSelectedShipmentId(shipment.id);
+                  setIsShipmentDetailOpen(true);
+                }}
                 type="button"
               >
                 <div>
@@ -617,14 +658,18 @@ export function ShipmentExecutionPreparation({
         ) : null}
       </div>
 
-      {selectedShipmentId ? (
-        <div className={styles.sectionBlock}>
+      {isShipmentDetailOpen && selectedShipmentId ? (
+        <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-detail-title">
+          <div className={styles.modal}>
           <div className={styles.blockHeader}>
             <div>
-              <h5>Shipment detail</h5>
+              <h4 id="shipment-detail-title">Shipment detail</h4>
               <p>Items, carrier result fields, and status history.</p>
             </div>
-            {selectedShipment ? <StatusBadge status={selectedShipment.status} /> : null}
+            <div className={styles.modalActions}>
+              {selectedShipment ? <StatusBadge status={selectedShipment.status} /> : null}
+              <button className={styles.closeButton} onClick={() => setIsShipmentDetailOpen(false)} type="button" aria-label="Close shipment detail">×</button>
+            </div>
           </div>
 
           {isDetailLoading ? (
@@ -646,10 +691,24 @@ export function ShipmentExecutionPreparation({
               trackingSyncResult={trackingSyncResult}
             />
           ) : null}
+          </div>
         </div>
       ) : null}
 
       {shipments.length > 0 ? (
+        <>
+        <button className={styles.createDraftTrigger} onClick={() => setIsPreflightOpen(true)} type="button">
+          <span>
+            <strong>Prepare shipment</strong>
+            <small>Choose carrier, validate mapping, and create the carrier shipment.</small>
+          </span>
+          <span className={styles.carrierBadge}>{carrierCode}</span>
+        </button>
+        {isPreflightOpen ? <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-preflight-title"><div className={styles.modal}>
+        <div className={styles.modalHeader}>
+          <div><p className={styles.kicker}>Shipments</p><h4 id="shipment-preflight-title">Prepare shipment</h4></div>
+          <button className={styles.closeButton} onClick={() => setIsPreflightOpen(false)} type="button" aria-label="Close shipment preparation">×</button>
+        </div>
         <div className={styles.sectionBlock}>
           <div className={styles.blockHeader}>
             <div>
@@ -876,6 +935,8 @@ export function ShipmentExecutionPreparation({
               : `Create ${carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress"} shipment`}
           </button>
         </div>
+        </div></div> : null}
+        </>
       ) : null}
     </section>
   );
