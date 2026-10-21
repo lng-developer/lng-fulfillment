@@ -66,6 +66,28 @@ export async function findOrderByExternalId(
           updatedAt: true,
         },
       },
+      shipments: {
+        orderBy: {
+          createdAt: "asc",
+        },
+        select: {
+          id: true,
+          carrierCode: true,
+          carrierShipmentId: true,
+          trackingNumber: true,
+          status: true,
+          actualShipAt: true,
+          items: {
+            select: {
+              orderItem: {
+                select: {
+                  externalItemId: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 }

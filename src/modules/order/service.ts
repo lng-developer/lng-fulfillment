@@ -51,7 +51,7 @@ export async function receivePortalOrders(
     const result = await createPortalOrderWithItems({
       tenantId: tenantContext.tenantId,
       order,
-      status: "FULFILLED",
+      status: "RECEIVED",
       actorType: "API_KEY",
       actorId: tenantContext.apiKeyId,
     });
@@ -180,6 +180,16 @@ export async function getPortalOrderProcessingStatus(
     orderStatus: order.status,
     receivedAt: order.receivedAt,
     autoShipment: order.autoShipmentJob,
+    packages: order.shipments.map((shipment) => ({
+      packageId: shipment.carrierShipmentId || shipment.id,
+      status: shipment.status,
+      carrier: shipment.carrierCode,
+      trackingNumber: shipment.trackingNumber,
+      shippedAt: shipment.actualShipAt,
+      externalItemIds: shipment.items
+        .map((item) => item.orderItem.externalItemId)
+        .filter((externalItemId): externalItemId is string => Boolean(externalItemId)),
+    })),
   };
 }
 

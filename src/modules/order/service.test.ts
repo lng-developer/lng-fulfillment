@@ -10,7 +10,7 @@ test("reports an accepted portal order with its fulfillment order id", () => {
         id: "fulfillment-order-1",
         tenantId: "tenant-1",
         externalOrderId: "lng-order-1",
-        status: "FULFILLED",
+        status: "RECEIVED",
         receivedAt: new Date("2026-10-07T00:00:00.000Z"),
       },
     }),
@@ -18,7 +18,7 @@ test("reports an accepted portal order with its fulfillment order id", () => {
       externalOrderId: "lng-order-1",
       disposition: "accepted",
       fulfillmentOrderId: "fulfillment-order-1",
-      status: "FULFILLED",
+      status: "RECEIVED",
       receivedAt: new Date("2026-10-07T00:00:00.000Z"),
     },
   );
@@ -31,7 +31,7 @@ test("reports an existing portal order as a duplicate", () => {
       id: "fulfillment-order-1",
       tenantId: "tenant-1",
       externalOrderId: "lng-order-1",
-      status: "FULFILLED",
+      status: "RECEIVED",
       receivedAt: new Date("2026-10-07T00:00:00.000Z"),
     },
   });
