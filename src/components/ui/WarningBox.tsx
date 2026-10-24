@@ -11,15 +11,15 @@ export function WarningBox({
   return (
     <div
       className={cn(
-        "flex gap-3 rounded-sm border px-[11px] py-[9px] text-[11px]",
+        "flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed",
         variant === "danger"
-          ? "border-[#fca5a5] bg-[var(--danger-bg)] text-[var(--danger-text)]"
-          : "border-[#fcd34d] bg-[var(--warning-bg)] text-[var(--warning-text)]",
+          ? "border-rose-200 bg-rose-50 text-rose-800"
+          : "border-amber-200 bg-amber-50 text-amber-800",
       )}
       role="alert"
     >
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-      <p className="m-0">{message}</p>
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-current" aria-hidden />
+      <p className="m-0 font-medium">{message}</p>
     </div>
   );
 }

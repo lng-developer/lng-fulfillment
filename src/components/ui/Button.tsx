@@ -4,8 +4,8 @@ import { Loader2 } from "lucide-react";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type ButtonVariant = "primary" | "secondary" | "soft" | "ghost" | "danger";
-type ButtonSize = "sm" | "md" | "lg" | "icon-sm" | "icon-md";
+export type ButtonVariant = "primary" | "secondary" | "soft" | "ghost" | "danger" | "outline";
+export type ButtonSize = "sm" | "md" | "lg" | "icon-sm" | "icon-md";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -17,22 +17,24 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "border-[var(--brand-dark)] bg-[var(--brand)] text-white shadow-[0_1px_2px_rgba(79,70,229,0.18),0_8px_18px_rgba(99,102,241,0.16)] hover:border-[var(--brand-dark)] hover:bg-[var(--brand-dark)] active:bg-[#4338ca]",
+    "border-indigo-600 bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 hover:border-indigo-700 active:bg-indigo-800 focus:ring-indigo-500",
   secondary:
-    "border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(26,29,58,0.04)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] hover:text-[var(--brand-dark)]",
-  soft: "border-[var(--brand-mid)] bg-[var(--brand-light)] text-[var(--brand-dark)] hover:border-[var(--brand)] hover:bg-[#e0e7ff]",
+    "border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 focus:ring-slate-400",
+  soft: "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 active:bg-indigo-200 focus:ring-indigo-500",
   ghost:
-    "border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-surface2)] hover:text-[var(--text-primary)]",
+    "border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-400",
   danger:
-    "border-red-200 bg-white text-[var(--danger)] shadow-[0_1px_2px_rgba(220,38,38,0.04)] hover:border-red-300 hover:bg-red-50 active:bg-red-100",
+    "border-rose-200 bg-rose-50 text-rose-700 shadow-sm hover:bg-rose-100 active:bg-rose-200 focus:ring-rose-500",
+  outline:
+    "border-slate-300 bg-transparent text-slate-700 hover:bg-slate-50 hover:border-slate-400 focus:ring-slate-400",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-8 rounded-[var(--r-sm)] px-3 text-xs",
-  md: "h-10 rounded-[var(--r-sm)] px-4 text-xs",
-  lg: "h-11 rounded-[var(--r)] px-5 text-sm",
-  "icon-sm": "h-8 w-8 rounded-[8px] p-0",
-  "icon-md": "h-10 w-10 rounded-[var(--r-sm)] p-0",
+  sm: "h-8 rounded-md px-3 text-xs",
+  md: "h-9 rounded-md px-4 text-xs font-medium",
+  lg: "h-10 rounded-md px-5 text-sm font-medium",
+  "icon-sm": "h-8 w-8 rounded-md p-0",
+  "icon-md": "h-9 w-9 rounded-md p-0",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -57,8 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         className={cn(
-          "inline-flex shrink-0 items-center justify-center gap-2 border font-semibold transition-[background,border-color,color,box-shadow,transform] duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:ring-offset-1 focus:ring-offset-[var(--bg-surface)] disabled:cursor-not-allowed disabled:opacity-55",
-          "active:translate-y-px",
+          "inline-flex shrink-0 items-center justify-center gap-1.5 border font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
           variantClasses[variant],
           sizeClasses[size],
           className,
@@ -69,17 +70,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {isLoading ? (
-          <Loader2
-            aria-hidden
-            className="animate-spin"
-            size={iconSize}
-            strokeWidth={2.2}
-          />
+          <Loader2 className="animate-spin" size={iconSize} />
         ) : (
           leftIcon
         )}
         {children}
-        {rightIcon}
+        {!isLoading && rightIcon}
       </button>
     );
   },

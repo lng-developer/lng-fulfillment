@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 export function CopyButton({
   value,
-  label = "Copy",
+  label = "Sao chép",
 }: {
   value: string;
   label?: string;
@@ -21,7 +21,8 @@ export function CopyButton({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  async function copyValue() {
+  async function copyValue(e: React.MouseEvent) {
+    e.stopPropagation();
     await navigator.clipboard.writeText(value);
     setCopied(true);
   }
@@ -29,15 +30,15 @@ export function CopyButton({
   return (
     <button
       aria-label={label}
-      className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] hover:text-[var(--brand)]"
+      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
       onClick={copyValue}
       title={label}
       type="button"
     >
       {copied ? (
-        <Check className="h-4 w-4 text-[var(--success)]" aria-hidden />
+        <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
       ) : (
-        <Copy className="h-4 w-4" aria-hidden />
+        <Copy className="h-3.5 w-3.5" aria-hidden />
       )}
     </button>
   );

@@ -9,21 +9,21 @@ export function ErrorState({
 }) {
   return (
     <div
-      className="grid min-h-52 place-items-center rounded border border-[#fca5a5] bg-[var(--danger-bg)] px-6 py-10 text-center"
+      className="grid min-h-48 place-items-center rounded-lg border border-rose-200 bg-rose-50/50 px-6 py-8 text-center"
       role="alert"
     >
       <div className="mx-auto grid max-w-sm justify-items-center gap-3">
-        <div className="grid h-12 w-12 place-items-center rounded-sm bg-[var(--bg-surface)] text-[var(--danger)]">
+        <div className="grid h-12 w-12 place-items-center rounded-full bg-white border border-rose-200 text-rose-600 shadow-sm">
           <AlertCircle className="h-6 w-6" aria-hidden />
         </div>
-        <p className="text-sm font-medium text-[var(--danger-text)]">{message}</p>
+        <p className="text-sm font-medium text-rose-800">{message}</p>
         {retry ? (
           <button
-            className="h-8 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+            className="h-8 rounded-md border border-rose-200 bg-white px-3.5 text-xs font-medium text-rose-700 shadow-sm hover:bg-rose-50"
             onClick={retry}
             type="button"
           >
-            Retry
+            Thử lại
           </button>
         ) : null}
       </div>

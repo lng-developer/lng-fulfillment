@@ -57,58 +57,58 @@ export function ConfirmationModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
     >
       <div
-        className="w-full max-w-[480px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md"
+        className="w-full max-w-[480px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         ref={trapRef}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4">
           <div className="flex gap-3">
             {variant !== "default" ? (
               <span
                 className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-sm",
+                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg border",
                   variant === "danger"
-                    ? "bg-[var(--danger-bg)] text-[var(--danger)]"
-                    : "bg-[var(--warning-bg)] text-[var(--warning)]",
+                    ? "bg-rose-50 text-rose-600 border-rose-200"
+                    : "bg-amber-50 text-amber-600 border-amber-200",
                 )}
               >
-                <AlertTriangle className="h-5 w-5" aria-hidden />
+                <AlertTriangle className="h-4 w-4" aria-hidden />
               </span>
             ) : null}
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h2 className="text-sm font-semibold text-slate-900">
                 {title}
               </h2>
-              <p className="mt-1 text-xs text-[var(--text-secondary)]">{description}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{description}</p>
             </div>
           </div>
           <button
-            className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
+            className="rounded-md border border-slate-200 bg-white p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             disabled={isPending}
             onClick={onCancel}
             type="button"
           >
-            <X className="h-5 w-5" aria-hidden />
-            <span className="sr-only">Close</span>
+            <X className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Đóng</span>
           </button>
         </div>
 
-        <div className="grid gap-4 px-4 py-4">
+        <div className="grid gap-4 px-5 py-4">
           {variant === "live" ? (
             <WarningBox
-              message="This action can trigger a live carrier operation. Confirm only when the shipment is ready."
+              message="Thao tác này sẽ gọi trực tiếp hệ thống đối tác vận chuyển. Vui lòng kiểm tra kỹ trước khi xác nhận."
               variant="danger"
             />
           ) : null}
 
           {requireCheckbox ? (
-            <label className="flex gap-3 text-xs text-[var(--text-secondary)]">
+            <label className="flex items-start gap-2.5 text-xs text-slate-600">
               <input
                 checked={checked}
-                className="mt-1 h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 onChange={(event) => setChecked(event.target.checked)}
                 type="checkbox"
               />
@@ -117,13 +117,13 @@ export function ConfirmationModal({
           ) : null}
 
           {requireTypedConfirmation ? (
-            <label className="grid gap-2 text-xs font-medium text-[var(--text-secondary)]">
-              Type{" "}
-              <span className="font-mono text-xs text-slate-900">
+            <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+              Nhập chữ{" "}
+              <span className="font-mono text-xs text-indigo-700 font-semibold">
                 {requireTypedConfirmation}
               </span>
               <input
-                className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 font-mono text-xs"
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 onChange={(event) => setTypedValue(event.target.value)}
                 value={typedValue}
               />
@@ -131,32 +131,32 @@ export function ConfirmationModal({
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
+        <div className="flex justify-end gap-2.5 border-t border-slate-200 bg-slate-50/80 px-5 py-3.5">
           <button
             autoFocus
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900"
             data-autofocus="true"
             disabled={isPending}
             onClick={onCancel}
             type="button"
           >
-            Cancel
+            Hủy bỏ
           </button>
           <button
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-sm border px-3 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50",
+              "inline-flex h-9 items-center gap-2 rounded-md border px-4 text-xs font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50",
               variant === "danger" || variant === "live"
-                ? "border-[#b91c1c] bg-[var(--danger)] hover:bg-[#b91c1c]"
-                : "border-[var(--brand-dark)] bg-[var(--brand)] shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]",
+                ? "border-rose-600 bg-rose-600 hover:bg-rose-700"
+                : "border-indigo-600 bg-indigo-600 hover:bg-indigo-700",
             )}
             disabled={!canConfirm}
             onClick={confirm}
             type="button"
           >
             {isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
             ) : null}
-            {isPending ? "Working..." : confirmLabel}
+            {isPending ? "Đang xử lý..." : confirmLabel}
           </button>
         </div>
       </div>

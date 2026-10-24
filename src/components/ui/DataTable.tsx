@@ -53,15 +53,15 @@ export function DataTable<T>({
   );
 
   return (
-    <div className="overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full table-fixed divide-y divide-[var(--border)]">
-          <thead className="bg-[var(--bg-surface2)]">
+        <table className="min-w-full table-fixed divide-y divide-slate-200">
+          <thead className="bg-slate-50">
             <tr>
               {columns.map((column) => (
                 <th
                   className={cn(
-                    "border-b border-[var(--border)] px-3.5 py-[9px] text-[11px] tracking-[0.04em] text-[var(--text-muted)]",
+                    "border-b border-slate-200 px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500",
                     column.className,
                   )}
                   key={column.key}
@@ -69,7 +69,7 @@ export function DataTable<T>({
                 >
                   {column.sortable ? (
                     <button
-                      className="inline-flex items-center gap-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                      className="inline-flex items-center gap-1 rounded hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                       onClick={() =>
                         onSortChange?.({
                           key: column.key,
@@ -83,7 +83,7 @@ export function DataTable<T>({
                       type="button"
                     >
                       <span>{column.header}</span>
-                      <span aria-hidden>
+                      <span aria-hidden className="text-slate-400">
                         {sort?.key === column.key
                           ? sort.direction === "asc"
                             ? "↑"
@@ -98,14 +98,14 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)] bg-[var(--bg-surface)]">
+          <tbody className="divide-y divide-slate-100 bg-white">
             {data.length ? (
               data.map((row, index) => (
                 <tr
                   className={cn(
-                    "h-11 text-xs text-[var(--text-secondary)]",
+                    "h-10 text-[13px] text-slate-600 transition-colors",
                     onRowClick
-                      ? "cursor-pointer hover:bg-[var(--brand-light)]"
+                      ? "cursor-pointer hover:bg-slate-50/80"
                       : undefined,
                   )}
                   key={getRowKey(row)}
@@ -122,7 +122,7 @@ export function DataTable<T>({
                   {columns.map((column) => (
                     <td
                       className={cn(
-                        "border-b border-[var(--border)] px-3.5 py-2.5 align-middle text-xs",
+                        "px-3.5 py-2 align-middle text-[13px]",
                         column.className,
                       )}
                       key={column.key}
@@ -134,33 +134,35 @@ export function DataTable<T>({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length}>{empty}</td>
+                <td colSpan={columns.length} className="p-8 text-center text-sm text-slate-500">
+                  {empty}
+                </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-3.5 py-[11px] text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <span>
-          Showing {start}-{end} of {pagination.totalItems}
+          Hiển thị <span className="font-medium text-slate-800">{start}</span>–<span className="font-medium text-slate-800">{end}</span> trong <span className="font-medium text-slate-800">{pagination.totalItems}</span> mục
         </span>
         <div className="flex items-center gap-2">
           <button
-            className="inline-flex h-8 items-center gap-1 rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={pagination.page <= 1}
             onClick={() => onPageChange(Math.max(1, pagination.page - 1))}
             type="button"
           >
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-            Prev
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+            Trước
           </button>
-          <span className="min-w-20 text-center text-[11px] text-[var(--text-muted)]">
-            {pagination.totalPages ? pagination.page : 0} /{" "}
+          <span className="min-w-16 text-center text-xs text-slate-600">
+            Trang {pagination.totalPages ? pagination.page : 0} /{" "}
             {pagination.totalPages}
           </span>
           <button
-            className="inline-flex h-8 items-center gap-1 rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
             disabled={
               pagination.totalPages === 0 ||
               pagination.page >= pagination.totalPages
@@ -172,8 +174,8 @@ export function DataTable<T>({
             }
             type="button"
           >
-            Next
-            <ChevronRight className="h-4 w-4" aria-hidden />
+            Sau
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden />
           </button>
         </div>
       </div>
