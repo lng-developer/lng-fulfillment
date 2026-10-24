@@ -1,21 +1,24 @@
 "use client";
 
-import type React from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpDown,
-  CheckCircle,
+  Check,
   ChevronDown,
-  ChevronUp,
-  Copy,
+  ChevronRight,
   ExternalLink,
-  Inbox,
+  Layers,
   Loader2,
+  MoreHorizontal,
+  Package,
+  Printer,
   RotateCcw,
   Search,
   Truck,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
@@ -23,9 +26,11 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getCarrierFailureMessage, getErrorMessage } from "@/lib/api/base";
 import {
   cancelYunShipment,
+  confirmOrderShipped,
   getOrder,
   getOrders,
   resetOrder,
+  shipOrder,
   shipOrdersBatch,
 } from "@/lib/api/orders";
 import { syncTracking } from "@/lib/api/shipments";
@@ -41,39 +46,25 @@ import type {
 } from "@/types/orders";
 import { BatchShipModal, type BatchShipSubmitInput } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
-import { ConfirmShipModal } from "./ConfirmShipModal";
 import { OrderExpandPanel } from "./OrderExpandPanel";
-import { OrderStatusSummary } from "./OrderStatusSummary";
 import { ResetOrderModal } from "./ResetOrderModal";
-import { OrderDetailDrawer } from "./OrderDetailDrawer";
+import { ShipOrderModal, type ShipOrderSubmitInput } from "./ShipOrderModal";
 
-const ORDER_STATUSES = [
-  { label: "All statuses", value: "" },
-  { label: "Fulfilled", value: "FULFILLED" },
-  { label: "In processing", value: "IN_PROCESSING" },
-  { label: "Shipped", value: "SHIPPED" },
-  { label: "Cancelled", value: "CANCELLED" },
-  { label: "On hold", value: "ON_HOLD" },
-  { label: "Ready to ship", value: "READY_TO_SHIP" },
-  { label: "Received", value: "RECEIVED" },
-];
+const STATUS_TABS = [
+  { label: "Tất cả", value: "" },
+  { label: "Chờ đóng hàng", value: "READY_TO_SHIP" },
+  { label: "Đang xử lý / Giao", value: "IN_PROCESSING" },
+  { label: "Đã xuất kho", value: "SHIPPED" },
+  { label: "Đã hủy", value: "CANCELLED" },
+] as const;
 
 const SOURCE_CHANNELS = [
-  { label: "All sources", value: "" },
+  { label: "Tất cả kênh", value: "" },
   { label: "Amazon", value: "AMAZON" },
   { label: "Etsy", value: "ETSY" },
   { label: "Manual", value: "MANUAL" },
-  { label: "Unknown", value: "UNKNOWN" },
-];
-
-const AUTO_SHIPMENT_STATUSES = [
-  { label: "All auto shipment", value: "" },
-  { label: "Missing SKU mapping", value: "MISSING_SKU_MAPPING" },
-  { label: "Method conflict", value: "METHOD_CONFLICT" },
-  { label: "Auto shipment failed", value: "FAILED" },
-  { label: "Auto shipment succeeded", value: "SUCCEEDED" },
-  { label: "Skipped disabled", value: "SKIPPED_DISABLED" },
-];
+  { label: "Khác", value: "UNKNOWN" },
+] as const;
 
 const BATCH_LIMIT = 10;
 const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
@@ -119,14 +110,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [sourceChannel, setSourceChannel] = useState("");
-  const [autoShipmentStatus, setAutoShipmentStatus] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detailCache, setDetailCache] = useState<Record<string, OrderDetail>>(
-    {},
-  );
+  const [detailCache, setDetailCache] = useState<Record<string, OrderDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,11 +123,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   });
   const [shipTarget, setShipTarget] = useState<OrderListItem | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [confirmTarget, setConfirmTarget] = useState<OrderListItem | null>(
-    null,
-  );
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
+  const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [pendingOrderActions, setPendingOrderActions] = useState<
     Record<string, PendingOrderAction>
   >({});
@@ -153,38 +137,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   }, [detailCache]);
 
   const ensureDetail = useCallback(async (orderId: string) => {
-    if (
-      detailCacheRef.current[orderId] ||
-      detailLoadingRef.current.has(orderId)
-    ) {
+    if (detailCacheRef.current[orderId] || detailLoadingRef.current.has(orderId)) {
       return;
     }
 
-    detailLoadingRef.current.add(orderId);
-    setDetailErrors((current) => {
-      const next = { ...current };
-      delete next[orderId];
-      return next;
-    });
-
-    try {
-      const detail = await getOrder(orderId);
-      setDetailCache((current) => {
-        const next = { ...current, [orderId]: detail };
-        detailCacheRef.current = next;
-        return next;
-      });
-    } catch (detailError) {
-      setDetailErrors((current) => ({
-        ...current,
-        [orderId]: getErrorMessage(detailError),
-      }));
-    } finally {
-      detailLoadingRef.current.delete(orderId);
-    }
-  }, []);
-
-  const reloadOrderDetail = useCallback(async (orderId: string) => {
     detailLoadingRef.current.add(orderId);
     setDetailErrors((current) => {
       const next = { ...current };
@@ -217,7 +173,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     const timer = window.setTimeout(() => {
       setSearch(searchInput.trim());
       setPage(1);
-    }, 400);
+    }, 350);
 
     return () => window.clearTimeout(timer);
   }, [searchInput]);
@@ -240,9 +196,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             search,
             status,
             sourceChannel,
-            autoShipmentStatus,
-            from: from ? new Date(from).toISOString() : undefined,
-            to: to ? new Date(to).toISOString() : undefined,
           },
           controller.signal,
         );
@@ -285,77 +238,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     loadOrders();
 
     return () => controller.abort();
-  }, [
-    autoShipmentStatus,
-    from,
-    page,
-    reloadKey,
-    search,
-    sourceChannel,
-    status,
-    to,
-  ]);
-
-  useEffect(() => {
-    if (!orders.length) {
-      setExpandedRows({});
-      setSelectedIds(new Set());
-      return;
-    }
-
-    setExpandedRows(
-      Object.fromEntries(orders.map((order) => [order.id, true])),
-    );
-    setSelectedIds(new Set());
-  }, [orders]);
-
-  const sortedOrders = useMemo(
-    () =>
-      [...orders].sort((first, second) => {
-        const direction = sort.direction === "asc" ? 1 : -1;
-
-        if (sort.key === "receivedAt") {
-          return (
-            (new Date(first.receivedAt).getTime() -
-              new Date(second.receivedAt).getTime()) *
-            direction
-          );
-        }
-
-        return first.status.localeCompare(second.status) * direction;
-      }),
-    [orders, sort],
-  );
-
-  const eligibleOrders = useMemo(
-    () => sortedOrders.filter(isEligibleForShip),
-    [sortedOrders],
-  );
-  const selectedOrders = useMemo(
-    () => sortedOrders.filter((order) => selectedIds.has(order.id)),
-    [selectedIds, sortedOrders],
-  );
-  const overLimit = selectedIds.size > BATCH_LIMIT;
-  const allRowsExpanded =
-    sortedOrders.length > 0 &&
-    sortedOrders.every((order) => expandedRows[order.id] ?? false);
-
-  const expandAll = useCallback(() => {
-    setExpandedRows(
-      Object.fromEntries(sortedOrders.map((order) => [order.id, true])),
-    );
-    sortedOrders.forEach((order) => {
-      if (!detailCacheRef.current[order.id]) {
-        void ensureDetail(order.id);
-      }
-    });
-  }, [ensureDetail, sortedOrders]);
-
-  const collapseAll = useCallback(() => {
-    setExpandedRows(
-      Object.fromEntries(sortedOrders.map((order) => [order.id, false])),
-    );
-  }, [sortedOrders]);
+  }, [page, reloadKey, search, sourceChannel, status]);
 
   const toggleRow = useCallback(
     (orderId: string) => {
@@ -382,189 +265,22 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   }, []);
 
   const selectAll = useCallback(() => {
+    const eligibleOrders = orders.filter((order) =>
+      ["READY_TO_SHIP", "RECEIVED", "FULFILLED"].includes(order.status),
+    );
     setSelectedIds(new Set(eligibleOrders.map((order) => order.id)));
-  }, [eligibleOrders]);
+  }, [orders]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
-
-  function changeSort(key: SortState["key"]) {
-    setSort((current) =>
-      current.key === key
-        ? {
-            key,
-            direction: current.direction === "asc" ? "desc" : "asc",
-          }
-        : { key, direction: "asc" },
-    );
-  }
-
-  function handleBatchSuccess(result: BatchShipResult) {
-    const now = new Date().toISOString();
-    const selectedById = new Map(
-      selectedOrders.map((order) => [order.id, order]),
-    );
-
-    result.succeeded.forEach((success) => {
-      if (!selectedById.has(success.orderId)) {
-        return;
-      }
-
-      applyOrderMutation({
-        orderId: success.orderId,
-        orderStatus: "IN_PROCESSING",
-        shipment: success.shipment ?? {
-          status: "CREATED",
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-    });
-    clearSelection();
-  }
-
-  function handleOrderMutation(result: OrderMutationResult) {
-    applyOrderMutation(result);
-  }
-
-  function clearPendingOrderAction(orderId: string) {
-    setPendingOrderActions((current) => {
-      if (!current[orderId]) {
-        return current;
-      }
-
-      const next = { ...current };
-      delete next[orderId];
-      return next;
-    });
-  }
-
-  async function runBatchShipInBackground(input: BatchShipSubmitInput) {
-    const orderIds = input.orderIds.filter((orderId) => !pendingOrderActions[orderId]);
-    if (!orderIds.length) {
-      setShowBatchModal(false);
-      return;
-    }
-
-    setShowBatchModal(false);
-    setPendingOrderActions((current) => ({
-      ...current,
-      ...Object.fromEntries(orderIds.map((orderId) => [orderId, "ship"])),
-    }));
-
-    try {
-      const result = await shipOrdersBatch(
-        orderIds,
-        input.environment,
-        input.optionsByOrderId,
-      );
-      const successCount = result.succeeded.length;
-      const failedCount = result.failed.length;
-
-      if (successCount) {
-        toastSuccess(
-          failedCount
-            ? `${successCount} shipments created; ${failedCount} failed.`
-            : `${successCount} shipments created successfully.`,
-        );
-      }
-      if (failedCount) {
-        toastError(formatBatchFailureToast(result.failed));
-        result.failed.forEach((failure) => {
-          void reloadOrderDetail(failure.orderId);
-        });
-      }
-
-      handleBatchSuccess(result);
-    } catch (error) {
-      toastError(getErrorMessage(error));
-    } finally {
-      orderIds.forEach(clearPendingOrderAction);
-    }
-  }
-
-  async function runCancelYunInBackground(order: OrderListItem) {
-    if (pendingOrderActions[order.id]) {
-      return;
-    }
-
-    setCancelTarget(null);
-    setPendingOrderActions((current) => ({ ...current, [order.id]: "cancel" }));
-
-    try {
-      const result = await cancelYunShipment(order.id);
-      toastSuccess("YunExpress shipment cancelled.");
-      applyOrderMutation(result);
-    } catch (error) {
-      toastError(getErrorMessage(error));
-    } finally {
-      clearPendingOrderAction(order.id);
-    }
-  }
-
-  async function runResetOrderInBackground(order: OrderListItem) {
-    if (pendingOrderActions[order.id]) {
-      return;
-    }
-
-    setResetTarget(null);
-    setPendingOrderActions((current) => ({ ...current, [order.id]: "reset" }));
-
-    try {
-      const result = await resetOrder(order.id);
-      toastSuccess("Order reset. You can create a shipment again.");
-      applyOrderMutation(result);
-    } catch (error) {
-      toastError(getErrorMessage(error));
-    } finally {
-      clearPendingOrderAction(order.id);
-    }
-  }
-
-  async function runSyncTrackingInBackground(
-    order: OrderListItem,
-    shipmentId: string,
-  ) {
-    if (pendingOrderActions[order.id]) {
-      return;
-    }
-
-    setPendingOrderActions((current) => ({ ...current, [order.id]: "sync" }));
-
-    try {
-      const result = await syncTracking(shipmentId);
-      applyOrderMutation({
-        orderId: order.id,
-        orderStatus: order.status,
-        shipment: {
-          id: result.shipment.id,
-          status: result.shipment.status,
-          carrierCode: result.shipment.carrierCode,
-          carrierShipmentId: result.shipment.carrierShipmentId,
-          trackingNumber: result.shipment.trackingNumber,
-          updatedAt: result.shipment.updatedAt,
-        },
-      });
-
-      if (result.shipment.trackingNumber) {
-        toastSuccess("Tracking synced.");
-      } else {
-        toastSuccess("Tracking is still pending.");
-      }
-    } catch (error) {
-      toastError(getErrorMessage(error));
-    } finally {
-      clearPendingOrderAction(order.id);
-    }
-  }
 
   function applyOrderMutation(result: OrderMutationResult) {
     const now = new Date().toISOString();
     const shipmentPatch = result.shipment;
 
     setOrders((current) => {
-      const next = current.map((order) => {
+      return current.map((order) => {
         if (order.id !== result.orderId) {
           return order;
         }
@@ -573,1053 +289,629 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           ...order,
           status: result.orderStatus,
           updatedAt: now,
-          latestShipmentStatus: hasOwn(shipmentPatch, "status")
-            ? (shipmentPatch.status ?? null)
-            : order.latestShipmentStatus,
-          latestTrackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-            ? (shipmentPatch.trackingNumber ?? null)
-            : order.latestTrackingNumber,
-          latestLabelUrl: hasOwn(shipmentPatch, "labelUrl")
-            ? (shipmentPatch.labelUrl ?? null)
-            : (result.labelUrl ?? order.latestLabelUrl),
-          trackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-            ? (shipmentPatch.trackingNumber ?? null)
-            : (order.trackingNumber ?? null),
-          carrierShipmentId: hasOwn(shipmentPatch, "carrierShipmentId")
-            ? (shipmentPatch.carrierShipmentId ?? null)
-            : (order.carrierShipmentId ?? null),
-          labelUrl: hasOwn(shipmentPatch, "labelUrl")
-            ? (shipmentPatch.labelUrl ?? null)
-            : (result.labelUrl ?? order.labelUrl ?? null),
-          latestShipmentCarrier: hasOwn(shipmentPatch, "carrierCode")
-            ? (shipmentPatch.carrierCode ?? null)
-            : (order.latestShipmentCarrier ?? null),
+          latestShipmentStatus: shipmentPatch?.status ?? order.latestShipmentStatus,
+          latestTrackingNumber: shipmentPatch?.trackingNumber ?? order.latestTrackingNumber,
+          latestLabelUrl: shipmentPatch?.labelUrl ?? (result.labelUrl ?? order.latestLabelUrl),
+          trackingNumber: shipmentPatch?.trackingNumber ?? (order.trackingNumber ?? null),
+          carrierShipmentId: shipmentPatch?.carrierShipmentId ?? (order.carrierShipmentId ?? null),
+          labelUrl: shipmentPatch?.labelUrl ?? (result.labelUrl ?? order.labelUrl ?? null),
+          latestShipmentCarrier: shipmentPatch?.carrierCode ?? (order.latestShipmentCarrier ?? null),
           latestShipmentCost: result.shipmentCost ?? order.latestShipmentCost ?? null,
         };
       });
-
-      return status && result.orderStatus !== status
-        ? next.filter((order) => order.id !== result.orderId)
-        : next;
     });
 
-    setDetailCache((current) => {
-      const detail = current[result.orderId];
-      if (!detail) {
-        return current;
+    void ensureDetail(result.orderId);
+  }
+
+  // 1-Click fast fulfillment executor
+  async function handleExecuteShip(input: ShipOrderSubmitInput) {
+    if (!shipTarget) return;
+    const targetOrder = shipTarget;
+    setShipTarget(null);
+
+    setPendingOrderActions((current) => ({
+      ...current,
+      [targetOrder.id]: "ship",
+    }));
+
+    try {
+      const result = await shipOrder(targetOrder.id, input.environment, input.options);
+      const tracking =
+        result.shipment?.trackingNumber || result.orderId;
+      const labelUrl = result.shipment?.labelUrl;
+
+      // Auto-open label PDF in new tab for thermal printing
+      if (labelUrl) {
+        window.open(labelUrl, "_blank", "noopener,noreferrer");
       }
 
-      const nextDetail = {
-        ...detail,
-        status: result.orderStatus,
-        updatedAt: now,
-        statusHistory: [
-          {
-            id: `local-${result.orderId}-${result.orderStatus}-${Date.now()}`,
-            status: result.orderStatus,
-            note: mutationStatusNote(result.orderStatus),
-            actorType: "USER" as const,
-            createdAt: now,
-          },
-          ...detail.statusHistory,
-        ],
-        shipments: patchDetailShipments(
-          detail,
-          shipmentPatch,
-          now,
-          result.shipmentCost,
-        ),
-      };
+      // Auto-confirm package dimensions in background for cost calculation
+      if (input.options.weight && input.options.length) {
+        void confirmOrderShipped(targetOrder.id, {
+          weightKg: input.options.weight,
+          lengthCm: input.options.length,
+          widthCm: input.options.width ?? 10,
+          heightCm: input.options.height ?? 5,
+        }).then((costRes) => {
+          applyOrderMutation(costRes);
+        }).catch(() => {});
+      }
 
-      const next = { ...current, [result.orderId]: nextDetail };
-      detailCacheRef.current = next;
-      return next;
-    });
-
-    if (status && result.orderStatus !== status) {
-      setExpandedRows((current) => {
+      toastSuccess(`Tạo vận đơn thành công! Mã tracking: ${tracking}`);
+      applyOrderMutation(result);
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setPendingOrderActions((current) => {
         const next = { ...current };
-        delete next[result.orderId];
+        delete next[targetOrder.id];
         return next;
       });
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        next.delete(result.orderId);
+    }
+  }
+
+  async function handleBatchShip(input: BatchShipSubmitInput) {
+    setShowBatchModal(false);
+    const orderIds = input.orderIds;
+
+    setPendingOrderActions((current) => ({
+      ...current,
+      ...Object.fromEntries(orderIds.map((id) => [id, "ship"])),
+    }));
+
+    try {
+      const result = await shipOrdersBatch(
+        orderIds,
+        input.environment,
+        input.optionsByOrderId,
+      );
+
+      const successCount = result.succeeded.length;
+      const failedCount = result.failed.length;
+
+      if (successCount) {
+        toastSuccess(`Đã tạo thành công ${successCount} vận đơn!`);
+        result.succeeded.forEach((s) => {
+          applyOrderMutation({
+            orderId: s.orderId,
+            orderStatus: "IN_PROCESSING",
+            shipment: s.shipment ?? undefined,
+          });
+        });
+        clearSelection();
+      }
+
+      if (failedCount) {
+        toastError(`${failedCount} đơn tạo vận đơn thất bại.`);
+      }
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      orderIds.forEach((id) => {
+        setPendingOrderActions((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+      });
+    }
+  }
+
+  async function handleCancelYun(order: OrderListItem) {
+    setCancelTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "cancel" }));
+
+    try {
+      const result = await cancelYunShipment(order.id);
+      toastSuccess("Đã hủy vận đơn YunExpress thành công.");
+      applyOrderMutation(result);
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[order.id];
         return next;
       });
-      setPagination((current) => ({
-        ...current,
-        totalItems: Math.max(0, current.totalItems - 1),
-      }));
+    }
+  }
+
+  async function handleResetOrder(order: OrderListItem) {
+    setResetTarget(null);
+    setPendingOrderActions((current) => ({ ...current, [order.id]: "reset" }));
+
+    try {
+      const result = await resetOrder(order.id);
+      toastSuccess("Đã thiết lập lại trạng thái đơn hàng.");
+      applyOrderMutation(result);
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
     }
   }
 
   return (
-    <div className="grid gap-4">
-      <OrderStatusSummary
-        isLoading={isLoading}
-        orders={orders}
-        totalItems={pagination.totalItems}
-      />
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative min-w-0 flex-1 lg:max-w-md">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]"
-            aria-hidden
-          />
-          <input
-            className="h-9 w-full rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] pl-9 pr-3 text-xs text-[var(--text-primary)] shadow-soft"
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search order number, SKU, recipient"
-            type="search"
-            value={searchInput}
-          />
+    <div className="space-y-4">
+      {/* Quick Status Tabs */}
+      <div className="flex items-center justify-between border-b border-slate-200">
+        <div className="flex gap-6">
+          {STATUS_TABS.map((tab) => {
+            const active = status === tab.value;
+            return (
+              <button
+                className={cn(
+                  "relative py-3 text-xs font-medium transition-colors hover:text-slate-900",
+                  active
+                    ? "font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px"
+                    : "text-slate-500",
+                )}
+                key={tab.value}
+                onClick={() => {
+                  setStatus(tab.value);
+                  setPage(1);
+                }}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <Button
+          leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+          onClick={refreshOrders}
+          size="sm"
+          variant="secondary"
+        >
+          Làm mới
+        </Button>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <input
+            className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-8 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Tìm theo mã đơn, tracking, người nhận..."
+            value={searchInput}
+          />
+          {searchInput && (
+            <button
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+              onClick={() => setSearchInput("")}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           <select
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-            onChange={(event) => {
-              setStatus(event.target.value);
-              setPage(1);
-            }}
-            value={status}
-          >
-            {ORDER_STATUSES.map((option) => (
-              <option key={option.label} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-            onChange={(event) => {
-              setSourceChannel(event.target.value);
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            onChange={(e) => {
+              setSourceChannel(e.target.value);
               setPage(1);
             }}
             value={sourceChannel}
           >
-            {SOURCE_CHANNELS.map((option) => (
-              <option key={option.label} value={option.value}>
-                {option.label}
+            {SOURCE_CHANNELS.map((ch) => (
+              <option key={ch.value} value={ch.value}>
+                {ch.label}
               </option>
             ))}
           </select>
-          <select
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-            onChange={(event) => {
-              setAutoShipmentStatus(event.target.value);
-              setPage(1);
-            }}
-            value={autoShipmentStatus}
-          >
-            {AUTO_SHIPMENT_STATUSES.map((option) => (
-              <option key={option.label} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-            onChange={(event) => {
-              setFrom(event.target.value);
-              setPage(1);
-            }}
-            type="date"
-            value={from}
-          />
-          <input
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] shadow-soft hover:border-[var(--brand-mid)]"
-            onChange={(event) => {
-              setTo(event.target.value);
-              setPage(1);
-            }}
-            type="date"
-            value={to}
-          />
+
+          {can.shipOrder(role) && (
+            <Button
+              disabled={selectedIds.size === 0}
+              leftIcon={<Layers className="h-3.5 w-3.5" />}
+              onClick={() => setShowBatchModal(true)}
+              size="sm"
+              variant="secondary"
+            >
+              Đóng hàng loạt ({selectedIds.size})
+            </Button>
+          )}
         </div>
       </div>
 
-      {isLoading ? <LoadingSkeleton rows={10} /> : null}
+      {/* Batch Floating / Active selection banner */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Đã chọn {selectedIds.size} đơn hàng</span>
+            <span className="text-indigo-600">| Sẵn sàng tạo vận đơn hàng loạt</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              leftIcon={<Truck className="h-3.5 w-3.5" />}
+              onClick={() => setShowBatchModal(true)}
+              size="sm"
+              variant="primary"
+            >
+              Đóng gói ngay
+            </Button>
+            <Button onClick={clearSelection} size="sm" variant="ghost">
+              Bỏ chọn
+            </Button>
+          </div>
+        </div>
+      )}
 
-      {!isLoading && error ? (
+      {/* Main Table */}
+      {isLoading ? (
+        <LoadingSkeleton />
+      ) : error ? (
         <ErrorState message={error} retry={refreshOrders} />
-      ) : null}
-
-      {!isLoading && !error ? (
-        <section className="overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-soft">
-          {sortedOrders.length ? (
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs text-[var(--text-secondary)]">
-              {selectedIds.size > 0 ? (
-                <span>
-                  Selected <strong>{selectedIds.size}</strong>/{BATCH_LIMIT}
-                </span>
-              ) : null}
-              {overLimit ? (
-                <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
-                  YunExpress supports up to 10 orders per batch
-                </span>
-              ) : null}
-              {can.shipOrder(role) ? (
-                <button
-                  className="ml-auto inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-2.5 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={selectedIds.size === 0 || overLimit}
-                  onClick={() => setShowBatchModal(true)}
-                  type="button"
-                >
-                  <Truck className="h-3 w-3" aria-hidden />
-                  Ship selected ({selectedIds.size})
-                </button>
-              ) : (
-                <span className="ml-auto text-[11px] text-[var(--text-muted)]">
-                  {orders.length} orders
-                </span>
-              )}
-            </div>
-          ) : null}
-
+      ) : orders.length === 0 ? (
+        <EmptyState
+          description="Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại."
+          heading="Chưa có đơn hàng"
+          icon={<Package className="h-6 w-6" />}
+        />
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse">
-              <thead>
-                <tr className="bg-[var(--bg-surface2)]">
-                  <th className="w-8 border-b border-[var(--border)] px-2 py-2.5">
+            <table className="min-w-full divide-y divide-slate-200 text-left">
+              <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="w-10 px-3.5 py-2.5">
                     <input
-                      aria-label="Select all eligible orders"
-                      checked={Boolean(
-                        eligibleOrders.length > 0 &&
-                        eligibleOrders.every((order) =>
-                          selectedIds.has(order.id),
-                        ),
-                      )}
-                      className="cursor-pointer accent-[var(--brand)]"
-                      disabled={!eligibleOrders.length || !can.shipOrder(role)}
-                      onChange={(event) =>
-                        event.target.checked ? selectAll() : clearSelection()
+                      checked={
+                        orders.length > 0 &&
+                        orders.every((o) => selectedIds.has(o.id))
                       }
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      onChange={(e) => {
+                        if (e.target.checked) selectAll();
+                        else clearSelection();
+                      }}
                       type="checkbox"
                     />
                   </th>
-                  <th className="w-9 border-b border-[var(--border)] px-2 py-2.5">
-                    <button
-                      aria-label={
-                        allRowsExpanded
-                          ? "Collapse all rows"
-                          : "Expand all rows"
-                      }
-                      className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] transition-colors hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={!sortedOrders.length}
-                      onClick={allRowsExpanded ? collapseAll : expandAll}
-                      title={allRowsExpanded ? "Collapse all" : "Expand all"}
-                      type="button"
-                    >
-                      <ChevronDown
-                        className={cn(
-                          "h-[13px] w-[13px] transition-transform duration-150",
-                          allRowsExpanded ? "rotate-180" : "",
-                        )}
-                        aria-hidden
-                      />
-                    </button>
-                  </th>
-                  <TableHeader className="w-[180px]">Order #</TableHeader>
-                  <SortableHeader
-                    active={sort.key === "status"}
-                    className="w-[130px]"
-                    direction={sort.direction}
-                    onClick={() => changeSort("status")}
-                  >
-                    Status
-                  </SortableHeader>
-                  <TableHeader className="w-[120px]">Source</TableHeader>
-                  <TableHeader className="w-[180px]">Recipient</TableHeader>
-                  <TableHeader className="w-[150px]">Tracking</TableHeader>
-                  <TableHeader className="w-[150px]">Shipment</TableHeader>
-                  <SortableHeader
-                    active={sort.key === "receivedAt"}
-                    className="w-[130px]"
-                    direction={sort.direction}
-                    onClick={() => changeSort("receivedAt")}
-                  >
-                    Received
-                  </SortableHeader>
-                  <TableHeader className="w-[190px]">Actions</TableHeader>
+                  <th className="px-3.5 py-2.5">Mã đơn & Kênh</th>
+                  <th className="px-3.5 py-2.5">Người nhận & Điểm đến</th>
+                  <th className="px-3.5 py-2.5">Sản phẩm</th>
+                  <th className="px-3.5 py-2.5 text-center">Trạng thái</th>
+                  <th className="px-3.5 py-2.5">Mã Tracking</th>
+                  <th className="px-3.5 py-2.5">Thời gian nhận</th>
+                  <th className="px-3.5 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody>
-                {sortedOrders.map((order) => {
+              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                {orders.map((order) => {
                   const isExpanded = expandedRows[order.id] ?? false;
+                  const isSelected = selectedIds.has(order.id);
                   const detail = detailCache[order.id] ?? null;
-                  const detailError = detailErrors[order.id] ?? null;
+                  const tracking =
+                    order.trackingNumber ??
+                    order.latestTrackingNumber ??
+                    detail?.shipments?.[0]?.trackingNumber ??
+                    null;
+                  const labelUrl =
+                    order.labelUrl ??
+                    order.latestLabelUrl ??
+                    detail?.shipments?.[0]?.labelUrl ??
+                    null;
+                  const isShipped =
+                    order.status === "SHIPPED" || Boolean(labelUrl);
+                  const pendingAction = pendingOrderActions[order.id] ?? null;
+                  const isMenuOpen = activeMenuOrderId === order.id;
 
                   return (
-                    <OrderRows
-                      detail={detail}
-                      detailError={detailError}
-                      isExpanded={isExpanded}
-                      key={order.id}
-                      onCancel={setCancelTarget}
-                      onConfirm={setConfirmTarget}
-                      onReset={setResetTarget}
-                      onSyncTracking={runSyncTrackingInBackground}
-                      onShip={(target) => {
-                        if (!detailCacheRef.current[target.id]) {
-                          void ensureDetail(target.id);
-                        }
-                        setShipTarget(target);
-                      }}
-                      order={order}
-                      pendingAction={pendingOrderActions[order.id] ?? null}
-                      role={role}
-                      selected={selectedIds.has(order.id)}
-                      toggleRow={toggleRow}
-                      toggleSelect={toggleSelect}
-                    />
+                    <Fragment key={order.id}>
+                      <tr
+                        className={cn(
+                          "transition-colors hover:bg-slate-50/80",
+                          isSelected ? "bg-indigo-50/30" : "",
+                        )}
+                      >
+                        <td className="w-10 px-3.5 py-2.5">
+                          <input
+                            checked={isSelected}
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            onChange={() => toggleSelect(order.id)}
+                            type="checkbox"
+                          />
+                        </td>
+
+                        {/* Order ID & Source */}
+                        <td className="px-3.5 py-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-900">
+                              #{order.orderNumber ?? order.externalOrderId}
+                            </span>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 uppercase">
+                              {order.sourceChannel || "Manual"}
+                            </span>
+                          </div>
+                          {order.shopName && (
+                            <span className="text-[11px] text-slate-400 block truncate max-w-[150px]">
+                              {order.shopName}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Recipient & Country */}
+                        <td className="px-3.5 py-2.5">
+                          <div className="font-medium text-slate-800">
+                            {order.recipientName || "Chưa có tên"}
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                            <span className="font-mono font-semibold text-slate-700">
+                              {countryFlag(order.destinationCountry)}{" "}
+                              {order.destinationCountry}
+                            </span>
+                            {order.destinationCity && (
+                              <span>• {order.destinationCity}</span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Items */}
+                        <td className="px-3.5 py-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
+                              {order.totalQuantity} món
+                            </span>
+                            {order.firstSku && (
+                              <span className="font-mono text-[11px] text-slate-500 truncate max-w-[120px]">
+                                {order.firstSku}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-3.5 py-2.5 text-center">
+                          <StatusBadge status={order.status} />
+                        </td>
+
+                        {/* Tracking */}
+                        <td className="px-3.5 py-2.5">
+                          {tracking ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-semibold text-slate-800 text-[11px]">
+                                {tracking}
+                              </span>
+                              <CopyButton value={tracking} />
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
+                        </td>
+
+                        {/* Received Time */}
+                        <td className="px-3.5 py-2.5 text-[11px] text-slate-500">
+                          {relativeTime(order.receivedAt)}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-3.5 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Primary Button */}
+                            {pendingAction ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-indigo-600 font-medium">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Đang xử lý...
+                              </span>
+                            ) : isShipped ? (
+                              labelUrl ? (
+                                <a
+                                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
+                                  href={labelUrl}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                  In nhãn
+                                </a>
+                              ) : (
+                                <span className="text-xs text-slate-400">Đã ship</span>
+                              )
+                            ) : can.shipOrder(role) ? (
+                              <Button
+                                leftIcon={<Truck className="h-3.5 w-3.5" />}
+                                onClick={() => {
+                                  if (!detailCacheRef.current[order.id]) {
+                                    void ensureDetail(order.id);
+                                  }
+                                  setShipTarget(order);
+                                }}
+                                size="sm"
+                                variant="primary"
+                              >
+                                Ship
+                              </Button>
+                            ) : null}
+
+                            {/* Details expand toggle */}
+                            <button
+                              aria-label="Xem chi tiết đơn hàng"
+                              className={cn(
+                                "h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 flex items-center justify-center",
+                                isExpanded ? "bg-slate-100" : "",
+                              )}
+                              onClick={() => toggleRow(order.id)}
+                              type="button"
+                            >
+                              <ChevronDown
+                                className={cn(
+                                  "h-3.5 w-3.5 transition-transform duration-150",
+                                  isExpanded ? "rotate-180" : "",
+                                )}
+                              />
+                            </button>
+
+                            {/* Secondary menu ... */}
+                            <div className="relative">
+                              <button
+                                aria-label="Tùy chọn khác"
+                                className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm hover:bg-slate-50 hover:text-slate-700 flex items-center justify-center"
+                                onClick={() =>
+                                  setActiveMenuOrderId(isMenuOpen ? null : order.id)
+                                }
+                                type="button"
+                              >
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </button>
+
+                              {isMenuOpen && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-20"
+                                    onClick={() => setActiveMenuOrderId(null)}
+                                  />
+                                  <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-dropdown text-left">
+                                    {can.cancelYun(role) && isShipped && (
+                                      <button
+                                        className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50"
+                                        onClick={() => {
+                                          setActiveMenuOrderId(null);
+                                          setCancelTarget(order);
+                                        }}
+                                        type="button"
+                                      >
+                                        Hủy vận đơn Yun (30p)
+                                      </button>
+                                    )}
+                                    <button
+                                      className="w-full rounded px-2.5 py-1.5 text-left text-slate-700 hover:bg-slate-50"
+                                      onClick={() => {
+                                        setActiveMenuOrderId(null);
+                                        setResetTarget(order);
+                                      }}
+                                      type="button"
+                                    >
+                                      Reset trạng thái đơn
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Order Detail Panel */}
+                      {isExpanded && (
+                        <tr>
+                          <td className="p-0" colSpan={8}>
+                            {detailErrors[order.id] ? (
+                              <div className="p-4 bg-rose-50 border-b border-rose-200">
+                                <ErrorState message={detailErrors[order.id]} />
+                              </div>
+                            ) : (
+                              <OrderExpandPanel
+                                isLoading={!detail}
+                                order={detail}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
 
-          {!sortedOrders.length ? (
-            <EmptyState
-              description="Orders will appear here when received from Portal."
-              heading="No orders yet."
-              icon={<Inbox className="h-6 w-6" aria-hidden />}
-            />
-          ) : null}
-
-          {sortedOrders.length ? (
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-3.5 py-3 text-xs text-[var(--text-muted)]">
-              <span>
-                Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
+          {/* Table Footer Pagination */}
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-2.5 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Hiển thị{" "}
+              <span className="font-semibold text-slate-800">
+                {(pagination.page - 1) * pagination.pageSize + 1}
               </span>
-              <div className="flex gap-2">
-                <button
-                  className="h-8 rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={pagination.page <= 1}
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                  type="button"
-                >
-                  Previous
-                </button>
-                <button
-                  className="h-8 rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--brand-mid)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() =>
-                    setPage((value) =>
-                      Math.min(Math.max(pagination.totalPages, 1), value + 1),
-                    )
-                  }
-                  type="button"
-                >
-                  Next
-                </button>
-              </div>
+              –
+              <span className="font-semibold text-slate-800">
+                {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)}
+              </span>{" "}
+              trong{" "}
+              <span className="font-semibold text-slate-800">
+                {pagination.totalItems}
+              </span>{" "}
+              đơn hàng
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                disabled={pagination.page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                size="sm"
+                variant="secondary"
+              >
+                Trước
+              </Button>
+              <span className="text-xs text-slate-600">
+                Trang {pagination.page} / {pagination.totalPages || 1}
+              </span>
+              <Button
+                disabled={pagination.page >= pagination.totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                size="sm"
+                variant="secondary"
+              >
+                Sau
+              </Button>
             </div>
-          ) : null}
-        </section>
-      ) : null}
+          </div>
+        </div>
+      )}
 
-      {shipTarget ? (
-        <OrderDetailDrawer
+      {/* 1-Click Fast Fulfillment Modal */}
+      {shipTarget && (
+        <ShipOrderModal
+          detail={detailCache[shipTarget.id] ?? null}
           onClose={() => setShipTarget(null)}
-          onShipmentCreated={() => {
-            void reloadOrderDetail(shipTarget.id);
-            setReloadKey((value) => value + 1);
-          }}
-          orderId={shipTarget.id}
-          role={role}
+          onSubmit={handleExecuteShip}
+          order={shipTarget}
         />
-      ) : null}
+      )}
 
-      {showBatchModal ? (
+      {/* Batch Ship Modal */}
+      {showBatchModal && (
         <BatchShipModal
           detailsByOrderId={detailCache}
           onClose={() => setShowBatchModal(false)}
-          onSubmit={(input) => {
-            void runBatchShipInBackground(input);
-          }}
-          orders={selectedOrders
-            .filter(isEligibleForShip)
-            .slice(0, BATCH_LIMIT)}
+          onSubmit={handleBatchShip}
+          orders={orders.filter((o) => selectedIds.has(o.id))}
         />
-      ) : null}
+      )}
 
-      {confirmTarget ? (
-        <ConfirmShipModal
-          detail={detailCache[confirmTarget.id] ?? null}
-          onClose={() => setConfirmTarget(null)}
-          onSuccess={handleOrderMutation}
-          order={confirmTarget}
-        />
-      ) : null}
-
-      {cancelTarget ? (
+      {/* Cancel Yun Modal */}
+      {cancelTarget && (
         <CancelYunModal
           detail={detailCache[cancelTarget.id] ?? null}
           onClose={() => setCancelTarget(null)}
-          onConfirm={() => {
-            void runCancelYunInBackground(cancelTarget);
-          }}
+          onConfirm={() => handleCancelYun(cancelTarget)}
           order={cancelTarget}
         />
-      ) : null}
+      )}
 
-      {resetTarget ? (
+      {/* Reset Order Modal */}
+      {resetTarget && (
         <ResetOrderModal
           onClose={() => setResetTarget(null)}
-          onSubmit={(order) => {
-            void runResetOrderInBackground(order);
-          }}
+          onSubmit={() => handleResetOrder(resetTarget)}
           order={resetTarget}
         />
-      ) : null}
+      )}
     </div>
   );
 }
 
-function OrderRows({
-  order,
-  detail,
-  detailError,
-  isExpanded,
-  role,
-  toggleRow,
-  selected,
-  toggleSelect,
-  onShip,
-  onConfirm,
-  onCancel,
-  onReset,
-  onSyncTracking,
-  pendingAction,
-}: {
-  order: OrderListItem;
-  detail: OrderDetail | null;
-  detailError: string | null;
-  isExpanded: boolean;
-  role: Role;
-  toggleRow: (orderId: string) => void;
-  selected: boolean;
-  toggleSelect: (orderId: string) => void;
-  onShip: (order: OrderListItem) => void;
-  onConfirm: (order: OrderListItem) => void;
-  onCancel: (order: OrderListItem) => void;
-  onReset: (order: OrderListItem) => void;
-  onSyncTracking: (order: OrderListItem, shipmentId: string) => void;
-  pendingAction: PendingOrderAction | null;
-}) {
-  const orderIdentifier = order.orderNumber ?? order.externalOrderId;
-  const shipment = getLatestShipmentInfo(order, detail);
-  const canSyncTracking =
-    can.shipOrder(role) &&
-    !shipment.trackingNumber &&
-    shipment.status === "TRACKING_PENDING" &&
-    Boolean(shipment.id);
-
-  async function copyOrderIdentifier() {
-    try {
-      await copyText(orderIdentifier);
-      toastSuccess("Order ID copied.");
-    } catch {
-      toastError("Failed to copy order ID.");
-    }
-  }
-
-  async function copyTracking() {
-    if (!shipment.trackingNumber) {
-      return;
-    }
-
-    try {
-      await copyText(shipment.trackingNumber);
-      toastSuccess("Tracking copied.");
-    } catch {
-      toastError("Failed to copy tracking.");
-    }
-  }
-
-  return (
-    <>
-      <tr
-        className={cn(
-          "bg-[var(--bg-surface)] transition-colors hover:bg-[var(--bg-surface2)]",
-          isExpanded ? "" : "border-b border-[var(--border)]",
-        )}
-      >
-        <td className="w-8 px-2 py-2.5 text-center align-middle">
-          {isEligibleForShip(order) ? (
-            <input
-              aria-label={`Select order ${orderIdentifier}`}
-              checked={Boolean(selected)}
-              className="cursor-pointer accent-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-30"
-              disabled={!can.shipOrder(role) || Boolean(pendingAction)}
-              onChange={() => toggleSelect(order.id)}
-              type="checkbox"
-            />
-          ) : (
-            <input
-              aria-label={`Order ${orderIdentifier} is not eligible for batch ship`}
-              checked={false}
-              className="cursor-not-allowed opacity-30"
-              disabled
-              onChange={() => undefined}
-              type="checkbox"
-            />
-          )}
-        </td>
-        <td className="w-9 px-2 py-2.5 text-center align-middle">
-          <button
-            aria-label={isExpanded ? "Collapse row" : "Expand row"}
-            className={cn(
-              "inline-flex h-[22px] w-[22px] items-center justify-center rounded-xs border transition-all duration-150",
-              isExpanded
-                ? "border-[var(--brand-mid)] bg-[var(--brand-light)] text-[var(--brand)]"
-                : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)]",
-            )}
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleRow(order.id);
-            }}
-            type="button"
-          >
-            <ChevronDown
-              className={cn(
-                "h-[13px] w-[13px] transition-transform duration-150",
-                isExpanded ? "rotate-180" : "",
-              )}
-              aria-hidden
-            />
-          </button>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <button
-            aria-label={`Copy order ID ${orderIdentifier}`}
-            className="inline-flex max-w-[170px] items-center gap-1 truncate font-mono text-[11px] font-semibold text-[var(--brand)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
-            onClick={copyOrderIdentifier}
-            title="Click to copy"
-            type="button"
-          >
-            <span className="truncate">{orderIdentifier}</span>
-            <Copy className="h-3 w-3 shrink-0" aria-hidden />
-          </button>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <div className="grid place-items-center gap-1">
-            <StatusBadge status={order.status} />
-            {order.autoShipmentJob ? (
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em]",
-                  autoShipmentBadgeClass(order.autoShipmentJob.status),
-                )}
-                title={order.autoShipmentJob.errorMessage ?? undefined}
-              >
-                {autoShipmentLabel(order.autoShipmentJob.status)}
-              </span>
-            ) : null}
-          </div>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <div className="grid place-items-center gap-1">
-            <span
-              className={cn(
-                "w-fit rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em]",
-                sourceChannelBadgeClass(order.sourceChannel),
-              )}
-            >
-              {sourceChannelLabel(order.sourceChannel)}
-            </span>
-            {order.source ? (
-              <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                {order.source}
-              </span>
-            ) : null}
-          </div>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-[var(--text-primary)]">
-              {order.recipientName ?? "Not provided"}
-            </p>
-            <p className="truncate text-[11px] text-[var(--text-muted)]">
-              {countryFlag(order.destinationCountry)}{" "}
-              {order.destinationCity ??
-                order.destinationCountry ??
-                "No address"}
-            </p>
-          </div>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          {shipment.trackingNumber ? (
-            <div className="flex items-center justify-center gap-1">
-              <span className="font-mono text-[11px] text-[var(--text-secondary)]">
-                {shipment.trackingNumber}
-              </span>
-              <button
-                aria-label="Copy tracking number"
-                className="rounded-xs border border-transparent p-0.5 text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--brand)]"
-                onClick={copyTracking}
-                type="button"
-              >
-                <Copy className="h-3 w-3" aria-hidden />
-              </button>
-            </div>
-          ) : (
-            <div className="grid place-items-center gap-1">
-              <span className="text-[11px] text-[var(--text-muted)]">-</span>
-              {canSyncTracking ? (
-                <button
-                  className="inline-flex h-7 w-fit items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 text-[11px] font-medium text-[var(--brand)] hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={pendingAction === "sync"}
-                  onClick={() => {
-                    if (shipment.id) {
-                      onSyncTracking(order, shipment.id);
-                    }
-                  }}
-                  type="button"
-                >
-                  {pendingAction === "sync" ? (
-                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                  ) : (
-                    <RotateCcw className="h-3 w-3" aria-hidden />
-                  )}
-                  Sync tracking
-                </button>
-              ) : null}
-            </div>
-          )}
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          {shipment.status ? (
-            <StatusBadge status={shipment.status} />
-          ) : (
-            <span className="text-[11px] text-[var(--text-muted)]">-</span>
-          )}
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <time
-            className="text-xs text-[var(--text-secondary)]"
-            dateTime={order.receivedAt}
-            title={formatDateTime(order.receivedAt)}
-          >
-            {relativeTime(order.receivedAt)}
-          </time>
-        </td>
-        <td className="px-3.5 py-2.5 text-center align-middle">
-          <OrderActions
-            labelUrl={shipment.labelUrl}
-            canCancelShipped={canCancelShippedOrder(order.status, detail)}
-            onCancel={() => onCancel(order)}
-            onConfirm={() => onConfirm(order)}
-            onReset={() => onReset(order)}
-            onShip={() => onShip(order)}
-            order={order}
-            pendingAction={pendingAction}
-            role={role}
-          />
-        </td>
-      </tr>
-      {isExpanded ? (
-        <tr>
-          <td className="border-b border-[var(--border)] p-0" colSpan={10}>
-            {detailError ? (
-              <div className="bg-[var(--brand-light)] px-12 py-4">
-                <ErrorState message={detailError} />
-              </div>
-            ) : (
-              <OrderExpandPanel isLoading={!detail} order={detail} />
-            )}
-          </td>
-        </tr>
-      ) : null}
-    </>
-  );
-}
-
-function OrderActions({
-  order,
-  role,
-  labelUrl,
-  canCancelShipped,
-  pendingAction,
-  onShip,
-  onConfirm,
-  onCancel,
-  onReset,
-}: {
-  order: OrderListItem;
-  role: Role;
-  labelUrl: string | null;
-  canCancelShipped: boolean;
-  pendingAction: PendingOrderAction | null;
-  onShip: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-  onReset: () => void;
-}) {
-  if (!can.shipOrder(role)) {
-    return null;
-  }
-
-  if (pendingAction) {
-    return (
-      <button
-        className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface2)] px-2.5 text-xs font-medium text-[var(--text-secondary)]"
-        disabled
-        type="button"
-      >
-        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-        {pendingAction === "ship"
-          ? "Creating..."
-          : pendingAction === "cancel"
-            ? "Cancelling..."
-            : pendingAction === "reset"
-              ? "Resetting..."
-              : "Syncing..."}
-      </button>
-    );
-  }
-
-  switch (order.status) {
-    case "FULFILLED":
-    case "READY_TO_SHIP":
-      return (
-        <button
-          className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-2.5 text-xs font-medium text-white hover:bg-[var(--brand-dark)]"
-          onClick={onShip}
-          type="button"
-        >
-          <Truck className="h-3 w-3" aria-hidden />
-          Ship
-        </button>
-      );
-
-    case "IN_PROCESSING":
-      return (
-        <div className="flex flex-wrap justify-center gap-1.5">
-          {can.confirmShip(role) ? (
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded-sm border border-[#a7f3d0] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--success)] hover:bg-[var(--success-bg)]"
-              onClick={onConfirm}
-              type="button"
-            >
-              <CheckCircle className="h-3 w-3" aria-hidden />
-              Confirm ship
-            </button>
-          ) : null}
-          {can.cancelYun(role) ? (
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded-sm border border-[#fca5a5] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)]"
-              onClick={onCancel}
-              type="button"
-            >
-              <X className="h-3 w-3" aria-hidden />
-              Cancel Yun
-            </button>
-          ) : null}
-        </div>
-      );
-
-    case "SHIPPED":
-      return (
-        <div className="flex flex-wrap justify-center gap-1.5">
-          {labelUrl ? (
-            <a
-              className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-              href={labelUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <ExternalLink className="h-3 w-3" aria-hidden />
-              Open label
-            </a>
-          ) : null}
-          {can.cancelYun(role) && canCancelShipped ? (
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded-sm border border-[#fca5a5] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)]"
-              onClick={onCancel}
-              title="Available within 30 minutes after confirm ship"
-              type="button"
-            >
-              <X className="h-3 w-3" aria-hidden />
-              Cancel Yun
-            </button>
-          ) : null}
-        </div>
-      );
-
-    case "CANCELLED":
-      return can.resetOrder(role) ? (
-        <button
-          className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
-          onClick={onReset}
-          type="button"
-        >
-          <RotateCcw className="h-3 w-3" aria-hidden />
-          Reset order
-        </button>
-      ) : (
-        <span className="flex items-center justify-center text-[11px] text-[var(--text-muted)]">
-          Cancelled
-        </span>
-      );
-
-    default:
-      return null;
-  }
-}
-
-function TableHeader({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={cn(
-        "border-b border-[var(--border)] px-3.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
-        className,
-      )}
-    >
-      {children}
-    </th>
-  );
-}
-
-function SortableHeader({
-  children,
-  active,
-  direction,
-  onClick,
-  className,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  direction: "asc" | "desc";
-  onClick: () => void;
-  className?: string;
-}) {
-  return (
-    <th
-      className={cn(
-        "border-b border-[var(--border)] px-3.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]",
-        className,
-      )}
-    >
-      <button
-        className="inline-flex w-full items-center justify-center gap-1 hover:text-[var(--brand)]"
-        onClick={onClick}
-        type="button"
-      >
-        {children}
-        {active ? (
-          direction === "asc" ? (
-            <ChevronUp className="h-3 w-3" aria-hidden />
-          ) : (
-            <ChevronDown className="h-3 w-3" aria-hidden />
-          )
-        ) : (
-          <ArrowUpDown className="h-3 w-3" aria-hidden />
-        )}
-      </button>
-    </th>
-  );
-}
-
-function getLatestShipmentInfo(
-  order: OrderListItem,
-  detail: OrderDetail | null,
-) {
-  const latestShipment = detail?.shipments?.[0] ?? null;
-
-  return {
-    id: latestShipment?.id ?? null,
-    trackingNumber:
-      order.trackingNumber ??
-      order.latestTrackingNumber ??
-      latestShipment?.trackingNumber ??
-      null,
-    carrierShipmentId:
-      order.carrierShipmentId ?? latestShipment?.carrierShipmentId ?? null,
-    labelUrl:
-      order.labelUrl ??
-      order.latestLabelUrl ??
-      latestShipment?.labelUrl ??
-      null,
-    status: order.latestShipmentStatus ?? latestShipment?.status ?? null,
-    carrier: order.latestShipmentCarrier ?? latestShipment?.carrierCode ?? null,
-  };
-}
-
-function patchDetailShipments(
-  detail: OrderDetail,
-  shipmentPatch: OrderMutationShipment | undefined,
-  timestamp: string,
-  shipmentCost?: ShipmentCostSummary,
-) {
-  if (!shipmentPatch && !shipmentCost) {
-    return detail.shipments;
-  }
-
-  const currentShipments = detail.shipments ?? [];
-  const firstShipment = currentShipments[0] ?? null;
-  const shipmentId = shipmentPatch?.id ?? shipmentCost?.shipmentId ?? firstShipment?.id;
-
-  if (!shipmentId) {
-    return currentShipments;
-  }
-
-  const patchedShipment = {
-    id: shipmentId,
-    orderId: detail.id,
-    orderNumber: detail.orderNumber,
-    externalOrderId: detail.externalOrderId,
-    status: hasOwn(shipmentPatch, "status")
-      ? (shipmentPatch.status ?? firstShipment?.status ?? "CREATED")
-      : (firstShipment?.status ?? "CREATED"),
-    carrierCode: hasOwn(shipmentPatch, "carrierCode")
-      ? (shipmentPatch.carrierCode ?? null)
-      : (firstShipment?.carrierCode ?? "YUNEXPRESS_OMS"),
-    carrierShipmentId: hasOwn(shipmentPatch, "carrierShipmentId")
-      ? (shipmentPatch.carrierShipmentId ?? null)
-      : (firstShipment?.carrierShipmentId ?? null),
-    trackingNumber: hasOwn(shipmentPatch, "trackingNumber")
-      ? (shipmentPatch.trackingNumber ?? null)
-      : (firstShipment?.trackingNumber ?? null),
-    labelUrl: hasOwn(shipmentPatch, "labelUrl")
-      ? (shipmentPatch.labelUrl ?? null)
-      : (firstShipment?.labelUrl ?? null),
-    failure: null,
-    cost: shipmentCost ?? firstShipment?.cost ?? null,
-    createdAt: shipmentPatch?.createdAt ?? firstShipment?.createdAt ?? timestamp,
-    updatedAt: shipmentPatch?.updatedAt ?? timestamp,
-    itemCount: firstShipment?.itemCount ?? detail.items.length,
-  };
-
-  if (currentShipments.some((shipment) => shipment.id === shipmentId)) {
-    return currentShipments.map((shipment) =>
-      shipment.id === shipmentId
-        ? { ...shipment, ...patchedShipment }
-        : shipment,
-    );
-  }
-
-  return [patchedShipment, ...currentShipments];
-}
-
-function hasOwn<T extends object, K extends PropertyKey>(
-  value: T | undefined,
-  key: K,
-): value is T & Record<K, unknown> {
-  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
-}
-
-function mutationStatusNote(status: string) {
-  switch (status) {
-    case "IN_PROCESSING":
-      return "YunExpress shipment created.";
-    case "SHIPPED":
-      return "Shipment confirmed.";
-    case "CANCELLED":
-      return "YunExpress shipment cancelled.";
-    case "FULFILLED":
-      return "Cancelled order reset.";
-    default:
-      return "Order status updated.";
-  }
-}
-
-function canCancelShippedOrder(status: string, detail: OrderDetail | null) {
-  if (status !== "SHIPPED") {
-    return false;
-  }
-
-  const shippedAtValue = detail?.statusHistory
-    ?.filter((entry) => entry.status === "SHIPPED")
-    .sort(
-      (first, second) =>
-        new Date(second.createdAt).getTime() -
-        new Date(first.createdAt).getTime(),
-    )[0]?.createdAt;
-
-  if (!shippedAtValue) {
-    return false;
-  }
-
-  const shippedAt = new Date(shippedAtValue).getTime();
-  return (
-    Number.isFinite(shippedAt) &&
-    Date.now() - shippedAt <= SHIPPED_CANCEL_WINDOW_MS
-  );
-}
-
-function relativeTime(value: string) {
-  const date = new Date(value);
-  const diffMs = date.getTime() - Date.now();
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
-
-  const absMs = Math.abs(diffMs);
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86_400_000],
-    ["hour", 3_600_000],
-    ["minute", 60_000],
-  ];
-  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-
-  for (const [unit, unitMs] of units) {
-    if (absMs >= unitMs) {
-      return formatter.format(Math.round(diffMs / unitMs), unit);
-    }
-  }
-
-  return "just now";
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-async function copyText(value: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
-  textarea.select();
-
-  try {
-    const copied = document.execCommand("copy");
-    if (!copied) {
-      throw new Error("Copy failed");
-    }
-  } finally {
-    document.body.removeChild(textarea);
-  }
-}
-
-function countryFlag(countryCode: string | null) {
+function countryFlag(countryCode: string | null | undefined) {
   if (!countryCode || !/^[A-Za-z]{2}$/.test(countryCode)) {
     return "";
   }
@@ -1632,84 +924,28 @@ function countryFlag(countryCode: string | null) {
     .join("");
 }
 
-function sourceChannelLabel(sourceChannel: string | null) {
-  switch (sourceChannel) {
-    case "AMAZON":
-      return "Amazon";
-    case "ETSY":
-      return "Etsy";
-    case "MANUAL":
-      return "Manual";
-    case "UNKNOWN":
-      return "Unknown";
-    case null:
-      return "Unknown";
-    default:
-      return sourceChannel;
+function relativeTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffHours < 1) {
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    return `${Math.max(1, diffMins)} phút trước`;
   }
-}
-
-function sourceChannelBadgeClass(sourceChannel: string | null) {
-  switch (sourceChannel) {
-    case "AMAZON":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "ETSY":
-      return "border-orange-200 bg-orange-50 text-orange-700";
-    case "MANUAL":
-      return "border-slate-200 bg-slate-50 text-slate-600";
-    default:
-      return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
+  if (diffHours < 24) {
+    return `${diffHours} giờ trước`;
   }
-}
-
-function autoShipmentLabel(status: string) {
-  switch (status) {
-    case "SUCCEEDED":
-      return "Auto shipped";
-    case "FAILED":
-      return "Auto failed";
-    case "MISSING_SKU_MAPPING":
-      return "Missing map";
-    case "METHOD_CONFLICT":
-      return "Method conflict";
-    case "SKIPPED_DISABLED":
-      return "Auto off";
-    case "SKIPPED_EXISTING_SHIPMENT":
-      return "Has shipment";
-    case "PROCESSING":
-      return "Auto processing";
-    default:
-      return status;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays} ngày trước`;
   }
-}
 
-function autoShipmentBadgeClass(status: string) {
-  switch (status) {
-    case "SUCCEEDED":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "FAILED":
-    case "METHOD_CONFLICT":
-      return "border-red-200 bg-red-50 text-red-700";
-    case "MISSING_SKU_MAPPING":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "PROCESSING":
-      return "border-indigo-200 bg-indigo-50 text-indigo-700";
-    default:
-      return "border-[var(--border)] bg-[var(--bg-surface2)] text-[var(--text-muted)]";
-  }
-}
-
-function formatBatchFailureToast(failures: BatchShipResult["failed"]) {
-  const firstFailure = failures[0];
-  const firstMessage = firstFailure
-    ? getCarrierFailureMessage(firstFailure.details) ?? firstFailure.message
-    : "Shipment creation failed.";
-
-  return failures.length > 1
-    ? `${failures.length} shipments failed. First error: ${firstMessage}`
-    : firstMessage;
-}
-
-function isEligibleForShip(order: OrderListItem) {
-  return order.status === "FULFILLED" || order.status === "READY_TO_SHIP";
+  return new Intl.DateTimeFormat("vi-VN", {
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
 }

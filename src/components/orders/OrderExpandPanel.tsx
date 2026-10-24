@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element -- Portal image URLs are external and not pre-whitelisted for next/image. */
 
 import type React from "react";
-import { ShipmentExecutionPreparation } from "@/components/shipments/ShipmentExecutionPreparation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -13,6 +12,7 @@ import {
   Package,
   ShoppingCart,
   Store,
+  Truck,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -57,8 +57,8 @@ export function OrderExpandPanel({
   const shipmentFailure = getLatestShipmentFailure(order);
 
   return (
-    <div className="[contain-intrinsic-size:auto_680px] [content-visibility:auto] bg-[var(--brand-light)] px-3 pb-3 pt-0 sm:pl-12 sm:pr-3.5">
-      <div className="grid gap-3 pt-3">
+    <div className="[contain-intrinsic-size:auto_680px] [content-visibility:auto] bg-slate-50 border-t border-b border-slate-200 px-4 py-4 sm:px-6">
+      <div className="grid gap-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <OrderSummaryCard order={order} />
           <RecipientCard failure={shipmentFailure} order={order} />
@@ -70,16 +70,6 @@ export function OrderExpandPanel({
         </div>
 
         {hasSellerOrScaler ? <StatusHistoryCard order={order} /> : null}
-
-        <ShipmentExecutionPreparation
-          orderId={order.id}
-          orderItems={order.items.map((item) => ({
-            id: item.id,
-            name: item.title ?? item.name,
-            quantity: item.quantity,
-            sku: item.sku,
-          }))}
-        />
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <PanelCard

@@ -1,8 +1,9 @@
 "use client";
 
-import { Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
+import { AlertTriangle, Boxes, Check, Loader2, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
 import type {
@@ -34,34 +35,11 @@ export const PRODUCT_OPTIONS = [
     keywords: ["embroidered", "embroidery", "shirt", "tee", "t-shirt", "top"],
   },
 ] as const;
+
 const EU_COUNTRY_CODES = new Set([
-  "AT",
-  "BE",
-  "BG",
-  "HR",
-  "CY",
-  "CZ",
-  "DE",
-  "DK",
-  "EE",
-  "ES",
-  "FI",
-  "FR",
-  "GR",
-  "HU",
-  "IE",
-  "IT",
-  "LT",
-  "LU",
-  "LV",
-  "MT",
-  "NL",
-  "PL",
-  "PT",
-  "RO",
-  "SE",
-  "SI",
-  "SK",
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DE", "DK", "EE", "ES",
+  "FI", "FR", "GR", "HU", "IE", "IT", "LT", "LU", "LV", "MT",
+  "NL", "PL", "PT", "RO", "SE", "SI", "SK",
 ]);
 
 export type ShipmentPreview = {
@@ -130,16 +108,12 @@ export function ShipOrderModal({
 }) {
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [tenantIossNumber, setTenantIossNumber] = useState(
-    DEFAULT_YUN_IOSS_NUMBER,
-  );
+  const [tenantIossNumber, setTenantIossNumber] = useState(DEFAULT_YUN_IOSS_NUMBER);
   const preview = useMemo(
     () => buildShipmentPreview(order, detail, tenantIossNumber),
     [detail, order, tenantIossNumber],
   );
-  const [shippingMethodCode, setShippingMethodCode] = useState(
-    preview.shippingMethodCode,
-  );
+  const [shippingMethodCode, setShippingMethodCode] = useState(preview.shippingMethodCode);
   const [receiverValues, setReceiverValues] = useState(preview.receiver);
   const [packageValues, setPackageValues] = useState(preview.package);
   const [useIoss, setUseIoss] = useState(preview.useIoss);
@@ -215,7 +189,7 @@ export function ShipOrderModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -223,24 +197,30 @@ export function ShipOrderModal({
       }}
       role="dialog"
     >
-      <div className="max-h-[92vh] w-full max-w-[980px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
+      <div className="max-h-[92vh] w-full max-w-[800px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-8 w-8 place-items-center rounded-sm bg-[var(--brand-light)] text-[var(--brand)]">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/60 shadow-sm">
               <Truck className="h-4 w-4" aria-hidden />
             </span>
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Create YunExpress shipment
-              </h2>
-              <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                Confirm YunExpress request fields before creating the shipment.
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-900">
+                  Đóng gói & Tạo vận đơn
+                </h2>
+                <span className="font-mono text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                  #{order.orderNumber ?? order.externalOrderId}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Kiểm tra thông số đóng gói và xác nhận tạo nhãn in với hãng vận chuyển.
               </p>
             </div>
           </div>
           <button
-            aria-label="Close shipment modal"
-            className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:opacity-50"
+            aria-label="Đóng popup đóng gói"
+            className="rounded-md border border-slate-200 bg-white p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
             onClick={onClose}
             type="button"
           >
@@ -248,196 +228,105 @@ export function ShipOrderModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(92vh-130px)] overflow-y-auto px-4 py-4">
-          <div className="grid gap-3">
-            <ModalSection icon={<Truck />} title="Thông tin shipment chính">
-              <div className="grid gap-2 md:grid-cols-2">
-                <Field label="CustomerOrderNumber" mono value={preview.customerOrderNumber} />
-                <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-                    ShippingMethodCode
-                  </label>
-                  <div>
-                    <select
-                      className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 font-mono text-[11px] text-[var(--text-primary)]"
-                      disabled={controlsDisabled}
-                      onChange={(event) => setShippingMethodCode(event.target.value)}
-                      value={shippingMethodCode}
-                    >
-                      {SHIPPING_METHOD_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <Field label="SourceCode" mono value={preview.sourceCode} />
-                <Field
-                  label="Order status"
-                  value={<StatusBadge status={order.status} />}
-                />
-              </div>
-              <IossInlinePanel
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {/* Packaging Specs */}
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
+                <Package className="h-4 w-4 text-indigo-600" />
+                Thông số kiện hàng (Trọng lượng & Kích thước)
+              </span>
+              <span className="text-xs text-slate-400 font-medium">Đơn vị: kg / cm</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <NumberInput
                 disabled={controlsDisabled}
-                euDetected={preview.iossEuDetected}
-                onChange={setIossNumber}
-                onToggle={setUseIoss}
-                useIoss={useIoss}
-                value={iossNumber}
+                label="Trọng lượng (kg)"
+                onChange={(value) => updatePackage({ weight: value ?? 0.1 })}
+                value={packageValues.weight}
               />
-            </ModalSection>
+              <NumberInput
+                disabled={controlsDisabled}
+                label="Dài (cm)"
+                onChange={(value) => updatePackage({ length: value ?? 15 })}
+                value={packageValues.length}
+              />
+              <NumberInput
+                disabled={controlsDisabled}
+                label="Rộng (cm)"
+                onChange={(value) => updatePackage({ width: value ?? 10 })}
+                value={packageValues.width}
+              />
+              <NumberInput
+                disabled={controlsDisabled}
+                label="Cao (cm)"
+                onChange={(value) => updatePackage({ height: value ?? 5 })}
+                value={packageValues.height}
+              />
+            </div>
 
-            <ModalSection icon={<UserRound />} title="Receiver">
-              <div className="grid gap-2 md:grid-cols-3">
-                <TextInput
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Dịch vụ vận chuyển (Carrier Method)
+                </label>
+                <select
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   disabled={controlsDisabled}
-                  label="FirstName"
-                  onChange={(value) => updateReceiver({ firstName: value })}
-                  value={receiverValues.firstName}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="LastName"
-                  onChange={(value) => updateReceiver({ lastName: value })}
-                  value={receiverValues.lastName}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="Company"
-                  onChange={(value) => updateReceiver({ company: value })}
-                  value={receiverValues.company}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="CountryCode"
-                  onChange={(value) =>
-                    updateReceiver({ countryCode: value.toUpperCase() })
-                  }
-                  value={receiverValues.countryCode}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="Street"
-                  onChange={(value) => updateReceiver({ street: value })}
-                  value={receiverValues.street}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="City"
-                  onChange={(value) => updateReceiver({ city: value })}
-                  value={receiverValues.city}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="State"
-                  onChange={(value) => updateReceiver({ state: value })}
-                  value={receiverValues.state}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="Zip"
-                  onChange={(value) => updateReceiver({ zip: value })}
-                  value={receiverValues.zip}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="Phone"
-                  onChange={(value) => updateReceiver({ phone: value })}
-                  value={receiverValues.phone}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="Email"
-                  onChange={(value) => updateReceiver({ email: value })}
-                  value={receiverValues.email}
-                />
+                  onChange={(event) => setShippingMethodCode(event.target.value)}
+                  value={shippingMethodCode}
+                >
+                  {SHIPPING_METHOD_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option} {option === "VN-YTYCPREC" ? "(YunExpress Tiêu chuẩn)" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </ModalSection>
-
-            <ModalSection icon={<Package />} title="Package">
-              <div className="grid gap-2 md:grid-cols-5">
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="Weight"
-                  onChange={(value) => updatePackage({ weight: value ?? 0 })}
-                  value={packageValues.weight}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="Length"
-                  onChange={(value) => updatePackage({ length: value ?? 0 })}
-                  value={packageValues.length}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="Width"
-                  onChange={(value) => updatePackage({ width: value ?? 0 })}
-                  value={packageValues.width}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="Height"
-                  onChange={(value) => updatePackage({ height: value ?? 0 })}
-                  value={packageValues.height}
-                />
-                <TextInput
-                  disabled={controlsDisabled}
-                  label="SizeUnits"
-                  onChange={(value) => updatePackage({ sizeUnits: value })}
-                  value={packageValues.sizeUnits}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="PackageCount"
-                  onChange={(value) => updatePackage({ packageCount: value ?? 1 })}
-                  value={packageValues.packageCount}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="ApplicationType"
-                  onChange={(value) => updatePackage({ applicationType: value ?? 0 })}
-                  value={packageValues.applicationType}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="ReturnOption"
-                  onChange={(value) => updatePackage({ returnOption: value ?? 0 })}
-                  value={packageValues.returnOption}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="TariffPrepay"
-                  onChange={(value) => updatePackage({ tariffPrepay: value ?? 0 })}
-                  value={packageValues.tariffPrepay}
-                />
-                <NumberInput
-                  disabled={controlsDisabled}
-                  label="InsuranceOption"
-                  onChange={(value) =>
-                    updatePackage({ insuranceOption: value ?? 0 })
-                  }
-                  value={packageValues.insuranceOption}
-                />
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">
+                  Quốc gia đến
+                </label>
+                <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
+                  <span className="font-mono">{receiverValues.countryCode || "-"}</span>
+                  {preview.iossEuDetected && (
+                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                      Châu Âu (EU)
+                    </span>
+                  )}
+                </div>
               </div>
-            </ModalSection>
-          </div>
+            </div>
+          </section>
 
-          <ModalSection className="mt-3" icon={<Package />} title="Parcels">
-            <div className="grid gap-3">
+          {/* Customs declaration & SKU */}
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+              <span className="flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
+                <Boxes className="h-4 w-4 text-indigo-600" />
+                Khai báo hải quan & Hàng hóa ({parcels.length} sản phẩm)
+              </span>
+            </div>
+            <div className="space-y-3">
               {parcels.map((parcel, index) => (
                 <div
-                  className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3"
+                  className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
                   key={`${parcel.orderItemId ?? parcel.sku}-${index}`}
                 >
-                  <div className="mb-3 grid gap-2 md:grid-cols-[160px_minmax(190px,1fr)_minmax(160px,220px)]">
-                    <Field label="SKU" mono value={parcel.sku} />
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-                        EName
+                      <span className="mb-1 block text-[11px] font-semibold text-slate-500">Mã SKU</span>
+                      <div className="h-8 flex items-center font-mono text-xs font-semibold text-slate-800">
+                        {parcel.sku}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                        Tên tiếng Anh (EName)
                       </label>
                       <select
-                        className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 text-[11px]"
+                        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 shadow-sm"
                         disabled={controlsDisabled}
                         onChange={(event) => {
                           const option = PRODUCT_OPTIONS.find(
@@ -459,45 +348,36 @@ export function ShipOrderModal({
                         ))}
                       </select>
                     </div>
-                    <Field label="CName" value={parcel.cName} />
+                    <div>
+                      <span className="mb-1 block text-[11px] font-semibold text-slate-500">Tên tiếng Trung (CName)</span>
+                      <div className="h-8 flex items-center text-xs text-slate-700">
+                        {parcel.cName}
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-4">
-                    <Field label="Quantity" mono value={parcel.quantity} />
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div>
+                      <span className="mb-1 block text-[11px] font-semibold text-slate-500">Số lượng</span>
+                      <div className="h-8 flex items-center font-mono text-xs font-bold text-slate-800">
+                        {parcel.quantity}
+                      </div>
+                    </div>
                     <NumberInput
                       disabled={controlsDisabled}
-                      label="UnitPrice"
+                      label="Đơn giá (USD)"
                       onChange={(value) => updateParcel(index, { unitPrice: value })}
                       value={parcel.unitPrice}
                     />
-                    <NumberInput
-                      disabled={controlsDisabled}
-                      label="UnitWeight"
-                      onChange={(value) => updateParcel(index, { unitWeight: value })}
-                      value={parcel.unitWeight}
-                    />
                     <TextInput
                       disabled={controlsDisabled}
-                      label="CurrencyCode"
-                      onChange={(value) =>
-                        updateParcel(index, { currencyCode: value.toUpperCase() })
-                      }
-                      value={parcel.currencyCode}
-                    />
-                    <TextInput
-                      disabled={controlsDisabled}
-                      label="InvoicePart"
+                      label="Chất liệu (InvoicePart)"
                       onChange={(value) => updateParcel(index, { invoicePart: value })}
-                      value={parcel.invoicePart ?? ""}
+                      value={parcel.invoicePart ?? "cotton"}
                     />
                     <TextInput
                       disabled={controlsDisabled}
-                      label="InvoiceUsage"
-                      onChange={(value) => updateParcel(index, { invoiceUsage: value })}
-                      value={parcel.invoiceUsage ?? ""}
-                    />
-                    <TextInput
-                      disabled={controlsDisabled}
-                      label="Remark"
+                      label="Ghi chú (Remark)"
                       onChange={(value) => updateParcel(index, { remark: value })}
                       value={parcel.remark}
                     />
@@ -505,149 +385,94 @@ export function ShipOrderModal({
                 </div>
               ))}
             </div>
-          </ModalSection>
+          </section>
 
-          <ModalSection className="mt-3" icon={<Truck />} title="Environment">
-            <EnvironmentSelector
-              disabled={controlsDisabled}
-              onChange={setEnvironment}
-              value={environment}
-            />
-          </ModalSection>
-        </div>
-
-        <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
-          <button
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] disabled:opacity-50"
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={controlsDisabled || iossMissing}
-            onClick={handleSubmit}
-            type="button"
-          >
-            Create shipment
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModalSection({
-  children,
-  className,
-  icon,
-  title,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  icon: React.ReactElement;
-  title: string;
-}) {
-  return (
-    <section
-      className={`rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3 ${
-        className ?? ""
-      }`}
-    >
-      <div className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-        <span className="text-[var(--brand)]">{icon}</span>
-        {title}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Field({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
-  return (
-    <div className="min-w-0 rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] px-2 py-1.5">
-      <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
-        {label}
-      </div>
-      <div
-        className={`min-h-[17px] truncate text-[11px] text-[var(--text-primary)] ${
-          mono ? "font-mono" : ""
-        }`}
-        title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
-      >
-        {value || "-"}
-      </div>
-    </div>
-  );
-}
-
-function IossInlinePanel({
-  disabled,
-  euDetected,
-  onChange,
-  onToggle,
-  useIoss,
-  value,
-}: {
-  disabled: boolean;
-  euDetected: boolean;
-  onChange: (value: string) => void;
-  onToggle: (value: boolean) => void;
-  useIoss: boolean;
-  value: string;
-}) {
-  return (
-    <div className="mt-3 rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-3">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-emerald-700">
-            <ShieldCheck size={13} aria-hidden />
-            IOSS
-          </div>
-          <div className="mt-0.5 text-[11px] text-emerald-800/80">
-            Optional tax identifier. EU destinations are enabled by default.
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-            {euDetected ? "EU detected" : "Optional"}
-          </span>
-          <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-800">
-            <input
-              checked={useIoss}
-              className="accent-emerald-600"
-              disabled={disabled}
-              onChange={(event) => onToggle(event.target.checked)}
-              type="checkbox"
-            />
-            Use IOSS
-          </label>
-        </div>
-      </div>
-      {useIoss ? (
-        <>
-          <input
-            className="h-9 w-full rounded-[var(--r-sm)] border border-emerald-200 bg-white px-3 font-mono text-[12px] text-[var(--text-primary)] outline-none transition-colors focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-            disabled={disabled}
-            onChange={(event) => onChange(event.target.value)}
-            value={value}
-          />
-          {!value.trim() ? (
-            <div className="mt-1.5 text-[10px] font-medium text-amber-700">
-              IOSS number is required when Use IOSS is enabled.
+          {/* EU IOSS Panel */}
+          {preview.iossEuDetected && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-900">
+                    Mã số thuế IOSS (Đơn gửi đi Châu Âu)
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                  <input
+                    checked={useIoss}
+                    className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                    disabled={controlsDisabled}
+                    onChange={(event) => setUseIoss(event.target.checked)}
+                    type="checkbox"
+                  />
+                  Sử dụng IOSS
+                </label>
+              </div>
+              {useIoss && (
+                <div className="mt-2">
+                  <input
+                    className="h-9 w-full rounded-md border border-emerald-300 bg-white px-3 font-mono text-xs text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    disabled={controlsDisabled}
+                    onChange={(event) => setIossNumber(event.target.value)}
+                    placeholder="Nhập mã IOSS..."
+                    value={iossNumber}
+                  />
+                  {iossMissing && (
+                    <p className="mt-1 text-[11px] font-medium text-rose-600">
+                      Vui lòng nhập mã IOSS hợp lệ khi kích hoạt tùy chọn này.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-          ) : null}
-        </>
-      ) : null}
+          )}
+
+          {/* Receiver preview */}
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <span className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
+              <UserRound className="h-4 w-4 text-indigo-600" />
+              Người nhận & Địa chỉ giao hàng
+            </span>
+            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+              <div className="rounded-md border border-slate-100 bg-slate-50 p-2.5">
+                <span className="text-slate-400 block text-[11px]">Họ tên:</span>
+                <span className="font-semibold text-slate-800">{receiverValues.firstName} {receiverValues.lastName}</span>
+              </div>
+              <div className="rounded-md border border-slate-100 bg-slate-50 p-2.5">
+                <span className="text-slate-400 block text-[11px]">Địa chỉ:</span>
+                <span className="font-medium text-slate-700">{receiverValues.street}, {receiverValues.city}, {receiverValues.state} {receiverValues.zip}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Environment */}
+          <EnvironmentSelector
+            disabled={controlsDisabled}
+            onChange={setEnvironment}
+            value={environment}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-5 py-3.5">
+          <Button
+            disabled={controlsDisabled}
+            onClick={onClose}
+            variant="secondary"
+          >
+            Hủy bỏ
+          </Button>
+          <Button
+            disabled={controlsDisabled || iossMissing}
+            isLoading={hasSubmitted}
+            leftIcon={<Truck className="h-4 w-4" />}
+            onClick={handleSubmit}
+            variant="primary"
+          >
+            {hasSubmitted ? "Đang tạo vận đơn & nhãn..." : "Xác nhận đóng hàng & Lấy nhãn"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -665,11 +490,11 @@ function TextInput({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+      <span className="mb-1 block text-[11px] font-semibold text-slate-600">
         {label}
       </span>
       <input
-        className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 text-[11px] text-[var(--text-primary)]"
+        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         value={value}
@@ -691,11 +516,11 @@ function NumberInput({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+      <span className="mb-1 block text-[11px] font-semibold text-slate-600">
         {label}
       </span>
       <input
-        className="h-8 w-full rounded-sm border border-[var(--border)] bg-white px-2 font-mono text-[11px] text-[var(--text-primary)]"
+        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         disabled={disabled}
         min={0}
         onChange={(event) => {
@@ -791,8 +616,7 @@ export function buildShipmentPreview(
       firstName: name.firstName,
       lastName: name.lastName,
       company: "",
-      countryCode:
-        destinationCountry,
+      countryCode: destinationCountry,
       street: address.line1,
       city:
         address.city ||
