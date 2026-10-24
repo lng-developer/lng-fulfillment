@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { getErrorMessage } from "@/lib/api/base";
 import { executeShipment, type ShipmentCarrierCode } from "@/lib/api/shipments";
 import { toastError } from "@/lib/toast";
@@ -60,9 +61,9 @@ export function LiveActionConfirmation({
     } catch (executionError) {
       const safeMessage = getErrorMessage(executionError);
       setError(
-        "Live shipment execution failed. Review shipment state and try from a fresh confirmation.",
+        "Thực thi vận đơn thất bại. Vui lòng kiểm tra lại trạng thái hoặc xác nhận lại.",
       );
-      toastError(`Shipment execution failed. ${safeMessage}`);
+      toastError(`Thực thi thất bại: ${safeMessage}`);
       setIsSubmitting(false);
     }
   }
@@ -70,66 +71,66 @@ export function LiveActionConfirmation({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
     >
       <div
-        className="w-full max-w-[520px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md"
+        className="w-full max-w-[500px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         ref={trapRef}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4">
           <div className="flex gap-3">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-sm bg-[var(--danger-bg)] text-[var(--danger)]">
-              <AlertTriangle className="h-5 w-5" aria-hidden />
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600">
+              <AlertTriangle className="h-4 w-4" aria-hidden />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                LIVE CARRIER ACTION - Cannot be undone
+              <h2 className="text-sm font-bold text-slate-900">
+                XÁC NHẬN TẠO VẬN ĐƠN THẬT (LIVE)
               </h2>
-              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              <p className="mt-0.5 text-xs text-slate-500">
                 {presentation.liveWarning}
               </p>
             </div>
           </div>
           <button
-            className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-slate-200 bg-white p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isSubmitting}
             onClick={onCancel}
             type="button"
           >
-            <X className="h-5 w-5" aria-hidden />
-            <span className="sr-only">Close</span>
+            <X className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Đóng</span>
           </button>
         </header>
 
-        <div className="grid gap-4 px-5 py-4">
-          <div className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] p-3 text-[11px] text-[var(--danger-text)]">
-            <p>This action:</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Will be submitted to {presentation.name} immediately</li>
-              <li>Cannot be automatically reversed</li>
-              <li>May incur carrier charges</li>
+        <div className="grid gap-3.5 px-5 py-4">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 leading-relaxed">
+            <p className="font-semibold">Lưu ý rủi ro:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px]">
+              <li>Lệnh vận chuyển sẽ được gửi trực tiếp đến hệ thống {presentation.name}</li>
+              <li>Không thể tự động hoàn tác sau khi tạo thành công</li>
+              <li>Có thể phát sinh cước phí vận chuyển thực tế</li>
             </ul>
           </div>
 
-          <label className="flex items-start gap-3 text-xs text-[var(--text-secondary)]">
+          <label className="flex items-start gap-2.5 text-xs text-slate-700">
             <input
               checked={checked}
-              className="mt-1 h-4 w-4 rounded border-[var(--border-strong)]"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
               disabled={isSubmitting || hasSubmitted}
               onChange={(event) => setChecked(event.target.checked)}
               type="checkbox"
             />
-            <span>I understand this is a live carrier operation</span>
+            <span>Tôi hiểu đây là thao tác thật với đối tác vận chuyển</span>
           </label>
 
-          <label className="grid gap-2 text-xs font-medium text-[var(--text-secondary)]">
-            Type to confirm:
-            <span className="font-mono text-[10px] text-[var(--text-muted)]">
+          <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+            Nhập chữ xác nhận:{" "}
+            <span className="font-mono text-xs text-rose-700 font-semibold">
               {presentation.confirmationText}
             </span>
             <input
-              className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 font-mono text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-900 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 disabled:cursor-not-allowed disabled:bg-slate-50"
               disabled={isSubmitting || hasSubmitted}
               onChange={(event) => setTypedValue(event.target.value)}
               value={typedValue}
@@ -137,32 +138,28 @@ export function LiveActionConfirmation({
           </label>
 
           {error ? (
-            <p className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] p-3 text-xs text-[var(--danger-text)]" role="alert">
+            <p className="rounded-md border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700" role="alert">
               {error}
             </p>
           ) : null}
         </div>
 
-        <footer className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
-          <button
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)] disabled:cursor-not-allowed disabled:opacity-50"
+        <footer className="flex justify-end gap-2.5 border-t border-slate-200 bg-slate-50/80 px-5 py-3.5">
+          <Button
             disabled={isSubmitting}
             onClick={onCancel}
-            type="button"
+            variant="secondary"
           >
-            Cancel
-          </button>
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-sm border border-[#b91c1c] bg-[var(--danger)] px-3 text-xs font-medium text-white hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:bg-[#94a3b8]"
+            Hủy
+          </Button>
+          <Button
             disabled={!canConfirm}
+            isLoading={isSubmitting}
             onClick={confirm}
-            type="button"
+            variant="danger"
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
-            Confirm - Execute Live
-          </button>
+            {isSubmitting ? "Đang gửi lệnh..." : "Xác nhận tạo vận đơn thật"}
+          </Button>
         </footer>
       </div>
     </div>

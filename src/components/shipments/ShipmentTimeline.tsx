@@ -7,17 +7,17 @@ type TimelineEvent = {
 };
 
 const DOT_COLORS: Record<string, string> = {
-  DRAFT: "bg-[var(--text-muted)]",
-  PENDING: "bg-[var(--warning)]",
-  CREATED: "bg-[var(--success)]",
-  FAILED_CREATE: "bg-[var(--danger)]",
-  FAILED_LABEL: "bg-[var(--danger)]",
-  TRACKING_PENDING: "bg-[var(--warning)]",
-  IN_TRANSIT: "bg-[var(--info)]",
-  DELIVERED: "bg-[var(--success)]",
-  EXCEPTION: "bg-[var(--danger)]",
-  CANCELLED: "bg-[var(--text-muted)]",
-  RETURNED: "bg-[#ea580c]",
+  DRAFT: "bg-slate-400",
+  PENDING: "bg-amber-500",
+  CREATED: "bg-blue-500",
+  FAILED_CREATE: "bg-rose-500",
+  FAILED_LABEL: "bg-rose-500",
+  TRACKING_PENDING: "bg-amber-500",
+  IN_TRANSIT: "bg-indigo-500",
+  DELIVERED: "bg-emerald-500",
+  EXCEPTION: "bg-rose-500",
+  CANCELLED: "bg-slate-400",
+  RETURNED: "bg-orange-500",
 };
 
 export function ShipmentTimeline({ events }: { events: TimelineEvent[] }) {
@@ -27,38 +27,29 @@ export function ShipmentTimeline({ events }: { events: TimelineEvent[] }) {
   );
 
   if (!sortedEvents.length) {
-    return <p className="text-xs text-[var(--text-muted)]">No timeline events.</p>;
+    return <p className="text-xs text-slate-400">Chưa có sự kiện hành trình.</p>;
   }
 
   return (
-    <ol className="grid">
+    <ol className="relative border-l border-slate-200 ml-3 space-y-4 py-2">
       {sortedEvents.map((event, index) => (
-        <li className="relative grid grid-cols-[16px_minmax(0,1fr)] gap-3" key={`${event.status}-${event.timestamp}-${index}`}>
-          <div className="relative flex justify-center">
-            <span
-              className={`mt-1.5 h-2.5 w-2.5 rounded-full ${DOT_COLORS[event.status] ?? "bg-[var(--text-muted)]"} ${index === 0 ? "shadow-[0_0_0_3px_var(--success-bg)]" : "shadow-[0_0_0_3px_#f1f5f9]"}`}
-            />
-            {index < sortedEvents.length - 1 ? (
-              <span className="absolute top-5 h-[calc(100%-0.25rem)] border-l-[1.5px] border-[var(--border)]" />
-            ) : null}
+        <li className="ml-4" key={`${event.status}-${event.timestamp}-${index}`}>
+          <div
+            className={`absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white ${
+              DOT_COLORS[event.status] ?? "bg-slate-400"
+            }`}
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-800">
+              {formatStatus(event.status)}
+            </span>
+            <time className="text-[11px] text-slate-400">
+              {formatDate(event.timestamp)}
+            </time>
           </div>
-          <div className="pb-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="text-[11px] font-semibold text-[var(--text-primary)]">
-                {formatStatus(event.status)}
-              </span>
-              <time
-                className="truncate text-[10px] text-[var(--text-muted)]"
-                dateTime={event.timestamp}
-                title={formatDate(event.timestamp)}
-              >
-                {formatDate(event.timestamp)}
-              </time>
-            </div>
-            {event.note ? (
-              <p className="mt-1 text-[10px] text-[var(--text-muted)]">{event.note}</p>
-            ) : null}
-          </div>
+          {event.note ? (
+            <p className="mt-0.5 text-xs text-slate-600">{event.note}</p>
+          ) : null}
         </li>
       ))}
     </ol>
@@ -67,12 +58,11 @@ export function ShipmentTimeline({ events }: { events: TimelineEvent[] }) {
 
 function formatDate(value: string) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown date";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("vi-VN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }

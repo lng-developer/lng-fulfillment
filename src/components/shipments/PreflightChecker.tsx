@@ -2,6 +2,7 @@
 
 import { AlertCircle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { getErrorMessage } from "@/lib/api/base";
 import { getPreflight, type ShipmentCarrierCode } from "@/lib/api/shipments";
 import type { ShipOrderOptions } from "@/modules/shipment/types";
@@ -40,124 +41,90 @@ export function PreflightChecker({
       onResult?.(response);
       setState("success");
     } catch (preflightError) {
-      setError(`Preflight failed: ${getErrorMessage(preflightError)}`);
+      setError(`Kiểm tra thất bại: ${getErrorMessage(preflightError)}`);
       setState("error");
     }
   }
 
   return (
-    <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] px-3 py-3">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-[var(--brand)]" aria-hidden />
-          <h4 className="text-[10px] font-bold uppercase tracking-[0.07em] text-[var(--text-muted)]">
-            Preflight Check
+          <ShieldCheck className="h-4 w-4 text-indigo-600" aria-hidden />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            Kiểm tra Preflight
           </h4>
         </div>
         {state === "idle" || state === "error" ? (
-          <button
-            className="inline-flex h-8 items-center justify-center rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
+          <Button
             onClick={runPreflight}
-            type="button"
+            size="sm"
+            variant="secondary"
           >
-            {state === "error" ? "Retry" : "Run Preflight"}
-          </button>
+            {state === "error" ? "Thử lại" : "Chạy kiểm tra"}
+          </Button>
         ) : null}
       </div>
 
       {state === "idle" ? (
-        <p className="text-xs text-[var(--text-secondary)]">
-          Run checks before executing a carrier shipment.
+        <p className="text-xs text-slate-500">
+          Chạy các bước xác thực thông tin trước khi đẩy đơn sang hệ thống hãng vận chuyển.
         </p>
       ) : null}
 
       {state === "loading" ? (
-        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Running checks...
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <Loader2 className="h-4 w-4 animate-spin text-indigo-600" aria-hidden />
+          Đang kiểm tra kết nối và thông số kiện hàng...
         </div>
       ) : null}
 
       {state === "error" ? (
-        <div className="flex items-start gap-2 text-xs text-[var(--danger-text)]" role="alert">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <p>{error ?? "Preflight failed. Try again."}</p>
+        <div className="flex items-start gap-2 text-xs text-rose-700" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+          <p>{error ?? "Kiểm tra thất bại. Vui lòng thử lại."}</p>
         </div>
       ) : null}
 
       {state === "success" && result ? (
-        <div className="grid gap-4">
-          <div className="grid gap-2 text-xs">
-            <CheckLine label="Authentication OK" ok />
-            <CheckLine label="Role: permitted" ok />
-            <CheckLine label={`Shipment status: ${result.shipmentStatus}`} ok />
+        <div className="space-y-3">
+          <div className="grid gap-1.5 text-xs">
+            <CheckLine label="Xác thực phân quyền OK" ok />
+            <CheckLine label={`Trạng thái vận đơn: ${result.shipmentStatus}`} ok />
             <CheckLine
-              label={`Carrier: ${result.carrierCode.toLowerCase()} registered`}
+              label={`Hãng vận chuyển: ${result.carrierCode} đã đăng ký`}
               ok
             />
             <CheckLine
-              label={`Credential: ${result.credentialSource}`}
+              label={`Tài khoản API: ${result.credentialSource}`}
               ok={result.credentialConfigured}
             />
             <CheckLine
-              label={`liveEnabled: ${result.liveEnabled ? "TRUE" : "FALSE"}`}
+              label={`Chế độ Live: ${result.liveEnabled ? "KÍCH HOẠT" : "TẮT (SANDBOX)"}`}
               ok={result.liveEnabled}
               warning={!result.liveEnabled}
             />
           </div>
 
-          <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2.5">
-            <h5 className="text-[10px] font-bold uppercase tracking-[0.07em] text-[var(--text-muted)]">
-              Mapping Preview
+          <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+            <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Thông số Mapping
             </h5>
-            <dl className="mt-3 grid gap-2 text-xs">
+            <dl className="mt-2 grid gap-1.5 text-xs">
               <PreviewRow
-                label="CustomerOrderNumber"
+                label="Mã đơn khách hàng"
                 value={result.mappingPreview.customerOrderNumber}
               />
               <PreviewRow
-                label="ShippingMethodCode"
+                label="Mã dịch vụ vận chuyển"
                 value={result.mappingPreview.shippingMethodCode}
               />
               <PreviewRow
-                label="Receiver"
-                value={[
-                  result.mappingPreview.receiver.country,
-                  result.mappingPreview.receiver.city,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              />
-              <PreviewRow
-                label="Package"
-                value={`${result.mappingPreview.package.weight} kg · ${result.mappingPreview.package.packageCount} parcel`}
-              />
-              <div className="grid gap-1">
-                <dt className="text-xs font-medium text-slate-500">Parcels</dt>
-                <dd className="grid gap-1">
-                  {result.mappingPreview.parcels.map((parcel, index) => (
-                    <div
-                      className="truncate font-mono text-[11px] text-[var(--text-secondary)]"
-                      key={`${parcel.sku}-${index}`}
-                    >
-                      {parcel.sku} {parcel.eName} x{parcel.quantity}{" "}
-                      {parcel.unitWeight} kg ${parcel.unitPrice}
-                    </div>
-                  ))}
-                </dd>
-              </div>
-              <PreviewRow
-                label="SourceCode"
-                value={result.mappingPreview.sourceCode}
+                label="Địa chỉ người nhận"
+                value={`${result.mappingPreview.receiver.city ?? ""}, ${result.mappingPreview.receiver.country ?? ""}`}
               />
             </dl>
           </div>
-
-          {result.warnings.length ? (
-            <div className="rounded-sm border border-[#fcd34d] bg-[var(--warning-bg)] px-3 py-2 text-[11px] text-[var(--warning-text)]">
-              {result.warnings.join(" ")}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -167,33 +134,50 @@ export function PreflightChecker({
 function CheckLine({
   label,
   ok,
-  warning,
+  warning = false,
 }: {
   label: string;
   ok: boolean;
   warning?: boolean;
 }) {
-  const color = warning
-    ? "text-[var(--warning-text)] font-medium"
-    : ok
-      ? "text-[var(--text-primary)]"
-      : "text-[var(--danger-text)]";
-
   return (
-    <div className={`flex items-center gap-2 ${color}`}>
-      <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${warning ? "bg-[var(--warning-bg)] text-[var(--warning)]" : ok ? "bg-[var(--success-bg)] text-[var(--success)]" : "bg-[var(--danger-bg)] text-[var(--danger)]"}`}>
-        <CheckCircle2 className="h-3 w-3" aria-hidden />
+    <div className="flex items-center gap-2">
+      {ok ? (
+        <CheckCircle2
+          className={`h-3.5 w-3.5 shrink-0 ${
+            warning ? "text-amber-500" : "text-emerald-600"
+          }`}
+          aria-hidden
+        />
+      ) : (
+        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-hidden />
+      )}
+      <span
+        className={`font-medium ${
+          warning
+            ? "text-amber-700"
+            : ok
+              ? "text-slate-800"
+              : "text-rose-700"
+        }`}
+      >
+        {label}
       </span>
-      <span>{label}</span>
     </div>
   );
 }
 
-function PreviewRow({ label, value }: { label: string; value: string }) {
+function PreviewRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+}) {
   return (
-    <div className="grid grid-cols-[150px_minmax(0,1fr)] gap-3">
-      <dt className="truncate text-[11px] font-medium text-[var(--text-secondary)]">{label}</dt>
-      <dd className="truncate font-mono text-[11px] text-[var(--text-primary)]">{value}</dd>
+    <div className="flex justify-between gap-3 text-xs">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-mono text-slate-900">{value || "-"}</dd>
     </div>
   );
 }

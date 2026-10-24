@@ -199,27 +199,27 @@ export function ShipmentDetailPanel({
   return (
     <div className="fixed inset-0 z-40">
       <button
-        aria-label="Close shipment detail"
-        className="absolute inset-0 bg-[rgba(26,29,58,0.4)] backdrop-blur-[2px]"
+        aria-label="Đóng chi tiết vận đơn"
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         onClick={handleClose}
         type="button"
       />
       <aside
-        aria-label="Shipment detail"
-        className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] shadow-drawer md:max-w-[520px]"
+        aria-label="Chi tiết vận đơn"
+        className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl md:max-w-[520px]"
       >
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-5 py-3.5">
           <button
-            className="h-[26px] w-[26px] rounded-xs border border-[var(--border)] bg-[var(--bg-surface)] p-1 text-[var(--text-muted)] hover:border-[#fca5a5] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
+            className="rounded-md border border-slate-200 bg-white p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             onClick={handleClose}
             ref={closeButtonRef}
             type="button"
           >
-            <X className="h-5 w-5" aria-hidden />
-            <span className="sr-only">Close</span>
+            <X className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Đóng</span>
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-mono text-[13px] font-bold text-[var(--text-primary)]">
+            <h2 className="truncate font-mono text-xs font-bold text-slate-900">
               {title}
             </h2>
           </div>
@@ -236,27 +236,27 @@ export function ShipmentDetailPanel({
           ) : null}
           {!isLoading && !error && shipment ? (
             <div className="grid gap-5">
-              <PanelSection icon={<Package />} title="Items in Shipment">
+              <PanelSection icon={<Package />} title="Sản phẩm trong kiện">
                 <div className="grid gap-2">
                   {shipment.items.length ? (
                     shipment.items.map((item) => (
                       <div
-                        className="flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3 text-xs"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs"
                         key={item.id}
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-[var(--text-primary)]">
+                          <p className="truncate font-semibold text-slate-800">
                             {item.sku ?? "NO-SKU"} x {item.quantity}
                           </p>
-                          <p className="truncate text-[10px] text-[var(--text-muted)]">
-                            {item.name ?? "Unnamed item"}
+                          <p className="truncate text-[11px] text-slate-500">
+                            {item.name ?? "Sản phẩm"}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-[var(--text-muted)]">
-                      No shipment items found.
+                    <p className="text-xs text-slate-400">
+                      Không có sản phẩm nào.
                     </p>
                   )}
                 </div>
