@@ -36,17 +36,17 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     setError(null);
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setError("Fill in all password fields.");
+      setError("Vui lòng điền đầy đủ các trường mật khẩu.");
       return;
     }
 
     if (newPassword.length < 12) {
-      setError("New password must be at least 12 characters.");
+      setError("Mật khẩu mới phải có ít nhất 12 ký tự.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("New password confirmation does not match.");
+      setError("Xác nhận mật khẩu mới không khớp.");
       return;
     }
 
@@ -54,12 +54,12 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     try {
       await changePassword({ currentPassword, newPassword });
       clearPasswordFields();
-      toastSuccess("Password changed.");
+      toastSuccess("Đổi mật khẩu thành công.");
       onClose();
     } catch (error) {
       clearPasswordFields();
       setError(getErrorMessage(error));
-      toastError("Failed to change password.");
+      toastError("Đổi mật khẩu thất bại.");
     } finally {
       setIsPending(false);
     }
@@ -68,28 +68,31 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
     >
       <form
         aria-describedby={error ? errorId : undefined}
         autoComplete="off"
-        className="w-full max-w-[440px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md"
+        className="w-full max-w-[440px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         noValidate
         onSubmit={submit}
         ref={trapRef}
       >
-        <div className="border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Change password
+        <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">
+            Đổi mật khẩu
           </h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Mật khẩu mới phải có độ dài tối thiểu 12 ký tự.
+          </p>
         </div>
 
-        <div className="grid gap-4 px-5 py-5">
+        <div className="grid gap-3.5 px-5 py-5">
           <PasswordField
             disabled={isPending}
             id={currentPasswordId}
-            label="Current password"
+            label="Mật khẩu hiện tại"
             onChange={setCurrentPassword}
             show={showPasswords}
             value={currentPassword}
@@ -98,7 +101,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             autoComplete="new-password"
             disabled={isPending}
             id={newPasswordId}
-            label="New password"
+            label="Mật khẩu mới"
             onChange={setNewPassword}
             show={showPasswords}
             value={newPassword}
@@ -107,28 +110,28 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             autoComplete="new-password"
             disabled={isPending}
             id={confirmPasswordId}
-            label="Confirm new password"
+            label="Xác nhận mật khẩu mới"
             onChange={setConfirmPassword}
             show={showPasswords}
             value={confirmPassword}
           />
           <button
-            className="inline-flex w-fit items-center gap-2 text-xs font-medium text-[var(--brand)] hover:text-[var(--brand-dark)]"
+            className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800"
             disabled={isPending}
             onClick={() => setShowPasswords((value) => !value)}
             type="button"
           >
             {showPasswords ? (
-              <EyeOff className="h-4 w-4" aria-hidden />
+              <EyeOff className="h-3.5 w-3.5" aria-hidden />
             ) : (
-              <Eye className="h-4 w-4" aria-hidden />
+              <Eye className="h-3.5 w-3.5" aria-hidden />
             )}
-            {showPasswords ? "Hide passwords" : "Show passwords"}
+            {showPasswords ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
           </button>
 
           {error ? (
             <div
-              className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-text)]"
+              className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
               id={errorId}
               role="alert"
             >
@@ -137,24 +140,21 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
+        <div className="flex justify-end gap-2.5 border-t border-slate-200 bg-slate-50/80 px-5 py-3.5">
           <button
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
             disabled={isPending}
-            onClick={() => {
-              clearPasswordFields();
-              onClose();
-            }}
+            onClick={onClose}
             type="button"
           >
-            Cancel
+            Hủy
           </button>
           <button
-            className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center rounded-md border border-indigo-600 bg-indigo-600 px-4 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isPending}
             type="submit"
           >
-            {isPending ? "Saving..." : "Save password"}
+            {isPending ? "Đang cập nhật..." : "Lưu mật khẩu"}
           </button>
         </div>
       </form>
@@ -180,11 +180,11 @@ function PasswordField({
   value: string;
 }) {
   return (
-    <label className="grid gap-2 text-xs font-medium text-[var(--text-secondary)]">
-      {label}
+    <label className="grid gap-1.5 text-xs font-medium text-slate-700">
+      <span>{label}</span>
       <input
         autoComplete={autoComplete}
-        className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[rgba(99,102,241,0.15)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
+        className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         id={id}
         onChange={(event) => onChange(event.target.value)}

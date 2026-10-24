@@ -26,15 +26,17 @@ export default async function DashboardLayout({
 
   if (!defaultTenant) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[var(--bg-page)] px-4">
-        <section className="max-w-md rounded border border-[var(--border)] bg-[var(--bg-surface)] p-6 text-center shadow-soft">
-          <h1 className="text-lg font-semibold text-[var(--text-primary)]">
-            No active tenant
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
+        <section className="max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-base font-semibold text-slate-900">
+            Không tìm thấy tổ chức đang hoạt động
           </h1>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Your account does not have an active tenant membership.
+          <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+            Tài khoản của bạn hiện chưa được phân quyền vào bất kỳ gian hàng hoặc tổ chức nào.
           </p>
-          <BackToLoginButton />
+          <div className="mt-4">
+            <BackToLoginButton />
+          </div>
         </section>
       </main>
     );

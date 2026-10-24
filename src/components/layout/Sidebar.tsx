@@ -1,78 +1,151 @@
 "use client";
 
-import { Package, ReceiptText, Search, Settings, Truck } from "lucide-react";
+import {
+  Boxes,
+  Package,
+  ReceiptText,
+  Search,
+  Settings,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { RoleBadge } from "@/components/ui/RoleBadge";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
-  { href: "/orders", label: "Orders", icon: Package },
-  { href: "/shipments", label: "Shipments", icon: Truck },
-  { href: "/shipping-costs", label: "Shipping Costs", icon: ReceiptText },
-  { href: "/order-lookup", label: "Order Lookup", icon: Search },
-  { separator: true },
-  { href: "/settings", label: "Settings", icon: Settings },
+const NAV_OPERATIONS = [
+  { href: "/orders", label: "Đơn hàng", icon: Package, badge: "Chính" },
+  { href: "/shipments", label: "Vận đơn & Tracking", icon: Truck },
+  { href: "/order-lookup", label: "Tra cứu đơn", icon: Search },
+  { href: "/shipping-costs", label: "Chi phí vận chuyển", icon: ReceiptText },
+] as const;
+
+const NAV_SYSTEM = [
+  { href: "/settings", label: "Cài đặt kho & tài khoản", icon: Settings },
+  { href: "/platform", label: "Quản trị hệ thống", icon: ShieldCheck, adminOnly: true },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, membership } = useAuth();
   const userEmail = user?.email ?? "user@example.com";
   const userName = user?.name ?? "User";
+  const role = membership?.role ?? "VIEWER";
   const initials = getInitials(userName ?? userEmail);
+  const tenantName = membership?.tenantName ?? "Fulfillment Store";
 
   return (
-    <aside className="hidden w-16 shrink-0 border-r border-[var(--border)] bg-[var(--bg-surface)] px-2 py-3 text-[var(--text-secondary)] md:flex md:flex-col lg:w-[210px]">
-      <nav aria-label="Primary navigation" className="grid gap-1">
-        <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)] lg:px-2.5">
-          Operations
+    <aside className="hidden w-16 shrink-0 border-r border-slate-200 bg-white px-2 py-4 text-slate-600 md:flex md:flex-col lg:w-[240px] lg:px-3">
+      {/* Brand & Store header */}
+      <div className="mb-4 px-2">
+        <Link className="flex items-center gap-2.5" href="/orders">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm">
+            <Boxes className="h-4 w-4" />
+          </span>
+          <div className="hidden min-w-0 lg:block">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-xs font-bold text-slate-900 tracking-tight">
+                LNG Fulfillment
+              </span>
+              <span className="rounded bg-indigo-50 px-1 py-0.2 text-[10px] font-semibold text-indigo-700">
+                v2
+              </span>
+            </div>
+            <p className="truncate text-[11px] text-slate-500 font-medium">
+              {tenantName}
+            </p>
+          </div>
+        </Link>
+      </div>
+
+      {/* Main navigation */}
+      <nav aria-label="Menu chính" className="flex-1 space-y-4">
+        <div>
+          <div className="hidden px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:block">
+            Vận hành & Đóng hàng
+          </div>
+          <div className="space-y-1">
+            {NAV_OPERATIONS.map((item) => {
+              const Icon = item.icon;
+              const active =
+                pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+              return (
+                <Link
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-2.5 rounded-md px-2.5 text-xs font-medium transition-colors lg:justify-start",
+                    active
+                      ? "bg-indigo-50 text-indigo-700 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                  )}
+                  href={item.href}
+                  key={item.href}
+                >
+                  <Icon className={cn("h-4 w-4 shrink-0", active ? "text-indigo-600" : "text-slate-400")} aria-hidden />
+                  <span className="truncate sr-only lg:not-sr-only flex-1">{item.label}</span>
+                  {active && (
+                    <span className="hidden h-1.5 w-1.5 rounded-full bg-indigo-600 lg:inline-block" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
-        {NAV_ITEMS.map((item, index) => {
-          if ("separator" in item) {
-            return (
-              <div key={`separator-${index}`}>
-                <div className="mx-2 my-3 border-t border-[var(--border)]" />
-                <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)] lg:px-2.5">
-                  Admin
-                </div>
-              </div>
-            );
-          }
 
-          const Icon = item.icon;
-          const active =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+        <div>
+          <div className="hidden px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:block">
+            Cấu hình & Quản trị
+          </div>
+          <div className="space-y-1">
+            {NAV_SYSTEM.map((item) => {
+              if ("adminOnly" in item && item.adminOnly && role !== "OWNER" && role !== "ADMIN") {
+                return null;
+              }
 
-          return (
-            <Link
-              className={cn(
-                "flex h-9 items-center justify-center gap-3 rounded-sm border border-transparent px-2.5 text-xs font-medium transition-colors lg:justify-start",
-                active
-                  ? "border-[var(--brand-mid)] bg-[var(--brand-light)] font-semibold text-[var(--brand-dark)]"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)]",
-              )}
-              href={item.href}
-              key={item.href}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="sr-only lg:not-sr-only">{item.label}</span>
-            </Link>
-          );
-        })}
+              const Icon = item.icon;
+              const active =
+                pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+              return (
+                <Link
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-2.5 rounded-md px-2.5 text-xs font-medium transition-colors lg:justify-start",
+                    active
+                      ? "bg-indigo-50 text-indigo-700 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                  )}
+                  href={item.href}
+                  key={item.href}
+                >
+                  <Icon className={cn("h-4 w-4 shrink-0", active ? "text-indigo-600" : "text-slate-400")} aria-hidden />
+                  <span className="truncate sr-only lg:not-sr-only flex-1">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </nav>
-      <div className="mt-auto hidden border-t border-[var(--border)] px-2.5 py-2 lg:flex lg:items-center lg:gap-2">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--brand)] to-[#a5b4fc] text-[10px] font-bold text-white">
-          {initials}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-semibold text-[var(--text-primary)]">
-            {userName}
+
+      {/* User profile footer */}
+      <div className="mt-auto hidden border-t border-slate-200 pt-3 lg:block">
+        <div className="flex items-center gap-2 px-1">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+            {initials}
           </span>
-          <span className="block truncate text-[10px] text-[var(--text-muted)]">
-            {userEmail}
-          </span>
-        </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1">
+              <span className="truncate text-xs font-semibold text-slate-800">
+                {userName}
+              </span>
+              <RoleBadge role={role} />
+            </div>
+            <span className="block truncate text-[11px] text-slate-400">
+              {userEmail}
+            </span>
+          </div>
+        </div>
       </div>
     </aside>
   );
