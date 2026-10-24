@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Loader2, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getErrorMessage } from "@/lib/api/base";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, ExternalLink } from "lucide-react";
+import { Boxes } from "lucide-react";
 import { RoleBadge } from "@/components/ui/RoleBadge";
 import { useAuth } from "@/lib/auth-context";
 import { UserMenu } from "./UserMenu";

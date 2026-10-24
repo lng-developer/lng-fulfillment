@@ -1,12 +1,8 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowUpDown,
-  Check,
   ChevronDown,
-  ChevronRight,
-  ExternalLink,
   Layers,
   Loader2,
   MoreHorizontal,
@@ -23,7 +19,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getCarrierFailureMessage, getErrorMessage } from "@/lib/api/base";
+import { getErrorMessage } from "@/lib/api/base";
 import {
   cancelYunShipment,
   confirmOrderShipped,
@@ -33,13 +29,11 @@ import {
   shipOrder,
   shipOrdersBatch,
 } from "@/lib/api/orders";
-import { syncTracking } from "@/lib/api/shipments";
 import { useAuth } from "@/lib/auth-context";
 import { can, type Role } from "@/lib/rbac";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type {
-  BatchShipResult,
   OrderDetail,
   OrderListItem,
   ShipmentCostSummary,
@@ -65,14 +59,6 @@ const SOURCE_CHANNELS = [
   { label: "Manual", value: "MANUAL" },
   { label: "Khác", value: "UNKNOWN" },
 ] as const;
-
-const BATCH_LIMIT = 10;
-const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
-
-type SortState = {
-  key: "receivedAt" | "status";
-  direction: "asc" | "desc";
-};
 
 type OrderMutationShipment = {
   id?: string;
@@ -117,10 +103,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [sort, setSort] = useState<SortState>({
-    key: "receivedAt",
-    direction: "desc",
-  });
   const [shipTarget, setShipTarget] = useState<OrderListItem | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);

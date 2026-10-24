@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ShieldCheck, Truck, X } from "lucide-react";
+import { ChevronDown, Truck, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -18,8 +18,6 @@ import {
   buildShipmentPreview,
   buildShipOptions,
   DEFAULT_YUN_IOSS_NUMBER,
-  PRODUCT_OPTIONS,
-  SHIPPING_METHOD_OPTIONS,
   type ShipmentReceiverValues,
   type ShipmentPreview,
 } from "./ShipOrderModal";
@@ -53,7 +51,7 @@ export function BatchShipModal({
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
   const [tenantIossNumber, setTenantIossNumber] = useState(DEFAULT_YUN_IOSS_NUMBER);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [editsByOrderId, setEditsByOrderId] = useState<
+  const [editsByOrderId] = useState<
     Record<string, BatchOrderShipEditState>
   >({});
   const hasMissingIoss = hasMissingBatchIossNumber(

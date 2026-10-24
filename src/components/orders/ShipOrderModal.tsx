@@ -1,10 +1,9 @@
 "use client";
 
-import { AlertTriangle, Boxes, Check, Loader2, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
+import { Boxes, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
 import type {
   OrderDetail,
@@ -180,10 +179,6 @@ export function ShipOrderModal({
 
   function updatePackage(patch: Partial<typeof packageValues>) {
     setPackageValues((current) => ({ ...current, ...patch }));
-  }
-
-  function updateReceiver(patch: Partial<typeof receiverValues>) {
-    setReceiverValues((current) => ({ ...current, ...patch }));
   }
 
   return (

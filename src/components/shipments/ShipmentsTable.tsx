@@ -1,18 +1,9 @@
 "use client";
 
-import { Check, Copy, ExternalLink, Inbox, Layers, Loader2, RefreshCw, RotateCcw, Search, Truck } from "lucide-react";
+import { ExternalLink, RefreshCw, RotateCcw, Search, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  getTrackingSyncStatus,
-  type TrackingSyncBatchUiResult,
-} from "./tracking-sync-status";
 import { Button } from "@/components/ui/Button";
 import { CopyButton } from "@/components/ui/CopyButton";
-import {
-  DataTable,
-  type DataTableColumn,
-  type DataTableSort,
-} from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
@@ -70,8 +61,6 @@ export function ShipmentsTable({
   const [reloadKey, setReloadKey] = useState(0);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [isEtsySyncing, setIsEtsySyncing] = useState(false);
-  const [lastBatchResult, setLastBatchResult] =
-    useState<TrackingSyncBatchUiResult | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

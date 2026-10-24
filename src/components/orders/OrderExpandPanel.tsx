@@ -12,7 +12,6 @@ import {
   Package,
   ShoppingCart,
   Store,
-  Truck,
   UserRound,
   UsersRound,
 } from "lucide-react";
