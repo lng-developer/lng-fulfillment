@@ -13,20 +13,20 @@ export function YunLabelCard({ data }: { data: YunLookupResponse }) {
   ];
 
   return (
-    <section className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
-      <h2 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-3 text-sm font-bold text-slate-900">
         Nhãn YunExpress
       </h2>
-      <div>
+      <div className="divide-y divide-slate-100">
         {rows.map((row) => (
           <div
-            className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2 text-[11px] last:border-b-0"
+            className="flex items-center justify-between gap-3 py-2 text-xs"
             key={row.label}
           >
-            <span className="shrink-0 text-[var(--text-secondary)]">
+            <span className="shrink-0 text-slate-500 font-medium">
               {row.label}
             </span>
-            <span className="truncate text-right text-[var(--text-primary)]">
+            <span className="truncate text-right font-medium text-slate-800">
               {display(row.value)}
             </span>
           </div>
@@ -35,16 +35,18 @@ export function YunLabelCard({ data }: { data: YunLookupResponse }) {
 
       {data.label?.hasUrl && data.labelCode ? (
         <a
-          className="mt-3 inline-flex items-center gap-1.5 rounded-sm bg-[var(--brand)] px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[var(--brand-dark)]"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
           href={getLabelRedirectUrl(data.labelCode)}
           rel="noreferrer"
           target="_blank"
         >
           <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          Mở nhãn
+          Mở nhãn PDF
         </a>
       ) : (
-        <span className="badge b-am mt-3 inline-flex">Chưa có nhãn</span>
+        <span className="mt-4 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
+          Chưa có nhãn
+        </span>
       )}
     </section>
   );

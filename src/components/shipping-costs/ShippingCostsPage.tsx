@@ -179,29 +179,28 @@ export function ShippingCostsPage() {
   }
 
   return (
-    <div className="p-5">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="p-6 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[18px] font-semibold text-[var(--text-primary)]">
-            Shipping cost management
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            Quản lý chi phí vận chuyển
           </h1>
-          <p className="mt-1 max-w-[620px] text-[13px] text-[var(--text-secondary)]">
-            Review estimated fees from actual package data and fetch real
-            YunExpress freight fees after carrier billing becomes available.
+          <p className="mt-1 max-w-[620px] text-xs leading-5 text-slate-500">
+            Đối soát cước phí tạm tính và cước phí thực tế từ YunExpress sau khi đơn hàng được tính cước.
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <SummaryPill label="Pending" value={visibleSummary.pending} />
-          <SummaryPill label="Available" value={visibleSummary.available} />
-          <SummaryPill label="Failed" value={visibleSummary.failed} />
+        <div className="flex items-center gap-2.5">
+          <SummaryPill label="Chờ cước" value={visibleSummary.pending} variant="amber" />
+          <SummaryPill label="Đã có cước" value={visibleSummary.available} variant="emerald" />
+          <SummaryPill label="Thất bại" value={visibleSummary.failed} variant="rose" />
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+      <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
         <div className="relative min-w-[240px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
-            className="h-9 w-full rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] pl-8 pr-3 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
             onChange={(event) => setSearchInput(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -214,12 +213,12 @@ export function ShippingCostsPage() {
                 setPage(1);
               }
             }}
-            placeholder="Search order, tracking, waybill..."
+            placeholder="Tìm theo Order, tracking, waybill..."
             value={searchInput}
           />
         </div>
         <select
-          className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 text-xs text-[var(--text-primary)]"
+          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
           onChange={(event) => {
             setStatus(event.target.value);
             setPage(1);
@@ -233,18 +232,18 @@ export function ShippingCostsPage() {
           ))}
         </select>
         <button
-          className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface2)]"
+          className="h-9 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
           onClick={() => {
             setPage(1);
             setSearch(searchInput.trim());
           }}
           type="button"
         >
-          Apply
+          Lọc
         </button>
         {canFetch ? (
           <button
-            className="ml-auto inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-indigo-600 px-3.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             disabled={selectedIds.size === 0}
             onClick={() => {
               void handleFetchSelected();
@@ -252,7 +251,7 @@ export function ShippingCostsPage() {
             type="button"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Fetch selected ({selectedIds.size})
+            Lấy cước đã chọn ({selectedIds.size})
           </button>
         ) : null}
       </div>
@@ -263,99 +262,99 @@ export function ShippingCostsPage() {
         <ErrorState message={error} retry={() => setReloadKey((value) => value + 1)} />
       ) : items.length === 0 ? (
         <EmptyState
-          description="Confirm shipped orders with actual package data before reviewing shipping costs."
-          heading="No shipping cost records"
+          description="Chưa có dữ liệu cước phí vận chuyển. Vui lòng xác nhận xuất kho để hệ thống tính cước."
+          heading="Không có bản ghi chi phí"
           icon={<ReceiptText className="h-6 w-6" aria-hidden />}
         />
       ) : (
-        <div className="overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--bg-surface)]">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-[1180px] w-full text-left text-xs">
-              <thead className="border-b border-[var(--border)] bg-[var(--bg-surface2)] text-[10px] uppercase tracking-[0.07em] text-[var(--text-muted)]">
+            <table className="min-w-[1180px] w-full text-left text-xs divide-y divide-slate-100">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="w-8 px-3 py-2">
+                  <th className="w-8 px-3 py-2.5">
                     <input
                       aria-label="Select all visible shipment costs"
                       checked={allCurrentPageSelected}
-                      className="cursor-pointer accent-[var(--brand)]"
+                      className="cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
                       onChange={toggleSelectAllCurrentPage}
                       type="checkbox"
                     />
                   </th>
-                  <th className="px-3 py-2">Order</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Waybill / Tracking</th>
-                  <th className="px-3 py-2">Actual package</th>
-                  <th className="px-3 py-2">Estimate</th>
-                  <th className="px-3 py-2">Actual fee</th>
-                  <th className="px-3 py-2 text-right">Action</th>
+                  <th className="px-3 py-2.5">Đơn hàng</th>
+                  <th className="px-3 py-2.5">Kênh nguồn</th>
+                  <th className="px-3 py-2.5">Waybill / Tracking</th>
+                  <th className="px-3 py-2.5">Kích thước thực tế</th>
+                  <th className="px-3 py-2.5">Cước tạm tính</th>
+                  <th className="px-3 py-2.5">Cước thực tế Yun</th>
+                  <th className="px-3 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {items.map((item) => (
                   <tr
-                    className="border-b border-[var(--border)] last:border-b-0"
+                    className="hover:bg-slate-50/70 transition-colors"
                     key={item.id}
                   >
-                    <td className="px-3 py-2 text-center align-middle">
+                    <td className="px-3 py-2.5 text-center align-middle">
                       <input
                         aria-label={`Select ${item.orderNumber ?? item.externalOrderId}`}
                         checked={selectedIds.has(item.shipmentId)}
-                        className="cursor-pointer accent-[var(--brand)]"
+                        className="cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
                         onChange={() => toggleSelected(item.shipmentId)}
                         type="checkbox"
                       />
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <div className="font-mono text-[11px] font-semibold text-[var(--brand)]">
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="font-mono text-xs font-semibold text-indigo-600">
                         {item.orderNumber ?? item.externalOrderId}
                       </div>
-                      <div className="text-[10px] text-[var(--text-muted)]">
+                      <div className="text-[11px] text-slate-400">
                         {item.externalOrderId}
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <span className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] px-2 py-0.5 font-mono text-[10px]">
+                    <td className="px-3 py-2.5 align-middle">
+                      <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-600">
                         {item.sourceChannel ?? "UNKNOWN"}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <div className="font-mono text-[11px]">
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="font-mono text-xs text-slate-800">
                         {item.carrierShipmentId ?? "-"}
                       </div>
-                      <div className="font-mono text-[10px] text-[var(--text-muted)]">
+                      <div className="font-mono text-[11px] text-slate-400">
                         {item.trackingNumber ?? "-"}
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <div>{formatKg(item.actualWeightKg)} kg</div>
-                      <div className="text-[10px] text-[var(--text-muted)]">
-                        {formatNumber(item.actualLengthCm)} x {formatNumber(item.actualWidthCm)} x {formatNumber(item.actualHeightCm)} cm
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="font-medium text-slate-800">{formatKg(item.actualWeightKg)} kg</div>
+                      <div className="text-[11px] text-slate-400">
+                        {formatNumber(item.actualLengthCm)} × {formatNumber(item.actualWidthCm)} × {formatNumber(item.actualHeightCm)} cm
                       </div>
-                      <div className="text-[10px] text-[var(--text-muted)]">
-                        Chargeable {formatKg(item.chargeableWeightKg)} kg
+                      <div className="text-[10px] text-slate-500">
+                        Tính cước: {formatKg(item.chargeableWeightKg)} kg
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <div className="font-semibold">
+                    <td className="px-3 py-2.5 align-middle">
+                      <div className="font-bold text-slate-900">
                         {formatMoney(item.estimatedFee, item.estimatedCurrency)}
                       </div>
-                      <div className="text-[10px] text-[var(--text-muted)]">
-                        Bracket {item.estimatedWeightKg ? `${formatKg(item.estimatedWeightKg)} kg` : "-"}
+                      <div className="text-[11px] text-slate-400">
+                        Bậc: {item.estimatedWeightKg ? `${formatKg(item.estimatedWeightKg)} kg` : "-"}
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-middle">
+                    <td className="px-3 py-2.5 align-middle">
                       <ActualFeeCell item={item} />
                       {item.actualFetchErrorMessage ? (
-                        <div className="mt-1 max-w-[220px] truncate text-[10px] text-[var(--danger)]">
+                        <div className="mt-1 max-w-[220px] truncate text-[11px] text-rose-500">
                           {item.actualFetchErrorMessage}
                         </div>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2 text-right align-middle">
+                    <td className="px-3 py-2.5 text-right align-middle">
                       {canFetch ? (
                         <button
-                          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-[11px] font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)] disabled:opacity-50"
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors disabled:opacity-50"
                           disabled={Boolean(pendingFetches[item.shipmentId])}
                           onClick={() => {
                             void handleFetchActualFee(item);
@@ -363,16 +362,16 @@ export function ShippingCostsPage() {
                           type="button"
                         >
                           {pendingFetches[item.shipmentId] ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <RefreshCw className="h-3.5 w-3.5" />
+                            <RefreshCw className="h-3 w-3" />
                           )}
                           {item.actualFeeStatus === "AVAILABLE"
-                            ? "Refresh Yun fee"
-                            : "Fetch Yun fee"}
+                            ? "Cập nhật cước"
+                            : "Lấy cước Yun"}
                         </button>
                       ) : (
-                        <span className="text-[11px] text-[var(--text-muted)]">
+                        <span className="text-xs text-slate-400">
                           -
                         </span>
                       )}
@@ -382,27 +381,27 @@ export function ShippingCostsPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
             <span>
-              Page {pagination.page} / {Math.max(1, pagination.totalPages)} ·{" "}
-              {pagination.totalItems} records
+              Trang {pagination.page} / {Math.max(1, pagination.totalPages)} ·{" "}
+              {pagination.totalItems} bản ghi
             </span>
             <div className="flex gap-2">
               <button
-                className="h-8 rounded-sm border border-[var(--border-strong)] px-3 disabled:opacity-40"
+                className="h-8 rounded-md border border-slate-300 bg-white px-3 font-medium text-slate-700 hover:bg-slate-50 shadow-sm disabled:opacity-40 transition-colors"
                 disabled={page <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
                 type="button"
               >
-                Previous
+                Trang trước
               </button>
               <button
-                className="h-8 rounded-sm border border-[var(--border-strong)] px-3 disabled:opacity-40"
+                className="h-8 rounded-md border border-slate-300 bg-white px-3 font-medium text-slate-700 hover:bg-slate-50 shadow-sm disabled:opacity-40 transition-colors"
                 disabled={page >= pagination.totalPages}
                 onClick={() => setPage((value) => value + 1)}
                 type="button"
               >
-                Next
+                Trang sau
               </button>
             </div>
           </div>
@@ -459,13 +458,13 @@ function ActualFeeCell({ item }: { item: ShipmentCostListItem }) {
 
   return (
     <div className="relative inline-flex max-w-full items-center gap-1.5">
-      <span className="font-semibold tabular-nums text-[var(--text-primary)]">
+      <span className="font-bold tabular-nums text-slate-900">
         {formatMoney(item.actualTotalFee, null)}
       </span>
       <button
         aria-expanded={isOpen}
         aria-label="Show actual fee details"
-        className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:border-[var(--brand-mid)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20"
+        className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-colors"
         onClick={() => {
           if (isOpen) {
             setIsOpen(false);
@@ -479,33 +478,33 @@ function ActualFeeCell({ item }: { item: ShipmentCostListItem }) {
         ref={detailButtonRef}
         type="button"
       >
-        <Info className="h-3.5 w-3.5" />
+        <Info className="h-3 w-3" />
       </button>
       {isOpen && detailPosition ? (
         <div
-          className="fixed z-[100] max-h-[280px] w-[300px] overflow-auto rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] p-3 text-[10px] text-[var(--text-secondary)] shadow-xl"
+          className="fixed z-[100] max-h-[280px] w-[300px] overflow-auto rounded-lg border border-slate-200 bg-white p-3.5 text-xs text-slate-600 shadow-xl"
           style={{
             left: detailPosition.left,
             top: detailPosition.top,
           }}
         >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--text-muted)]">
-              Actual fee details
+          <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Chi tiết cước YunExpress
             </span>
             <button
               aria-label="Close actual fee details"
-              className="rounded-sm px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] hover:bg-[var(--bg-surface2)] hover:text-[var(--text-primary)]"
+              className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               onClick={() => {
                 setIsOpen(false);
                 setDetailPosition(null);
               }}
               type="button"
             >
-              Close
+              Đóng
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             <FeeLine label="Gross" value={formatKg(item.actualGrossWeight)} suffix="kg" />
             <FeeLine label="Charge" value={formatKg(item.actualChargeWeight)} suffix="kg" />
             <FeeLine label="Freight" value={formatMoney(item.actualFreight, null)} />
@@ -522,11 +521,26 @@ function ActualFeeCell({ item }: { item: ShipmentCostListItem }) {
   );
 }
 
-function SummaryPill({ label, value }: { label: string; value: number }) {
+function SummaryPill({
+  label,
+  value,
+  variant = "slate",
+}: {
+  label: string;
+  value: number;
+  variant?: "slate" | "amber" | "emerald" | "rose";
+}) {
+  const colorMap = {
+    slate: "border-slate-200 bg-white text-slate-900",
+    amber: "border-amber-200 bg-amber-50/60 text-amber-800",
+    emerald: "border-emerald-200 bg-emerald-50/60 text-emerald-800",
+    rose: "border-rose-200 bg-rose-50/60 text-rose-800",
+  };
+
   return (
-    <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2">
-      <div className="text-[10px] text-[var(--text-muted)]">{label}</div>
-      <div className="text-sm font-semibold text-[var(--text-primary)]">{value}</div>
+    <div className={`rounded-lg border px-3 py-1.5 text-center shadow-sm ${colorMap[variant]}`}>
+      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{label}</div>
+      <div className="text-sm font-bold">{value}</div>
     </div>
   );
 }
@@ -541,9 +555,9 @@ function FeeLine({
   suffix?: string;
 }) {
   return (
-    <div className="flex min-w-0 justify-between gap-2">
-      <span className="shrink-0 text-[var(--text-muted)]">{label}</span>
-      <span className="min-w-0 truncate text-right font-mono text-[var(--text-primary)]">
+    <div className="flex min-w-0 justify-between gap-2 text-xs">
+      <span className="shrink-0 text-slate-400">{label}</span>
+      <span className="min-w-0 truncate text-right font-mono font-medium text-slate-800">
         {value}
         {value !== "-" && suffix ? ` ${suffix}` : ""}
       </span>

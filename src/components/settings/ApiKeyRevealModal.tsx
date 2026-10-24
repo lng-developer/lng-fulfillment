@@ -22,66 +22,66 @@ export function ApiKeyRevealModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-[rgba(26,29,58,0.4)] p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
       onClick={(event) => event.stopPropagation()}
       role="dialog"
     >
       <div
-        className="w-full max-w-[520px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md"
+        className="w-full max-w-[520px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         ref={trapRef}
       >
-        <div className="flex items-start gap-3 border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-sm bg-[var(--success-bg)] text-[var(--success)]">
+        <div className="flex items-start gap-3 border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
             <ShieldCheck className="h-5 w-5" aria-hidden />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-              API Key Created
+            <h2 className="text-sm font-bold text-slate-900">
+              Khởi tạo API Key thành công
             </h2>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">
-              This key is visible only once.
+            <p className="mt-0.5 text-xs text-slate-500">
+              API key này chỉ được hiển thị một lần duy nhất.
             </p>
           </div>
         </div>
 
-        <div className="grid gap-4 px-5 py-5">
-          <div className="rounded-sm border border-[#fcd34d] bg-[var(--warning-bg)] p-4 text-xs text-[var(--warning-text)]">
-            <p className="font-semibold">Copy this key now</p>
-            <p className="mt-1">
-              It will not be shown again after you close this dialog.
+        <div className="grid gap-4 px-6 py-5">
+          <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900">
+            <p className="font-semibold">Hãy sao chép và lưu trữ mã khóa này ngay</p>
+            <p className="mt-0.5 text-amber-800">
+              Mã khóa sẽ bị mã hóa và không bao giờ hiển thị lại sau khi bạn đóng hộp thoại này.
             </p>
           </div>
 
-          <div className="select-all break-all rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3 font-mono text-xs text-[var(--text-primary)]">
+          <div className="select-all break-all rounded-md border border-slate-200 bg-slate-50 p-3 font-mono text-xs font-semibold text-slate-800">
             {plaintext}
           </div>
 
           <button
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
             onClick={copyKey}
             type="button"
           >
             {copied ? (
               <>
-                <Check className="h-4 w-4 text-[var(--success)]" aria-hidden />
-                Copied
+                <Check className="h-4 w-4 text-emerald-600" aria-hidden />
+                Đã sao chép vào bộ nhớ tạm
               </>
             ) : (
               <>
-                <Clipboard className="h-4 w-4" aria-hidden />
-                Copy to Clipboard
+                <Clipboard className="h-4 w-4 text-slate-500" aria-hidden />
+                Sao chép API Key
               </>
             )}
           </button>
         </div>
 
-        <div className="border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
+        <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-3.5">
           <button
-            className="h-9 w-full rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)]"
+            className="h-9 w-full rounded-md bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
             onClick={onClose}
             type="button"
           >
-            I have copied this key - Close
+            Tôi đã sao chép khóa - Đóng
           </button>
         </div>
       </div>

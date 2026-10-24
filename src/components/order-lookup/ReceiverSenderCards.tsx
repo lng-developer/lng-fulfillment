@@ -15,20 +15,20 @@ export function ContactCard({
   }
 
   return (
-    <section className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-soft">
-      <h2 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-3 text-sm font-bold text-slate-900">
         {title}
       </h2>
-      <div>
+      <div className="divide-y divide-slate-100">
         {rows.map((row) => (
           <div
-            className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2 text-[11px] last:border-b-0"
+            className="flex items-center justify-between gap-3 py-2 text-xs"
             key={row.label}
           >
-            <span className="shrink-0 text-[var(--text-secondary)]">
+            <span className="shrink-0 text-slate-500 font-medium">
               {row.label}
             </span>
-            <span className="truncate text-right text-[var(--text-primary)]">
+            <span className="truncate text-right font-medium text-slate-800">
               {display(row.value)}
             </span>
           </div>

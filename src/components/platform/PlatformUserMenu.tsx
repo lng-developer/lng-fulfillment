@@ -37,39 +37,41 @@ export function PlatformUserMenu({
   return (
     <div className="relative text-right">
       <button
-        className="text-right"
+        className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-50 transition-colors text-right"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        <p className="text-xs font-semibold text-[var(--text-primary)]">
-          {user.name ?? "Platform Admin"}
-        </p>
-        <p className="text-[10px] text-[var(--text-muted)]">
-          {role} - {user.email}
-        </p>
+        <div>
+          <p className="text-xs font-semibold text-slate-800">
+            {user.name ?? "Platform Admin"}
+          </p>
+          <p className="text-[10px] text-slate-400">
+            {role} · {user.email}
+          </p>
+        </div>
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] text-left shadow-md">
+        <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-lg">
           <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)]"
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             onClick={() => {
               setOpen(false);
               setChangePasswordOpen(true);
             }}
             type="button"
           >
-            <KeyRound className="h-4 w-4" aria-hidden />
-            Change password
+            <KeyRound className="h-4 w-4 text-slate-400" aria-hidden />
+            Đổi mật khẩu
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--brand-light)] hover:text-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isPending}
             onClick={logout}
             type="button"
           >
-            <LogOut className="h-4 w-4" aria-hidden />
-            {isPending ? "Signing out..." : "Logout"}
+            <LogOut className="h-4 w-4 text-rose-500" aria-hidden />
+            {isPending ? "Đang đăng xuất..." : "Đăng xuất"}
           </button>
         </div>
       ) : null}

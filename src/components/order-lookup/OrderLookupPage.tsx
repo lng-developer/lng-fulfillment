@@ -40,19 +40,18 @@ export default function OrderLookupPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-[1100px] gap-4 p-5">
+    <div className="mx-auto grid max-w-[1100px] gap-4 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[17px] font-semibold text-[var(--text-primary)]">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
             Tra cứu vận đơn
           </h1>
-          <p className="mt-1 max-w-[560px] text-[13px] leading-6 text-[var(--text-secondary)]">
-            {/* Kiểm tra dữ liệu vận đơn trực tiếp trên YunExpress OMS, độc lập với
-            dữ liệu đang lưu trong Fulfillment Platform. */}
+          <p className="mt-1 max-w-[560px] text-xs leading-5 text-slate-500">
+            Tra cứu trực tiếp dữ liệu vận đơn trên hệ thống YunExpress OMS theo thời gian thực.
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--brand-mid)] bg-[var(--brand-light)] px-3 py-1.5 text-[11px] font-semibold text-[var(--brand-dark)]">
-          <Radio className="h-3 w-3" aria-hidden />
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+          <Radio className="h-3.5 w-3.5" aria-hidden />
           OMS Direct Lookup
         </span>
       </div>
@@ -79,9 +78,11 @@ function LookupResults({
   switch (state.status) {
     case "idle":
       return (
-        <div className="flex flex-col items-center justify-center rounded border border-dashed border-[var(--border-strong)] bg-[var(--bg-surface)] py-16 text-[var(--text-muted)] shadow-soft">
-          <PackageSearch className="mb-3 h-10 w-10 opacity-50" aria-hidden />
-          <p className="text-[13px]">Nhập mã đơn để tra cứu trực tiếp.</p>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-16 text-slate-400 shadow-sm">
+          <PackageSearch className="mb-3 h-10 w-10 text-slate-300" aria-hidden />
+          <p className="text-xs font-medium text-slate-500">
+            Nhập mã đơn, waybill hoặc tracking để tra cứu thông tin vận chuyển.
+          </p>
         </div>
       );
 
@@ -90,20 +91,20 @@ function LookupResults({
 
     case "error":
       return (
-        <div className="flex items-start gap-3 rounded border border-red-200 bg-[var(--danger-bg)] p-5">
+        <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-5 shadow-sm">
           <XCircle
-            className="mt-0.5 h-5 w-5 shrink-0 text-[var(--danger)]"
+            className="mt-0.5 h-5 w-5 shrink-0 text-rose-500"
             aria-hidden
           />
           <div>
-            <div className="mb-1 text-sm font-semibold text-[var(--danger-text)]">
+            <div className="mb-1 text-xs font-semibold text-rose-800">
               Lỗi khi tra cứu
             </div>
-            <p className="mb-3 text-xs text-[var(--danger-text)]">
+            <p className="mb-3 text-xs text-rose-700">
               {state.message}
             </p>
             <button
-              className="inline-flex h-8 items-center gap-1 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
               onClick={onRetry}
               type="button"
             >
@@ -116,13 +117,13 @@ function LookupResults({
 
     case "not_found":
       return (
-        <div className="flex items-start gap-3 rounded border border-amber-200 bg-amber-50 p-5">
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-sm">
           <AlertTriangle
             className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
             aria-hidden
           />
           <div>
-            <div className="mb-3 text-sm font-semibold text-amber-800">
+            <div className="mb-3 text-xs font-semibold text-amber-800">
               YunExpress chưa trả về thông tin đơn
             </div>
             <div className="grid gap-2 text-xs md:grid-cols-3">
@@ -173,13 +174,13 @@ function LookupSuccess({ data }: { data: YunLookupResponse }) {
 function LookupSkeleton() {
   return (
     <div className="grid gap-4 animate-pulse" aria-label="Loading results...">
-      <div className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-5">
-        <div className="mb-4 h-4 w-32 rounded bg-[var(--border)]" />
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 h-4 w-32 rounded bg-slate-200" />
         <div className="grid gap-4 md:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
             <div className="grid gap-1.5" key={index}>
-              <div className="h-2.5 w-24 rounded bg-[var(--border)]" />
-              <div className="h-4 w-32 rounded bg-[var(--border)]" />
+              <div className="h-2.5 w-24 rounded bg-slate-200" />
+              <div className="h-4 w-32 rounded bg-slate-200" />
             </div>
           ))}
         </div>
@@ -187,14 +188,14 @@ function LookupSkeleton() {
       <div className="grid gap-4 md:grid-cols-2">
         {[1, 2].map((item) => (
           <div
-            className="grid gap-3 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-5"
+            className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
             key={item}
           >
-            <div className="h-4 w-28 rounded bg-[var(--border)]" />
+            <div className="h-4 w-28 rounded bg-slate-200" />
             {Array.from({ length: 5 }).map((_, index) => (
               <div className="flex justify-between" key={index}>
-                <div className="h-3 w-28 rounded bg-[var(--border)]" />
-                <div className="h-3 w-32 rounded bg-[var(--border)]" />
+                <div className="h-3 w-28 rounded bg-slate-200" />
+                <div className="h-3 w-32 rounded bg-slate-200" />
               </div>
             ))}
           </div>
@@ -206,11 +207,11 @@ function LookupSkeleton() {
 
 function NotFoundInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-amber-200 bg-white/60 px-3 py-2">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.04em] text-amber-700">
+    <div className="rounded border border-amber-200 bg-white/70 px-3 py-2">
+      <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
         {label}
       </div>
-      <div className="truncate text-xs text-amber-950" title={display(value)}>
+      <div className="truncate text-xs font-medium text-amber-950" title={display(value)}>
         {display(value)}
       </div>
     </div>

@@ -59,24 +59,24 @@ export function EditMemberModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
       role="dialog"
     >
       <div
-        className="w-full max-w-[460px] overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-surface)] shadow-md"
+        className="w-full max-w-[460px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         ref={trapRef}
       >
-        <div className="border-b border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-3.5">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Edit Member - {member.email}
+        <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+          <h2 className="text-sm font-bold text-slate-900">
+            Chỉnh sửa thành viên - {member.email}
           </h2>
         </div>
 
-        <div className="grid gap-4 px-5 py-5">
-          <label className="grid gap-2 text-xs font-medium text-[var(--text-secondary)]">
-            Role
+        <div className="grid gap-4 px-6 py-5">
+          <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+            Vai trò (Role)
             <select
-              className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)] disabled:text-[var(--text-muted)]"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
               disabled={roleDisabled || isPending}
               onChange={(event) => setRole(event.target.value as Role)}
               value={role}
@@ -90,59 +90,60 @@ export function EditMemberModal({
           </label>
 
           <fieldset className="grid gap-2">
-            <legend className="text-xs font-medium text-[var(--text-secondary)]">
-              Status
+            <legend className="text-xs font-semibold text-slate-700">
+              Trạng thái
             </legend>
-            <div className="flex gap-4">
+            <div className="flex gap-6">
               {(["ACTIVE", "DISABLED"] as const).map((option) => (
                 <label
-                  className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"
+                  className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer"
                   key={option}
                 >
                   <input
                     checked={status === option}
+                    className="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-600 disabled:opacity-50"
                     disabled={statusDisabled || isPending}
                     name="member-status"
                     onChange={() => setStatus(option)}
                     type="radio"
                   />
-                  {option}
+                  {option === "ACTIVE" ? "Đang hoạt động" : "Đã vô hiệu"}
                 </label>
               ))}
             </div>
           </fieldset>
 
           {isSelf ? (
-            <WarningBox message="You cannot disable your own account. Status toggle disabled." />
+            <WarningBox message="Bạn không thể vô hiệu hóa tài khoản của chính mình." />
           ) : null}
 
           {roleDisabled ? (
-            <WarningBox message="Cannot change role of the last OWNER. Role dropdown disabled." />
+            <WarningBox message="Không thể thay đổi vai trò của OWNER duy nhất còn lại." />
           ) : null}
 
           {error ? (
-            <div className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-text)]">
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
               {error}
             </div>
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-[var(--border)] bg-[var(--bg-surface2)] px-4 py-[11px]">
+        <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50/70 px-6 py-3.5">
           <button
-            className="h-9 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-mid)] hover:bg-[var(--bg-surface2)]"
+            className="h-9 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
             disabled={isPending}
             onClick={onCancel}
             type="button"
           >
-            Cancel
+            Hủy
           </button>
           <button
-            className="h-9 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-9 rounded-md bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
             disabled={isPending}
             onClick={save}
             type="button"
           >
-            {isPending ? "Saving..." : "Save Changes"}
+            {isPending ? "Đang lưu..." : "Lưu thay đổi"}
           </button>
         </div>
       </div>

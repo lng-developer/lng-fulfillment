@@ -7,7 +7,7 @@ import { login } from "@/lib/api/auth";
 import { getPostLoginRedirect } from "@/lib/auth-redirect";
 
 const GENERIC_LOGIN_ERROR =
-  "We could not sign you in. Check your email and password, then try again.";
+  "Không thể đăng nhập. Vui lòng kiểm tra lại email và mật khẩu của bạn.";
 
 export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean }) {
   const router = useRouter();
@@ -26,12 +26,12 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!isValidEmail(normalizedEmail)) {
-      setError("Enter a valid email address.");
+      setError("Vui lòng nhập địa chỉ email hợp lệ.");
       return;
     }
 
     if (!password) {
-      setError("Enter your password.");
+      setError("Vui lòng nhập mật khẩu.");
       return;
     }
 
@@ -52,47 +52,49 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
     <form
       aria-describedby={error ? errorId : undefined}
       autoComplete="on"
-      className="grid gap-4 rounded border border-[var(--border)] bg-[var(--bg-surface)] p-6 shadow-soft"
+      className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 sm:p-7 shadow-lg"
       noValidate
       onSubmit={handleSubmit}
     >
-      <div className="grid gap-2">
-        <label className="text-xs font-semibold text-[var(--text-primary)]" htmlFor={emailId}>
-          Email address
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-700" htmlFor={emailId}>
+          Email
         </label>
         <input
           autoComplete="email"
-          className="h-10 rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
+          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-50 transition-colors"
           disabled={isPending}
           id={emailId}
           inputMode="email"
           name="email"
           onChange={(event) => setEmail(event.target.value)}
+          placeholder="admin@fulfillment.local"
           required
           type="email"
           value={email}
         />
       </div>
 
-      <div className="grid gap-2">
-        <label className="text-xs font-semibold text-[var(--text-primary)]" htmlFor={passwordId}>
-          Password
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-700" htmlFor={passwordId}>
+          Mật khẩu
         </label>
         <div className="relative">
           <input
             autoComplete="current-password"
-            className="h-10 w-full rounded-sm border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 pr-10 text-xs text-[var(--text-primary)] disabled:cursor-not-allowed disabled:bg-[var(--bg-surface2)]"
+            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-50 transition-colors"
             disabled={isPending}
             id={passwordId}
             name="password"
             onChange={(event) => setPassword(event.target.value)}
+            placeholder="••••••••"
             required
             type={showPassword ? "text" : "password"}
             value={password}
           />
           <button
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-xs text-[var(--text-muted)] hover:bg-[var(--bg-surface2)] hover:text-[var(--brand)] disabled:cursor-not-allowed"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none disabled:cursor-not-allowed transition-colors"
             disabled={isPending}
             onClick={() => setShowPassword((value) => !value)}
             type="button"
@@ -107,26 +109,26 @@ export function LoginForm({ sessionExpired = false }: { sessionExpired?: boolean
       </div>
 
       {sessionExpired && !error ? (
-        <p className="rounded-sm border border-[#fcd34d] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning-text)]" role="status">
-          Your session has expired. Please sign in again.
+        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800" role="status">
+          Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.
         </p>
       ) : null}
 
       {error ? (
-        <p className="rounded-sm border border-[#fca5a5] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-text)]" id={errorId} role="alert">
+        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700" id={errorId} role="alert">
           {error}
         </p>
       ) : null}
 
       <button
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-4 text-xs font-medium text-white shadow-[0_1px_4px_rgba(99,102,241,0.3)] hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:bg-[#94a3b8]"
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 transition-colors pt-0.5"
         disabled={isPending}
         type="submit"
       >
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
         ) : null}
-        {isPending ? "Signing in..." : "Sign in"}
+        {isPending ? "Đang đăng nhập..." : "Đăng nhập"}
       </button>
     </form>
   );

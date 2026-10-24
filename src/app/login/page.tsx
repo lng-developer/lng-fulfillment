@@ -5,7 +5,7 @@ import { getCurrentUserWithTenants } from "@/shared/auth/context";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = {
-  title: "Sign In | Fulfillment Platform",
+  title: "Đăng nhập | Fulfillment Platform v2",
 };
 
 export default async function LoginPage({
@@ -21,20 +21,20 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[var(--bg-page)] px-4 py-8">
+    <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-12">
       <section aria-labelledby="login-title" className="w-full max-w-[400px]">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 grid h-10 w-10 place-items-center rounded bg-gradient-to-br from-[var(--brand)] to-[#818cf8] text-sm font-bold text-white">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-indigo-600 text-base font-bold text-white shadow-md shadow-indigo-600/20">
             FP
           </div>
           <h1
-            className="text-2xl font-semibold tracking-normal text-[var(--text-primary)]"
+            className="text-2xl font-bold tracking-tight text-slate-900"
             id="login-title"
           >
-            Fulfillment Platform
+            Fulfillment Platform v2
           </h1>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Sign in to your account
+          <p className="mt-1.5 text-xs text-slate-500">
+            Hệ thống quản lý và xử lý đơn hàng đa kênh
           </p>
         </div>
         <LoginForm sessionExpired={params?.reason === "session_expired"} />
