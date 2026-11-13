@@ -52,7 +52,8 @@ export function createViettelPostAdapter(
       const config = getConfig(context);
       const fetchImpl = options.fetchImpl ?? fetch;
       const token = await requestAccessToken(config, fetchImpl, tokenCache);
-      const response = await fetchImpl(`${stripTrailingSlash(config.orderUrl)}/api/partner/order/shipment`, {
+      const url = resolveViettelPostOrderUrl(config.orderUrl, "/api/partner/order/shipment");
+      const response = await fetchImpl(url, {
         method: "POST",
         headers: new Headers({
           authorization: `Bearer ${token}`,
@@ -63,7 +64,20 @@ export function createViettelPostAdapter(
       });
 
       if (!response.ok) {
-        throw carrierError("REMOTE_REJECTED", "Viettel Post rejected shipment creation.", false, response.status);
+        let remoteMessage = "Viettel Post rejected shipment creation.";
+        try {
+          const errorBody = await readJson(response);
+          if (isRecord(errorBody)) {
+            const msg =
+              stringValue(errorBody.message) ??
+              stringValue(errorBody.error_description) ??
+              stringValue(errorBody.error);
+            if (msg) remoteMessage = `Viettel Post: ${msg}`;
+          }
+        } catch {
+          // ignore parsing error
+        }
+        throw carrierError("REMOTE_REJECTED", remoteMessage, false, response.status);
       }
 
       return normalizeCreateResponse(await readJson(response));
@@ -72,20 +86,61 @@ export function createViettelPostAdapter(
       throw notSupported("Viettel Post label retrieval is not implemented.");
     },
     async getTracking(input, context) {
-      if (!input.carrierShipmentId) {
+      const shipmentIdentifier = input.carrierShipmentId || input.customerOrderNumber;
+      if (!shipmentIdentifier) {
         throw carrierError("VALIDATION_FAILED", "Viettel Post tracking requires a shipment identifier.", false, 400);
       }
       const config = getConfig(context);
       const fetchImpl = options.fetchImpl ?? fetch;
-      const token = await requestAccessToken(config, fetchImpl, tokenCache);
-      const response = await fetchImpl(
-        `${stripTrailingSlash(config.orderUrl)}/api/partner/order/shipment/${encodeURIComponent(input.carrierShipmentId)}`,
-        { headers: new Headers({ authorization: `Bearer ${token}`, accept: "application/json" }) },
-      );
-      if (!response.ok) {
-        throw carrierError("REMOTE_REJECTED", "Viettel Post rejected shipment detail lookup.", false, response.status);
+      const token = process.env.VIETTEL_POST_BEARER_TOKEN || await requestAccessToken(config, fetchImpl, tokenCache);
+
+      // Try sub-agency shipment search first (standard for Viettel Post Global agency portal)
+      try {
+        const searchUrl = `${stripTrailingSlash(config.orderUrl)}/order-service/api/sub-agency/shipment/search?skipCount=0&maxResultCount=5&filter=${encodeURIComponent(shipmentIdentifier)}&status=-1&statusTab=-1`;
+        const searchRes = await fetchImpl(searchUrl, {
+          headers: new Headers({
+            authorization: `Bearer ${token}`,
+            accept: "application/json, text/plain, */*",
+            origin: "https://global.viettelpost.vn",
+            referer: "https://global.viettelpost.vn/",
+          }),
+        });
+        if (searchRes.ok) {
+          const json = await readJson(searchRes);
+          const data = isRecord(json) && isRecord(json.data) ? json.data : json;
+          const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
+          if (items.length > 0 && isRecord(items[0])) {
+            return normalizeSubAgencyTrackingItem(items[0], shipmentIdentifier);
+          }
+        }
+      } catch {
+        // Fall back to partner endpoint
       }
-      return normalizeTrackingResponse(await readJson(response), input.carrierShipmentId);
+
+      const detailUrl = resolveViettelPostOrderUrl(
+        config.orderUrl,
+        `/api/partner/order/shipment/${encodeURIComponent(shipmentIdentifier)}`,
+      );
+      const response = await fetchImpl(detailUrl, {
+        headers: new Headers({ authorization: `Bearer ${token}`, accept: "application/json" }),
+      });
+      if (!response.ok) {
+        let remoteMessage = "Viettel Post rejected shipment detail lookup.";
+        try {
+          const errorBody = await readJson(response);
+          if (isRecord(errorBody)) {
+            const msg =
+              stringValue(errorBody.message) ??
+              stringValue(errorBody.error_description) ??
+              stringValue(errorBody.error);
+            if (msg) remoteMessage = `Viettel Post: ${msg}`;
+          }
+        } catch {
+          // ignore parsing error
+        }
+        throw carrierError("REMOTE_REJECTED", remoteMessage, false, response.status);
+      }
+      return normalizeTrackingResponse(await readJson(response), shipmentIdentifier);
     },
     async cancelShipment() {
       throw notSupported("Viettel Post shipment cancellation is not implemented.");
@@ -153,16 +208,130 @@ function assertShipmentInput(input: CreateCarrierShipmentInput) {
   }
 }
 
+export const US_STATE_CODE_MAP: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+  "district of columbia": "DC",
+  "puerto rico": "PR",
+  guam: "GU",
+  "virgin islands": "VI",
+  "american samoa": "AS",
+  "northern mariana islands": "MP",
+  "armed forces americas": "AA",
+  "armed forces europe": "AE",
+  "armed forces pacific": "AP",
+};
+
+export function normalizeStateCode(
+  state: string | null | undefined,
+  countryCode?: string,
+): string | undefined {
+  if (!state) return undefined;
+  const trimmed = state.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.length === 2) return trimmed.toUpperCase();
+
+  const normalizedCountry = countryCode?.trim().toUpperCase();
+  if (
+    !normalizedCountry ||
+    normalizedCountry === "US" ||
+    normalizedCountry === "USA" ||
+    normalizedCountry === "UNITED STATES"
+  ) {
+    const matched = US_STATE_CODE_MAP[trimmed.toLowerCase()];
+    if (matched) return matched;
+  }
+
+  return trimmed.slice(0, 2).toUpperCase();
+}
+
+export function normalizeCountryCode(country: string | null | undefined): string {
+  if (!country) return "US";
+  const trimmed = country.trim().toUpperCase();
+  if (trimmed === "UNITED STATES" || trimmed === "USA") return "US";
+  if (trimmed === "VIETNAM" || trimmed === "VIET NAM") return "VN";
+  return trimmed.slice(0, 2);
+}
+
+export function resolveViettelPostAuthUrl(authUrl: string): string {
+  const stripped = stripTrailingSlash(authUrl);
+  if (stripped.endsWith("/connect/token")) {
+    return stripped;
+  }
+  return `${stripped}/connect/token`;
+}
+
+export function resolveViettelPostOrderUrl(orderUrl: string, endpoint: string): string {
+  const stripped = stripTrailingSlash(orderUrl);
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (stripped.endsWith("/gateway")) {
+    return `${stripped}${cleanEndpoint}`;
+  }
+  if (stripped.includes("api-global.viettelpost.vn")) {
+    return `${stripped}/gateway${cleanEndpoint}`;
+  }
+  return `${stripped}${cleanEndpoint}`;
+}
+
 async function requestAccessToken(
   config: ViettelPostConfig,
   fetchImpl: typeof fetch,
   tokenCache: Map<string, { token: string; expiresAt: number }>,
 ) {
-  const cacheKey = `${config.authUrl}\u0000${config.clientId}\u0000${config.clientSecret}`;
+  const tokenUrl = resolveViettelPostAuthUrl(config.authUrl);
+  const cacheKey = `${tokenUrl}\u0000${config.clientId}\u0000${config.clientSecret}`;
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.token;
 
-  const response = await fetchImpl(config.authUrl, {
+  const response = await fetchImpl(tokenUrl, {
     method: "POST",
     headers: new Headers({ accept: "application/json", "content-type": "application/x-www-form-urlencoded" }),
     body: new URLSearchParams({
@@ -174,7 +343,12 @@ async function requestAccessToken(
   const body = await readJson(response);
   const token = isRecord(body) ? stringValue(body.access_token) : undefined;
   if (!response.ok || !token) {
-    throw carrierError("AUTHENTICATION_FAILED", "Viettel Post authentication failed.", false, response.status || 502);
+    let errorDetail = "Viettel Post authentication failed.";
+    if (isRecord(body)) {
+      const desc = stringValue(body.error_description) ?? stringValue(body.message) ?? stringValue(body.error);
+      if (desc) errorDetail = `Viettel Post auth failed: ${desc}`;
+    }
+    throw carrierError("AUTHENTICATION_FAILED", errorDetail, false, response.status || 502);
   }
   const expiresIn = isRecord(body) && typeof body.expires_in === "number" ? body.expires_in : 300;
   tokenCache.set(cacheKey, {
@@ -184,11 +358,20 @@ async function requestAccessToken(
   return token;
 }
 
-function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfig) {
+export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfig) {
   const recipient = input.recipient!;
   const [firstName, ...lastNameParts] = recipient.name!.trim().split(/\s+/);
+  const recipientCountry = normalizeCountryCode(recipient.country);
+  const recipientState = normalizeStateCode(recipient.state, recipientCountry);
+  const orderRef = stringValue(input.externalOrderId) ?? stringValue(input.orderId);
+  const orderId = (input.externalOrderId ?? input.orderId ?? "").slice(0, 30);
+  const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
+
   return {
     lineShipId: config.lineShipId,
+    orderId: orderId || undefined,
+    orderReferenceId: orderRef,
+    hsCode,
     parcel: {
       weight: Math.round(Number(input.metadata!.weight) * 1000),
       length: Number(input.metadata!.length),
@@ -198,10 +381,8 @@ function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfi
       lengthUnit: 1,
       labelDate: new Date().toISOString(),
       labelFormat: 0,
-      invoiceNumber: input.externalOrderId,
+      invoiceNumber: orderId || orderRef,
     },
-    orderReferenceId: input.externalOrderId,
-    hsCode: stringValue(input.metadata!.hsCode),
     lineItems: input.items.map((item) => ({
       name: item.name ?? item.sku ?? item.orderItemId,
       sku: item.sku ?? item.externalItemId ?? item.orderItemId,
@@ -214,7 +395,7 @@ function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfi
       lastName: config.shipFromLastName,
       phoneNumber: config.shipFromPhoneNumber,
       address1: config.shipFromAddress1,
-      country: config.shipFromCountry,
+      country: normalizeCountryCode(config.shipFromCountry),
       state: config.shipFromState,
       city: config.shipFromCity,
       zipCode: config.shipFromZipCode,
@@ -227,8 +408,8 @@ function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfi
       email: recipient.email,
       address1: recipient.line1,
       address2: recipient.line2,
-      country: recipient.country,
-      state: recipient.state,
+      country: recipientCountry,
+      state: recipientState,
       city: recipient.city,
       zipCode: recipient.postalCode,
       isBusinessAddress: true,
@@ -243,11 +424,24 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   if (!carrierShipmentId) {
     throw carrierError("REMOTE_REJECTED", "Viettel Post returned no shipment identifier.", false, 502);
   }
+  const vtpOrderNumber = stringValue(shipment.vtpOrderNumber);
+  const shipmentCode = stringValue(shipment.shipmentCode);
+
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId,
     trackingNumber: stringValue(shipment.trackingNumber),
-    labelUrl: stringValue(shipment.labelUrl),
+    labelUrl: stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP),
+    ...(vtpOrderNumber || shipmentCode
+      ? {
+          metadata: {
+            safe: {
+              ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
+              ...(shipmentCode ? { shipmentCode } : {}),
+            },
+          },
+        }
+      : {}),
   };
 }
 
@@ -255,16 +449,69 @@ function normalizeTrackingResponse(body: unknown, fallbackShipmentId: string) {
   const data = isRecord(body) && isRecord(body.data) ? body.data : body;
   const shipment = isRecord(data) ? data : {};
   const status = typeof shipment.status === "number" ? shipment.status : null;
+  const vtpOrderNumber = stringValue(shipment.vtpOrderNumber);
+  const shipmentCode = stringValue(shipment.shipmentCode);
+  const labelUrl = stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP);
+  const rawEvents = Array.isArray(shipment.activitiesTimeline) ? shipment.activitiesTimeline : [];
+  const events = rawEvents
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .map((item) => {
+      const checkpoint = stringValue(item.activity) ?? stringValue(item.code) ?? "Checkpoint";
+      return {
+        eventStatus: checkpoint,
+        eventTime: item.dateCreate ? new Date(String(item.dateCreate)) : new Date(),
+        checkpoint,
+        location: stringValue(item.location) ?? undefined,
+      };
+    })
+    .filter((e) => !isNaN(e.eventTime.getTime()));
+
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId: stringValue(shipment.id) ?? fallbackShipmentId,
     trackingNumber: stringValue(shipment.trackingNumber),
+    labelUrl,
+    status: normalizeTrackingStatus(status),
+    packageState: status,
+    trackingStatus: status,
+    events,
+    latestEvent: events[events.length - 1] ?? null,
+    metadata: {
+      safe: {
+        shipmentStatus: status ?? "unknown",
+        ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
+        ...(shipmentCode ? { shipmentCode } : {}),
+        ...(labelUrl ? { labelUrl } : {}),
+      },
+    },
+  };
+}
+
+function normalizeSubAgencyTrackingItem(item: Record<string, unknown>, fallbackId: string) {
+  const status = typeof item.status === "number" ? item.status : null;
+  const vtpOrderNumber = stringValue(item.vtpOrderNumber) ?? stringValue(item.shipmentCode);
+  const shipmentCode = stringValue(item.shipmentCode);
+  const trackingNumber = stringValue(item.trackingCode) ?? stringValue(item.trackingNumber);
+  const labelUrl = stringValue(item.labelUrl) ?? stringValue(item.labelUrlVTP);
+
+  return {
+    carrierCode: "VIETTEL_POST" as const,
+    carrierShipmentId: stringValue(item.id) ?? vtpOrderNumber ?? fallbackId,
+    trackingNumber,
+    labelUrl,
     status: normalizeTrackingStatus(status),
     packageState: status,
     trackingStatus: status,
     events: [],
     latestEvent: null,
-    metadata: { safe: { shipmentStatus: status ?? "unknown" } },
+    metadata: {
+      safe: {
+        shipmentStatus: status ?? "unknown",
+        ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
+        ...(shipmentCode ? { shipmentCode } : {}),
+        ...(labelUrl ? { labelUrl } : {}),
+      },
+    },
   };
 }
 
@@ -272,6 +519,7 @@ function normalizeTrackingStatus(status: number | null) {
   switch (status) {
     case 0:
     case 1:
+    case 8:
     case 9:
     case 10:
       return "TRACKING_PENDING" as const;
@@ -282,6 +530,8 @@ function normalizeTrackingStatus(status: number | null) {
     case 4:
       return "EXCEPTION" as const;
     case 5:
+    case 6:
+    case 7:
       return "CANCELLED" as const;
     case 11:
       return "RETURNED" as const;

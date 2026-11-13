@@ -27,10 +27,13 @@ export async function POST(request: Request) {
       ...RATE_LIMIT_POLICIES.dashboardMutation,
     });
 
+    const url = new URL(request.url);
+    const carrierCode = url.searchParams.get("carrierCode") ?? undefined;
+
     return ok(await syncTrackingBatch(context.tenantId, {
       actorType: "USER",
       actorId: context.actorUserId,
-    }));
+    }, carrierCode));
   } catch (error) {
     if (error instanceof AppError) {
       return errorResponse(error.code, error.message, error.status, error.details);

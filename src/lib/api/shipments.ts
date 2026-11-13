@@ -199,9 +199,10 @@ export type EtsyTrackingSyncBatchResult = {
   portalFailed: number;
 };
 
-export async function syncTrackingBatch() {
+export async function syncTrackingBatch(carrierCode?: string) {
+  const query = carrierCode ? `?carrierCode=${encodeURIComponent(carrierCode)}` : "";
   const response = await apiFetch<ApiSuccess<TrackingSyncBatchResult>>(
-    "/api/shipments/tracking/batch",
+    `/api/shipments/tracking/batch${query}`,
     { method: "POST" },
   );
 

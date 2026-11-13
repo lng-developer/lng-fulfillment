@@ -13,6 +13,7 @@ export {
   shipOrderWithYun,
   shipOrdersBatchWithYun,
   syncTrackingBatch,
+  syncViettelPostTrackingBatch,
   syncEtsyTrackingBatch,
   syncShipmentTracking,
 } from "./service";

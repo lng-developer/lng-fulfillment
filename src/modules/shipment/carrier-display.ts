@@ -22,6 +22,21 @@ export function withFinalMileCarrier(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function withCarrierSafeMetadata(
+  metadata: unknown,
+  carrierMetadata: Record<string, unknown>,
+): Prisma.InputJsonValue {
+  const base = isRecord(metadata) ? (metadata as Record<string, Prisma.InputJsonValue>) : {};
+  const carrier = isRecord(base.carrier) ? (base.carrier as Record<string, Prisma.InputJsonValue>) : {};
+  return {
+    ...base,
+    carrier: {
+      ...carrier,
+      ...carrierMetadata,
+    },
+  } as unknown as Prisma.InputJsonValue;
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

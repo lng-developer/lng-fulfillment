@@ -1,3 +1,5 @@
+"use client";
+
 import { Package, PenLine, ShieldCheck } from "lucide-react";
 
 const steps = [

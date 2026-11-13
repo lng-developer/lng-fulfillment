@@ -1,3 +1,5 @@
+"use client";
+
 import { CtaSection } from "./CtaSection";
 import { FeaturesBento } from "./FeaturesBento";
 import { Hero } from "./Hero";

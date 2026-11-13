@@ -20,7 +20,7 @@ import {
   getPortalTrackingSyncState,
   withPortalTrackingSyncState,
 } from "./portal-tracking-sync-state";
-import { getFinalMileCarrier, withFinalMileCarrier } from "./carrier-display";
+import { getFinalMileCarrier, withCarrierSafeMetadata, withFinalMileCarrier } from "./carrier-display";
 import type {
   CreateDraftShipmentInput,
   ShipmentDetail,
@@ -1113,6 +1113,8 @@ export async function updateShipmentTrackingSyncResult(input: {
   trackingNumber?: string | null;
   carrierShipmentId?: string | null;
   carrierName?: string | null;
+  labelUrl?: string | null;
+  carrierMetadata?: Record<string, unknown>;
   actualShipAt?: Date;
   actualShipEvidence?: Prisma.InputJsonValue;
   statusChanged: boolean;
@@ -1122,12 +1124,24 @@ export async function updateShipmentTrackingSyncResult(input: {
   actorId?: string;
 }): Promise<ShipmentDetail> {
   const row = await prisma.$transaction(async (tx) => {
-    const shipmentMetadata = input.carrierName
+    const shipmentMetadata = (input.carrierName || input.carrierMetadata)
       ? await tx.shipment.findFirst({
           where: { id: input.shipmentId, tenantId: input.tenantId },
           select: { metadata: true },
         })
       : null;
+
+    let updatedMetadata: Prisma.InputJsonValue | undefined = undefined;
+    if (shipmentMetadata) {
+      let meta: Prisma.InputJsonValue = shipmentMetadata.metadata as Prisma.InputJsonValue;
+      if (input.carrierName) {
+        meta = withFinalMileCarrier(meta, input.carrierName);
+      }
+      if (input.carrierMetadata) {
+        meta = withCarrierSafeMetadata(meta, input.carrierMetadata);
+      }
+      updatedMetadata = meta;
+    }
 
     const row = await tx.shipment.update({
       where: {
@@ -1143,8 +1157,11 @@ export async function updateShipmentTrackingSyncResult(input: {
         ...(input.carrierShipmentId === undefined
           ? {}
           : { carrierShipmentId: input.carrierShipmentId }),
-        ...(input.carrierName && shipmentMetadata
-          ? { metadata: withFinalMileCarrier(shipmentMetadata.metadata, input.carrierName) }
+        ...(input.labelUrl === undefined
+          ? {}
+          : { labelUrl: input.labelUrl }),
+        ...(updatedMetadata !== undefined
+          ? { metadata: updatedMetadata }
           : {}),
         ...(input.actualShipAt === undefined
           ? {}
@@ -1397,3 +1414,117 @@ function buildShipmentWhereInput(
       : {}),
   };
 }
+
+export async function findOrdersForViettelPostSync(
+  tenantId: string,
+  externalOrderIds: string[],
+) {
+  return prisma.order.findMany({
+    where: {
+      tenantId,
+      OR: [
+        { externalOrderId: { in: externalOrderIds } },
+        { orderNumber: { in: externalOrderIds } },
+      ],
+    },
+    select: {
+      id: true,
+      externalOrderId: true,
+      orderNumber: true,
+      shipments: {
+        select: {
+          id: true,
+          status: true,
+          carrierCode: true,
+          trackingNumber: true,
+          carrierShipmentId: true,
+          labelUrl: true,
+        },
+      },
+      items: {
+        select: {
+          id: true,
+          quantity: true,
+        },
+      },
+    },
+  });
+}
+
+export async function linkViettelPostTrackingToShipment(input: {
+  tenantId: string;
+  shipmentId: string;
+  carrierShipmentId: string;
+  trackingNumber: string;
+  labelUrl?: string | null;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}) {
+  return prisma.shipment.update({
+    where: {
+      id: input.shipmentId,
+      tenantId: input.tenantId,
+    },
+    data: {
+      carrierCode: "VIETTEL_POST",
+      carrierShipmentId: input.carrierShipmentId,
+      trackingNumber: input.trackingNumber,
+      labelUrl: input.labelUrl ?? null,
+      status: "IN_TRANSIT",
+      updatedAt: new Date(),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: "IN_TRANSIT",
+          note: "Tracking synced from Viettel Post Global.",
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+  });
+}
+
+export async function createViettelPostShipmentForOrder(input: {
+  tenantId: string;
+  orderId: string;
+  carrierShipmentId: string;
+  trackingNumber: string;
+  labelUrl?: string | null;
+  items: Array<{ orderItemId: string; quantity: number }>;
+  metadata?: Prisma.InputJsonValue;
+  actorType: AuditActorType;
+  actorId?: string;
+}) {
+  return prisma.shipment.create({
+    data: {
+      tenantId: input.tenantId,
+      orderId: input.orderId,
+      carrierCode: "VIETTEL_POST",
+      carrierShipmentId: input.carrierShipmentId,
+      trackingNumber: input.trackingNumber,
+      labelUrl: input.labelUrl ?? null,
+      status: "IN_TRANSIT",
+      ...(input.metadata ? { metadata: input.metadata } : {}),
+      items: {
+        create: input.items.map((it) => ({
+          tenantId: input.tenantId,
+          orderItemId: it.orderItemId,
+          quantity: it.quantity,
+        })),
+      },
+      statusHistory: {
+        create: {
+          tenantId: input.tenantId,
+          status: "IN_TRANSIT",
+          note: "Shipment created via Viettel Post Global tracking sync.",
+          actorType: input.actorType,
+          actorId: input.actorId,
+        },
+      },
+    },
+  });
+}
+

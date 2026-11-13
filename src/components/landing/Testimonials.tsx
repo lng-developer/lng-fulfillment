@@ -1,3 +1,5 @@
+"use client";
+
 import { Globe, ShoppingBag, ShoppingCart, Truck } from "lucide-react";
 
 const testimonials = [

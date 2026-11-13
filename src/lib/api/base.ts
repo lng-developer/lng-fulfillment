@@ -86,7 +86,9 @@ export function getErrorMessage(error: unknown): string {
   }
 
   if (error.status === 409) {
-    return "A conflict occurred. Please refresh and try again.";
+    return error.message && error.message !== "Request failed"
+      ? error.message
+      : "A conflict occurred. Please refresh and try again.";
   }
 
   if (error.status === 429) {
@@ -99,7 +101,9 @@ export function getErrorMessage(error: unknown): string {
   }
 
   if (error.status >= 500) {
-    return "A server error occurred. Please try again later.";
+    return error.message && error.message !== "Request failed" && error.message !== "Internal server error."
+      ? error.message
+      : "A server error occurred. Please try again later.";
   }
 
   return "Something went wrong. Please try again.";
@@ -112,6 +116,7 @@ export function getCarrierFailureMessage(details: unknown) {
 
   return (
     remarks[0] ??
+    readString(safeMetadata?.resultDesc) ??
     readString(safeMetadata?.message) ??
     readString(detailRecord?.message) ??
     null

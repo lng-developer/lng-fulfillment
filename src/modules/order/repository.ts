@@ -75,8 +75,11 @@ export async function findOrderByExternalId(
           carrierCode: true,
           carrierShipmentId: true,
           trackingNumber: true,
+          labelUrl: true,
           status: true,
           actualShipAt: true,
+          createdAt: true,
+          metadata: true,
           items: {
             select: {
               orderItem: {

@@ -45,6 +45,9 @@ import {
   updateShipmentExecutionStarted,
   updateShipmentExecutionSucceeded,
   updateShipmentTrackingSyncResult,
+  findOrdersForViettelPostSync,
+  linkViettelPostTrackingToShipment,
+  createViettelPostShipmentForOrder,
 } from "./repository";
 import type {
   CreateDraftShipmentInput,
@@ -82,7 +85,11 @@ import {
 import { shouldApplyTrackingStatusTransition } from "./tracking-status-reconciliation";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
-const DIRECT_SHIP_ORDER_STATUSES = ["FULFILLED", "READY_TO_SHIP"] as const;
+const DIRECT_SHIP_ORDER_STATUSES = [
+  "FULFILLED",
+  "READY_TO_SHIP",
+  "RECEIVED",
+] as const;
 const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
 const YUN_TEST_BASE_URL = "http://omsapi.uat.yunexpress.com/";
 const YUN_LIVE_BASE_URL = "http://oms.api.yunexpress.com/";
@@ -1073,12 +1080,16 @@ async function syncShipmentYunTracking(
       tracking.latestEvent?.eventTime ?? null,
     );
     const nextTrackingNumber =
-      !shipment.trackingNumber && tracking.trackingNumber
+      tracking.trackingNumber && tracking.trackingNumber !== shipment.trackingNumber
         ? tracking.trackingNumber
         : undefined;
     const nextCarrierShipmentId =
-      !shipment.carrierShipmentId && tracking.carrierShipmentId
+      tracking.carrierShipmentId && tracking.carrierShipmentId !== shipment.carrierShipmentId
         ? tracking.carrierShipmentId
+        : undefined;
+    const nextLabelUrl =
+      tracking.labelUrl && tracking.labelUrl !== shipment.labelUrl
+        ? tracking.labelUrl
         : undefined;
     const actualShipEvent = shipment.actualShipAt
       ? null
@@ -1095,6 +1106,8 @@ async function syncShipmentYunTracking(
       trackingNumber: nextTrackingNumber,
       carrierShipmentId: nextCarrierShipmentId,
       carrierName: tracking.provider?.carrierName,
+      labelUrl: nextLabelUrl,
+      carrierMetadata: tracking.metadata?.safe,
       actualShipAt: actualShipEvent?.eventTime,
       actualShipEvidence: actualShipEvent
         ? {
@@ -1198,10 +1211,144 @@ async function syncShipmentYunTracking(
   }
 }
 
-export async function syncTrackingBatch(
+export async function syncViettelPostTrackingBatch(
   tenantId: string,
   actor: ShipmentActor,
 ) {
+  const token = process.env.VIETTEL_POST_BEARER_TOKEN;
+  if (!token) {
+    throw new AppError(
+      "CARRIER_ERROR",
+      "Viettel Post access token is not configured.",
+      503,
+    );
+  }
+
+  const res = await fetch(
+    "https://api-global.viettelpost.vn/order-service/api/sub-agency/shipment/search?skipCount=0&maxResultCount=200&status=-1&statusTab=-1",
+    {
+      headers: {
+        accept: "application/json, text/plain, */*",
+        authorization: `Bearer ${token}`,
+        origin: "https://global.viettelpost.vn",
+        referer: "https://global.viettelpost.vn/",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    throw new AppError(
+      "CARRIER_ERROR",
+      `Viettel Post shipment search failed with status ${res.status}.`,
+      502,
+    );
+  }
+
+  const data = await res.json();
+  const vtpItems: Array<{
+    id?: string;
+    orderId?: string | null;
+    shipmentCode?: string | null;
+    vtpOrderNumber?: string | null;
+    trackingCode?: string | null;
+    trackingNumber?: string | null;
+    labelUrl?: string | null;
+    labelUrlVTP?: string | null;
+    status?: number | null;
+  }> = (data?.data?.items ?? data?.items ?? []).filter((it: Record<string, unknown>) => Boolean(it.orderId));
+
+  const externalOrderIds = [
+    ...new Set(vtpItems.map((it) => it.orderId!).filter(Boolean)),
+  ];
+
+  const matchedOrders = await findOrdersForViettelPostSync(
+    tenantId,
+    externalOrderIds,
+  );
+
+  let updated = 0;
+  let created = 0;
+
+  for (const order of matchedOrders) {
+    const vtp = vtpItems.find(
+      (it) => it.orderId === order.externalOrderId || it.orderId === order.orderNumber,
+    );
+    if (!vtp) continue;
+
+    const trackingNumber = vtp.trackingCode || vtp.trackingNumber;
+    const carrierShipmentId = vtp.vtpOrderNumber || vtp.shipmentCode;
+    const labelUrl = vtp.labelUrl || vtp.labelUrlVTP;
+
+    if (!trackingNumber && !carrierShipmentId) continue;
+
+    const metadata = {
+      safe: {
+        ...(vtp.vtpOrderNumber ? { vtpOrderNumber: vtp.vtpOrderNumber } : {}),
+        ...(vtp.shipmentCode ? { shipmentCode: vtp.shipmentCode } : {}),
+        ...(labelUrl ? { labelUrl } : {}),
+      },
+    };
+
+    if (order.shipments.length > 0) {
+      for (const s of order.shipments) {
+        await linkViettelPostTrackingToShipment({
+          tenantId,
+          shipmentId: s.id,
+          carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
+          trackingNumber: trackingNumber || s.trackingNumber || "",
+          labelUrl: labelUrl ?? undefined,
+          metadata,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+        });
+        updated++;
+      }
+    } else {
+      await createViettelPostShipmentForOrder({
+        tenantId,
+        orderId: order.id,
+        carrierShipmentId: carrierShipmentId || "VTP",
+        trackingNumber: trackingNumber || "",
+        labelUrl: labelUrl ?? undefined,
+        items: order.items.map((it) => ({
+          orderItemId: it.id,
+          quantity: it.quantity,
+        })),
+        metadata,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+      });
+      created++;
+    }
+  }
+
+  return {
+    attempted: vtpItems.length,
+    synced: updated + created,
+    noActualShipEvent: 0,
+    failed: 0,
+    portalSynced: 0,
+    portalFailed: 0,
+    results: [] as Array<{
+      shipmentId: string;
+      outcome: "synced" | "no_actual_ship_event" | "failed" | "portal";
+      portalTrackingSyncState?: "SYNCED" | "FAILED" | null;
+      errorCode?: string;
+    }>,
+    updated,
+    created,
+  };
+}
+
+export async function syncTrackingBatch(
+  tenantId: string,
+  actor: ShipmentActor,
+  carrierCodeFilter?: string,
+) {
+  if (carrierCodeFilter === "VIETTEL_POST") {
+    return syncViettelPostTrackingBatch(tenantId, actor);
+  }
+
   const candidates = await listTrackingSyncCandidates(
     tenantId,
     TRACKING_SYNC_BATCH_LIMIT,

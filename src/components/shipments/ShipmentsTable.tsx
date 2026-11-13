@@ -129,9 +129,11 @@ export function ShipmentsTable({
   async function handleCarrierSync() {
     setIsBatchSyncing(true);
     try {
-      const result = await syncTrackingBatch();
+      const result = await syncTrackingBatch(carrierFilter ?? undefined);
       toastSuccess(
-        `Đồng bộ hãng thành công: ${result.synced} / ${result.attempted} vận đơn đã cập nhật.`,
+        carrierFilter === "VIETTEL_POST"
+          ? `Đồng bộ Viettel Post thành công: đã cập nhật ${result.synced} vận đơn.`
+          : `Đồng bộ hãng thành công: ${result.synced} / ${result.attempted} vận đơn đã cập nhật.`,
       );
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -191,7 +193,11 @@ export function ShipmentsTable({
                 size="sm"
                 variant="secondary"
               >
-                Đồng bộ Yun
+                {carrierFilter === "VIETTEL_POST"
+                  ? "Đồng bộ Viettel Post"
+                  : carrierFilter === "YUNEXPRESS_OMS"
+                    ? "Đồng bộ Yun"
+                    : "Đồng bộ hãng"}
               </Button>
               <Button
                 isLoading={isEtsySyncing}
@@ -289,7 +295,7 @@ export function ShipmentsTable({
                     {/* Carrier */}
                     <td className="px-3.5 py-2.5">
                       <span className="font-medium text-slate-800">
-                        {shipment.carrierName ?? (shipment.carrierCode === "YUNEXPRESS_OMS" ? "YunExpress" : shipment.carrierCode)}
+                        {shipment.carrierName ?? (shipment.carrierCode === "YUNEXPRESS_OMS" ? "YunExpress" : shipment.carrierCode === "VIETTEL_POST" ? "Viettel Post" : shipment.carrierCode)}
                       </span>
                       {shipment.sourceChannel && (
                         <span className="text-[10px] text-slate-400 block uppercase">

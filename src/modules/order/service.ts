@@ -175,21 +175,44 @@ export async function getPortalOrderProcessingStatus(
     throw new AppError("NOT_FOUND", "Order not found.", 404);
   }
 
+  const primaryShipment =
+    order.shipments.find((s) => s.actualShipAt && s.trackingNumber) ??
+    order.shipments.find((s) => s.trackingNumber) ??
+    order.shipments[order.shipments.length - 1] ??
+    null;
+
+  const shipDate = primaryShipment?.actualShipAt ?? primaryShipment?.createdAt ?? null;
+  const carrier = primaryShipment?.carrierCode ?? null;
+
   return {
     externalOrderId: order.externalOrderId,
     orderStatus: order.status,
+    carrier,
+    carrierCode: carrier,
+    trackingNumber: primaryShipment?.trackingNumber ?? null,
+    shipDate,
+    shipdate: shipDate,
+    shippedAt: primaryShipment?.actualShipAt ?? null,
     receivedAt: order.receivedAt,
     autoShipment: order.autoShipmentJob,
-    packages: order.shipments.map((shipment) => ({
-      packageId: shipment.carrierShipmentId || shipment.id,
-      status: shipment.status,
-      carrier: shipment.carrierCode,
-      trackingNumber: shipment.trackingNumber,
-      shippedAt: shipment.actualShipAt,
-      externalItemIds: shipment.items
-        .map((item) => item.orderItem.externalItemId)
-        .filter((externalItemId): externalItemId is string => Boolean(externalItemId)),
-    })),
+    packages: order.shipments.map((shipment) => {
+      const packageShipDate = shipment.actualShipAt ?? shipment.createdAt ?? null;
+      return {
+        packageId: shipment.carrierShipmentId || shipment.id,
+        carrierShipmentId: shipment.carrierShipmentId,
+        status: shipment.status,
+        carrier: shipment.carrierCode,
+        carrierCode: shipment.carrierCode,
+        trackingNumber: shipment.trackingNumber,
+        shipDate: packageShipDate,
+        shipdate: packageShipDate,
+        shippedAt: shipment.actualShipAt,
+        labelUrl: shipment.labelUrl,
+        externalItemIds: shipment.items
+          .map((item) => item.orderItem.externalItemId)
+          .filter((externalItemId): externalItemId is string => Boolean(externalItemId)),
+      };
+    }),
   };
 }
 

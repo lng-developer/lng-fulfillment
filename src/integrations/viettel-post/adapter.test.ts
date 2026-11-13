@@ -4,7 +4,14 @@ import { hasCarrierAdapter } from "@/modules/carrier";
 import { preflightCarrierShipmentCreation } from "@/modules/carrier/preflight";
 import { validateCarrierCredentialSaveInput } from "@/modules/carrier/service";
 import { CARRIER_CODES, type CreateCarrierShipmentInput } from "@/modules/carrier/types";
-import { createViettelPostAdapter } from "./adapter";
+import {
+  createViettelPostAdapter,
+  normalizeStateCode,
+  normalizeCountryCode,
+  resolveViettelPostAuthUrl,
+  resolveViettelPostOrderUrl,
+  mapShipment,
+} from "./adapter";
 
 const viettelPostShipmentInput = {
   tenantId: "tenant-1",
@@ -231,4 +238,115 @@ test("reads Viettel Post shipment detail as normalized tracking", async () => {
   assert.equal(result.carrierShipmentId, "vp-shipment-1");
   assert.equal(result.trackingNumber, "VP123");
   assert.equal(result.status, "IN_TRANSIT");
+});
+
+test("normalizes US state and country codes to strict 2 characters", () => {
+  assert.equal(normalizeStateCode("California", "US"), "CA");
+  assert.equal(normalizeStateCode("california", "US"), "CA");
+  assert.equal(normalizeStateCode("CA", "US"), "CA");
+  assert.equal(normalizeStateCode("ca", "US"), "CA");
+  assert.equal(normalizeStateCode("New York", "US"), "NY");
+  assert.equal(normalizeStateCode("Texas", "US"), "TX");
+  assert.equal(normalizeStateCode("Washington", "US"), "WA");
+  assert.equal(normalizeStateCode("Hanoi", "VN"), "HA");
+  assert.equal(normalizeStateCode(undefined, "US"), undefined);
+
+  assert.equal(normalizeCountryCode("United States"), "US");
+  assert.equal(normalizeCountryCode("USA"), "US");
+  assert.equal(normalizeCountryCode("US"), "US");
+  assert.equal(normalizeCountryCode("Vietnam"), "VN");
+  assert.equal(normalizeCountryCode(undefined), "US");
+});
+
+test("resolves OAuth token URL and order gateway endpoints accurately", () => {
+  assert.equal(
+    resolveViettelPostAuthUrl("https://auth-global.viettelpost.vn"),
+    "https://auth-global.viettelpost.vn/connect/token",
+  );
+  assert.equal(
+    resolveViettelPostAuthUrl("https://auth-global.viettelpost.vn/connect/token"),
+    "https://auth-global.viettelpost.vn/connect/token",
+  );
+
+  assert.equal(
+    resolveViettelPostOrderUrl("https://api-global.viettelpost.vn", "/api/partner/order/shipment"),
+    "https://api-global.viettelpost.vn/gateway/api/partner/order/shipment",
+  );
+  assert.equal(
+    resolveViettelPostOrderUrl("https://api-global.viettelpost.vn/gateway", "/api/partner/order/shipment"),
+    "https://api-global.viettelpost.vn/gateway/api/partner/order/shipment",
+  );
+  assert.equal(
+    resolveViettelPostOrderUrl("https://order-staging.logistek.com.vn", "/api/partner/order/shipment"),
+    "https://order-staging.logistek.com.vn/api/partner/order/shipment",
+  );
+});
+
+test("maps payload adhering to Viettel Post API specifications", () => {
+  const payload = mapShipment(
+    {
+      tenantId: "tenant-1",
+      shipmentId: "shipment-99",
+      orderId: "order-99",
+      externalOrderId: "ORDER-EXT-LONG-NAME-1234567890-ABCDEF",
+      carrierCode: "VIETTEL_POST",
+      recipient: {
+        name: "Alice Johnson",
+        phone: "+1-555-0199",
+        line1: "456 Market St",
+        city: "San Francisco",
+        state: "California",
+        postalCode: "94105",
+        country: "United States",
+      },
+      items: [
+        {
+          shipmentItemId: "item-1",
+          orderItemId: "order-item-1",
+          sku: "SHIRT-01",
+          name: "Cotton Graphic T-Shirt",
+          quantity: 2,
+          weight: 0.3,
+          declaredValue: 25.5,
+        },
+      ],
+      metadata: {
+        weight: 0.6,
+        length: 25,
+        width: 18,
+        height: 6,
+      },
+    },
+    {
+      clientId: "test-client",
+      clientSecret: "test-secret",
+      authUrl: "https://auth-global.viettelpost.vn",
+      orderUrl: "https://api-global.viettelpost.vn",
+      lineShipId: "LS485343",
+      shipFromFirstName: "Kho",
+      shipFromLastName: "HN",
+      shipFromPhoneNumber: "0912345678",
+      shipFromAddress1: "Duy Tan",
+      shipFromCountry: "Vietnam",
+      shipFromState: "Hanoi",
+      shipFromCity: "Hanoi",
+      shipFromZipCode: "100000",
+      liveEnabled: true,
+    },
+  );
+
+  assert.equal(payload.lineShipId, "LS485343");
+  assert.equal(payload.orderId, "ORDER-EXT-LONG-NAME-1234567890"); // sliced to 30 chars
+  assert.equal(payload.orderReferenceId, "ORDER-EXT-LONG-NAME-1234567890-ABCDEF");
+  assert.equal(payload.hsCode, "6109100004"); // default fallback applied
+  assert.equal(payload.parcel.weight, 600); // 0.6kg -> 600g
+  assert.equal(payload.parcel.weightUnit, 2); // Gram
+  assert.equal(payload.parcel.lengthUnit, 1); // cm
+  assert.equal(payload.shipTo.country, "US");
+  assert.equal(payload.shipTo.state, "CA"); // California normalized to CA
+  assert.equal(payload.shipTo.firstName, "Alice");
+  assert.equal(payload.shipTo.lastName, "Johnson");
+  assert.equal(payload.shipFrom.country, "VN");
+  assert.equal(payload.lineItems[0]?.countryOfOrigin, "VN");
+  assert.equal(payload.lineItems[0]?.price, 25.5);
 });

@@ -167,6 +167,7 @@ export type GetCarrierTrackingResult = {
   carrierCode: string;
   carrierShipmentId?: string | null;
   trackingNumber?: string | null;
+  labelUrl?: string | null;
   status?: CarrierNormalizedTrackingStatus;
   packageState?: number | null;
   trackingStatus?: number | null;
