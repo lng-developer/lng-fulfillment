@@ -1,6 +1,6 @@
 import { recordSystemAuditLog } from "@/modules/audit";
 import { AppError } from "@/shared/errors";
-import { syncTrackingBatch } from "./service";
+import { syncTrackingBatch, syncViettelPostTrackingBatch } from "./service";
 
 type TrackingCronResult = Pick<
   Awaited<ReturnType<typeof syncTrackingBatch>>,
@@ -45,6 +45,28 @@ export async function runTrackingCron(tenantId: string) {
     });
 
     throw error;
+  }
+
+  try {
+    const vtpResult = await syncViettelPostTrackingBatch(tenantId, {
+      actorType: "SYSTEM",
+      actorId: "vercel-cron",
+    });
+    result.attempted += vtpResult.attempted;
+    result.synced += vtpResult.synced;
+    result.portalSynced = (result.portalSynced ?? 0) + (vtpResult.portalSynced ?? 0);
+    result.portalFailed = (result.portalFailed ?? 0) + (vtpResult.portalFailed ?? 0);
+  } catch (vtpError) {
+    await recordSystemAuditLog({
+      tenantId,
+      action: "VIETTEL_POST_CRON_RUN",
+      resourceType: "TrackingCronRun",
+      resourceId: "viettel-post-sync",
+      metadata: {
+        outcome: "FAILED",
+        errorCode: vtpError instanceof AppError ? vtpError.code : "INTERNAL_ERROR",
+      },
+    });
   }
 
   await recordSystemAuditLog({

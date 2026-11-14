@@ -1211,18 +1211,56 @@ async function syncShipmentYunTracking(
   }
 }
 
+async function resolveViettelPostSyncToken(tenantId: string): Promise<string> {
+  try {
+    const creds = await resolveCarrierRuntimeCredentials(tenantId, "VIETTEL_POST");
+    if (creds && creds.payload && typeof creds.payload === "object") {
+      const p = creds.payload as Record<string, unknown>;
+      const clientId = typeof p.clientId === "string" ? p.clientId.trim() : "";
+      const clientSecret = typeof p.clientSecret === "string" ? p.clientSecret.trim() : "";
+      const authUrl = typeof p.authUrl === "string" && p.authUrl.trim() ? p.authUrl.trim() : "https://auth-global.viettelpost.vn";
+      if (clientId && clientSecret) {
+        const tokenRes = await fetch(`${authUrl.replace(/\/+$/, "")}/connect/token`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            accept: "application/json",
+          },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: clientId,
+            client_secret: clientSecret,
+          }),
+        });
+        if (tokenRes.ok) {
+          const body = (await tokenRes.json()) as Record<string, unknown>;
+          if (body && typeof body.access_token === "string" && body.access_token) {
+            return body.access_token;
+          }
+        }
+      }
+    }
+  } catch {
+    // fallback to env token
+  }
+
+  const token = process.env.VIETTEL_POST_BEARER_TOKEN?.trim();
+  if (token) {
+    return token;
+  }
+
+  throw new AppError(
+    "CARRIER_ERROR",
+    "Viettel Post access token is not configured.",
+    503,
+  );
+}
+
 export async function syncViettelPostTrackingBatch(
   tenantId: string,
   actor: ShipmentActor,
 ) {
-  const token = process.env.VIETTEL_POST_BEARER_TOKEN;
-  if (!token) {
-    throw new AppError(
-      "CARRIER_ERROR",
-      "Viettel Post access token is not configured.",
-      503,
-    );
-  }
+  const token = await resolveViettelPostSyncToken(tenantId);
 
   const res = await fetch(
     "https://api-global.viettelpost.vn/order-service/api/sub-agency/shipment/search?skipCount=0&maxResultCount=200&status=-1&statusTab=-1",
@@ -1268,6 +1306,8 @@ export async function syncViettelPostTrackingBatch(
 
   let updated = 0;
   let created = 0;
+  let portalSynced = 0;
+  let portalFailed = 0;
 
   for (const order of matchedOrders) {
     const vtp = vtpItems.find(
@@ -1297,6 +1337,7 @@ export async function syncViettelPostTrackingBatch(
           carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
           trackingNumber: trackingNumber || s.trackingNumber || "",
           labelUrl: labelUrl ?? undefined,
+          actualShipAt: new Date(),
           metadata,
           actorType: actor.actorType,
           actorId: actor.actorId,
@@ -1310,6 +1351,7 @@ export async function syncViettelPostTrackingBatch(
         carrierShipmentId: carrierShipmentId || "VTP",
         trackingNumber: trackingNumber || "",
         labelUrl: labelUrl ?? undefined,
+        actualShipAt: new Date(),
         items: order.items.map((it) => ({
           orderItemId: it.id,
           quantity: it.quantity,
@@ -1320,6 +1362,28 @@ export async function syncViettelPostTrackingBatch(
       });
       created++;
     }
+
+    if (trackingNumber) {
+      try {
+        const portalSync = await sendPortalTrackingUpdate({
+          orderId: order.externalOrderId,
+          tracking: trackingNumber,
+          carrier: "USPS",
+          fulfillment: "VIETTEL_POST",
+          sourceChannel: order.sourceChannel,
+          actualShipAt: new Date(),
+        });
+        if (portalSync.attempted) {
+          if (portalSync.delivered) {
+            portalSynced++;
+          } else {
+            portalFailed++;
+          }
+        }
+      } catch {
+        portalFailed++;
+      }
+    }
   }
 
   return {
@@ -1327,8 +1391,8 @@ export async function syncViettelPostTrackingBatch(
     synced: updated + created,
     noActualShipEvent: 0,
     failed: 0,
-    portalSynced: 0,
-    portalFailed: 0,
+    portalSynced,
+    portalFailed,
     results: [] as Array<{
       shipmentId: string;
       outcome: "synced" | "no_actual_ship_event" | "failed" | "portal";

@@ -1430,6 +1430,7 @@ export async function findOrdersForViettelPostSync(
       id: true,
       externalOrderId: true,
       orderNumber: true,
+      sourceChannel: true,
       shipments: {
         select: {
           id: true,
@@ -1456,6 +1457,7 @@ export async function linkViettelPostTrackingToShipment(input: {
   carrierShipmentId: string;
   trackingNumber: string;
   labelUrl?: string | null;
+  actualShipAt?: Date | null;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
@@ -1470,6 +1472,7 @@ export async function linkViettelPostTrackingToShipment(input: {
       carrierShipmentId: input.carrierShipmentId,
       trackingNumber: input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
+      actualShipAt: input.actualShipAt ?? new Date(),
       status: "IN_TRANSIT",
       updatedAt: new Date(),
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -1492,6 +1495,7 @@ export async function createViettelPostShipmentForOrder(input: {
   carrierShipmentId: string;
   trackingNumber: string;
   labelUrl?: string | null;
+  actualShipAt?: Date | null;
   items: Array<{ orderItemId: string; quantity: number }>;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
@@ -1505,6 +1509,7 @@ export async function createViettelPostShipmentForOrder(input: {
       carrierShipmentId: input.carrierShipmentId,
       trackingNumber: input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
+      actualShipAt: input.actualShipAt ?? new Date(),
       status: "IN_TRANSIT",
       ...(input.metadata ? { metadata: input.metadata } : {}),
       items: {
