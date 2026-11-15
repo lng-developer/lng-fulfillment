@@ -1,12 +1,21 @@
 import { syncViettelPostTrackingBatch } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
+import { prisma } from "@/shared/db";
 import { AppError } from "@/shared/errors";
 import { assertCronRequestAuthorized } from "@/shared/security/cron";
 
 export async function GET(request: Request) {
   try {
     assertCronRequestAuthorized(request, process.env.CRON_SECRET);
-    const tenantId = process.env.TRACKING_CRON_TENANT_ID?.trim();
+    let tenantId = process.env.TRACKING_CRON_TENANT_ID?.trim();
+    if (!tenantId) {
+      const account = await prisma.carrierAccount.findFirst({
+        where: { carrierCode: "VIETTEL_POST" },
+        select: { tenantId: true },
+      });
+      tenantId = account?.tenantId;
+    }
+
     if (!tenantId) {
       throw new AppError("INTERNAL_ERROR", "Cron tenant is not configured.", 500);
     }
