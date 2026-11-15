@@ -1448,6 +1448,7 @@ export async function findOrdersForViettelPostSync(
           trackingNumber: true,
           carrierShipmentId: true,
           labelUrl: true,
+          actualShipAt: true,
           metadata: true,
         },
       },

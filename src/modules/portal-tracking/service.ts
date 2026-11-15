@@ -22,6 +22,10 @@ export type PortalTrackingUpdateResult =
 export async function sendPortalTrackingUpdate(
   input: PortalTrackingUpdateInput,
 ): Promise<PortalTrackingUpdateResult> {
+  if (process.env.PORTAL_TRACKING_ENABLED !== "true") {
+    return { attempted: false, reason: "missing_data" };
+  }
+
   const orderId = input.orderId?.trim();
   const tracking = input.tracking?.trim();
 

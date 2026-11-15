@@ -15,7 +15,7 @@ import {
 } from "@/modules/carrier";
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
 import { shouldSendPortalTrackingUpdate } from "./portal-tracking-resync";
-import { getPortalTrackingSyncState } from "./portal-tracking-sync-state";
+import { getFinalMileCarrier } from "./carrier-display";
 import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
@@ -1296,6 +1296,8 @@ export async function syncViettelPostTrackingBatch(
     labelUrl?: string | null;
     labelUrlVTP?: string | null;
     status?: number | null;
+    dateCreate?: string | null;
+    shipBy?: string | null;
   }> = (data?.data?.items ?? data?.items ?? []).filter((it: Record<string, unknown>) => Boolean(it.orderId));
 
   const externalOrderIds = [
@@ -1309,14 +1311,6 @@ export async function syncViettelPostTrackingBatch(
 
   let updated = 0;
   let created = 0;
-  let portalSynced = 0;
-  let portalFailed = 0;
-  const portalTasks: Array<{
-    orderId: string;
-    trackingNumber: string;
-    sourceChannel?: string | null;
-    shipmentIds: string[];
-  }> = [];
 
   for (const order of matchedOrders) {
     const vtp = vtpItems.find(
@@ -1330,48 +1324,57 @@ export async function syncViettelPostTrackingBatch(
 
     if (!trackingNumber && !carrierShipmentId) continue;
 
+    const carrier = vtp.shipBy ? vtp.shipBy.toUpperCase() : "USPS";
+    const actualShipAt = vtp.dateCreate ? new Date(vtp.dateCreate) : new Date();
+
     const metadata = {
       safe: {
         ...(vtp.vtpOrderNumber ? { vtpOrderNumber: vtp.vtpOrderNumber } : {}),
         ...(vtp.shipmentCode ? { shipmentCode: vtp.shipmentCode } : {}),
         ...(labelUrl ? { labelUrl } : {}),
+        carrierName: carrier,
+        finalMileCarrier: carrier,
+      },
+      carrier: {
+        finalMileCarrier: carrier,
+        carrierName: carrier,
+        ...(vtp.vtpOrderNumber ? { vtpOrderNumber: vtp.vtpOrderNumber } : {}),
+        ...(vtp.shipmentCode ? { shipmentCode: vtp.shipmentCode } : {}),
       },
     };
 
-    const shipmentIds: string[] = [];
     if (order.shipments.length > 0) {
       for (const s of order.shipments) {
         const needsUpdate =
           s.trackingNumber !== trackingNumber ||
           (carrierShipmentId && s.carrierShipmentId !== carrierShipmentId) ||
-          (labelUrl && s.labelUrl !== labelUrl);
+          (labelUrl && s.labelUrl !== labelUrl) ||
+          !s.actualShipAt ||
+          !getFinalMileCarrier(s.metadata);
 
         if (needsUpdate) {
-          const updatedShipment = await linkViettelPostTrackingToShipment({
+          await linkViettelPostTrackingToShipment({
             tenantId,
             shipmentId: s.id,
             carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
             trackingNumber: trackingNumber || s.trackingNumber || "",
             labelUrl: labelUrl ?? undefined,
-            actualShipAt: new Date(),
+            actualShipAt,
             metadata,
             actorType: actor.actorType,
             actorId: actor.actorId,
           });
-          shipmentIds.push(updatedShipment.id);
-        } else {
-          shipmentIds.push(s.id);
         }
         updated++;
       }
     } else {
-      const createdShipment = await createViettelPostShipmentForOrder({
+      await createViettelPostShipmentForOrder({
         tenantId,
         orderId: order.id,
         carrierShipmentId: carrierShipmentId || "VTP",
         trackingNumber: trackingNumber || "",
         labelUrl: labelUrl ?? undefined,
-        actualShipAt: new Date(),
+        actualShipAt,
         items: order.items.map((it) => ({
           orderItemId: it.id,
           quantity: it.quantity,
@@ -1380,58 +1383,8 @@ export async function syncViettelPostTrackingBatch(
         actorType: actor.actorType,
         actorId: actor.actorId,
       });
-      shipmentIds.push(createdShipment.id);
       created++;
     }
-
-    const alreadyPortalSynced = order.shipments.some(
-      (s) => s.trackingNumber === trackingNumber && getPortalTrackingSyncState(s.metadata) === "SYNCED",
-    );
-
-    if (trackingNumber && !alreadyPortalSynced) {
-      portalTasks.push({
-        orderId: order.externalOrderId,
-        trackingNumber,
-        sourceChannel: order.sourceChannel,
-        shipmentIds,
-      });
-    }
-  }
-
-  const PORTAL_CHUNK_SIZE = 10;
-  const portalCandidates = portalTasks.slice(0, TRACKING_SYNC_BATCH_LIMIT);
-  for (let i = 0; i < portalCandidates.length; i += PORTAL_CHUNK_SIZE) {
-    const chunk = portalCandidates.slice(i, i + PORTAL_CHUNK_SIZE);
-    await Promise.allSettled(
-      chunk.map(async (task) => {
-        try {
-          const portalSync = await sendPortalTrackingUpdate({
-            orderId: task.orderId,
-            tracking: task.trackingNumber,
-            carrier: "USPS",
-            fulfillment: "VIETTEL_POST",
-            sourceChannel: task.sourceChannel,
-            actualShipAt: new Date(),
-          });
-          if (portalSync.attempted) {
-            if (portalSync.delivered) {
-              portalSynced++;
-            } else {
-              portalFailed++;
-            }
-            for (const sId of task.shipmentIds) {
-              await savePortalTrackingSyncState({
-                tenantId,
-                shipmentId: sId,
-                result: portalSync,
-              }).catch(() => null);
-            }
-          }
-        } catch {
-          portalFailed++;
-        }
-      }),
-    );
   }
 
   return {
@@ -1439,8 +1392,8 @@ export async function syncViettelPostTrackingBatch(
     synced: updated + created,
     noActualShipEvent: 0,
     failed: 0,
-    portalSynced,
-    portalFailed,
+    portalSynced: 0,
+    portalFailed: 0,
     results: [] as Array<{
       shipmentId: string;
       outcome: "synced" | "no_actual_ship_event" | "failed" | "portal";
