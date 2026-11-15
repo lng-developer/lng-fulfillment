@@ -94,15 +94,16 @@ export function createViettelPostAdapter(
       const fetchImpl = options.fetchImpl ?? fetch;
       const token = process.env.VIETTEL_POST_BEARER_TOKEN || await requestAccessToken(config, fetchImpl, tokenCache);
 
-      // Try sub-agency shipment search first (standard for Viettel Post Global agency portal)
+      // Try partner shipment search first
       try {
-        const searchUrl = `${stripTrailingSlash(config.orderUrl)}/order-service/api/sub-agency/shipment/search?skipCount=0&maxResultCount=5&filter=${encodeURIComponent(shipmentIdentifier)}&status=-1&statusTab=-1`;
+        const searchUrl = resolveViettelPostOrderUrl(
+          config.orderUrl,
+          `/api/partner/order/shipment?filter=${encodeURIComponent(shipmentIdentifier)}&skipCount=0&maxResultCount=5`,
+        );
         const searchRes = await fetchImpl(searchUrl, {
           headers: new Headers({
             authorization: `Bearer ${token}`,
-            accept: "application/json, text/plain, */*",
-            origin: "https://global.viettelpost.vn",
-            referer: "https://global.viettelpost.vn/",
+            accept: "application/json",
           }),
         });
         if (searchRes.ok) {

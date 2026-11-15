@@ -2,6 +2,7 @@ import type {
   ApiSuccess,
   CarrierAccount,
   CredentialFormValues,
+  ViettelPostCredentialFormValues,
 } from "@/types/settings";
 import { apiFetch } from "./base";
 
@@ -71,6 +72,39 @@ export async function saveCarrierCredential(
   values: CredentialFormValues,
 ) {
   await saveCredential(carrierAccountId, values);
+  return { success: true as const, data: {} };
+}
+
+export async function saveViettelPostCredential(
+  carrierAccountId: string,
+  values: ViettelPostCredentialFormValues,
+) {
+  await apiFetch<ApiSuccess<unknown>>(
+    `/api/tenants/current/carrier-accounts/${carrierAccountId}/credentials`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        credentialType: "VIETTEL_POST",
+        mode: "encryptedPayload",
+        credentials: {
+          clientId: values.clientId,
+          clientSecret: values.clientSecret,
+          authUrl: values.authUrl,
+          orderUrl: values.orderUrl,
+          lineShipId: values.lineShipId,
+          shipFromFirstName: values.shipFromFirstName,
+          shipFromLastName: values.shipFromLastName,
+          shipFromPhoneNumber: values.shipFromPhoneNumber,
+          shipFromAddress1: values.shipFromAddress1,
+          shipFromCountry: values.shipFromCountry,
+          shipFromState: values.shipFromState,
+          shipFromCity: values.shipFromCity,
+          shipFromZipCode: values.shipFromZipCode,
+          liveEnabled: values.liveEnabled,
+        },
+      }),
+    },
+  );
   return { success: true as const, data: {} };
 }
 

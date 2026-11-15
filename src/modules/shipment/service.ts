@@ -15,6 +15,7 @@ import {
 } from "@/modules/carrier";
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
 import { shouldSendPortalTrackingUpdate } from "./portal-tracking-resync";
+import { getPortalTrackingSyncState } from "./portal-tracking-sync-state";
 import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
@@ -49,6 +50,7 @@ import {
   linkViettelPostTrackingToShipment,
   createViettelPostShipmentForOrder,
 } from "./repository";
+import { resolveViettelPostOrderUrl } from "@/integrations/viettel-post/adapter";
 import type {
   CreateDraftShipmentInput,
   ExecuteShipmentInput,
@@ -1261,25 +1263,26 @@ export async function syncViettelPostTrackingBatch(
   actor: ShipmentActor,
 ) {
   const token = await resolveViettelPostSyncToken(tenantId);
-
-  const res = await fetch(
-    "https://api-global.viettelpost.vn/order-service/api/sub-agency/shipment/search?skipCount=0&maxResultCount=200&status=-1&statusTab=-1",
-    {
-      headers: {
-        accept: "application/json, text/plain, */*",
-        authorization: `Bearer ${token}`,
-        origin: "https://global.viettelpost.vn",
-        referer: "https://global.viettelpost.vn/",
-      },
-    },
+  const creds = await resolveCarrierRuntimeCredentials(tenantId, "VIETTEL_POST").catch(() => null);
+  const p = creds?.payload as Record<string, unknown> | undefined;
+  const baseOrderUrl =
+    typeof p?.orderUrl === "string" && p.orderUrl.trim()
+      ? p.orderUrl.trim()
+      : (process.env.VIETTEL_POST_ORDER_URL?.trim() || "https://api-global.viettelpost.vn");
+  const searchUrl = resolveViettelPostOrderUrl(
+    baseOrderUrl,
+    "/api/partner/order/shipment?skipCount=0&maxResultCount=200",
   );
 
-  if (!res.ok) {
-    throw new AppError(
-      "CARRIER_ERROR",
-      `Viettel Post shipment search failed with status ${res.status}.`,
-      502,
-    );
+  const res = await fetch(searchUrl, {
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+    },
+  }).catch(() => null);
+
+  if (!res || !res.ok) {
+    return syncViettelPostTrackingCandidates(tenantId, actor);
   }
 
   const data = await res.json();
@@ -1308,6 +1311,12 @@ export async function syncViettelPostTrackingBatch(
   let created = 0;
   let portalSynced = 0;
   let portalFailed = 0;
+  const portalTasks: Array<{
+    orderId: string;
+    trackingNumber: string;
+    sourceChannel?: string | null;
+    shipmentIds: string[];
+  }> = [];
 
   for (const order of matchedOrders) {
     const vtp = vtpItems.find(
@@ -1329,23 +1338,34 @@ export async function syncViettelPostTrackingBatch(
       },
     };
 
+    const shipmentIds: string[] = [];
     if (order.shipments.length > 0) {
       for (const s of order.shipments) {
-        await linkViettelPostTrackingToShipment({
-          tenantId,
-          shipmentId: s.id,
-          carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
-          trackingNumber: trackingNumber || s.trackingNumber || "",
-          labelUrl: labelUrl ?? undefined,
-          actualShipAt: new Date(),
-          metadata,
-          actorType: actor.actorType,
-          actorId: actor.actorId,
-        });
+        const needsUpdate =
+          s.trackingNumber !== trackingNumber ||
+          (carrierShipmentId && s.carrierShipmentId !== carrierShipmentId) ||
+          (labelUrl && s.labelUrl !== labelUrl);
+
+        if (needsUpdate) {
+          const updatedShipment = await linkViettelPostTrackingToShipment({
+            tenantId,
+            shipmentId: s.id,
+            carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
+            trackingNumber: trackingNumber || s.trackingNumber || "",
+            labelUrl: labelUrl ?? undefined,
+            actualShipAt: new Date(),
+            metadata,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+          });
+          shipmentIds.push(updatedShipment.id);
+        } else {
+          shipmentIds.push(s.id);
+        }
         updated++;
       }
     } else {
-      await createViettelPostShipmentForOrder({
+      const createdShipment = await createViettelPostShipmentForOrder({
         tenantId,
         orderId: order.id,
         carrierShipmentId: carrierShipmentId || "VTP",
@@ -1360,30 +1380,58 @@ export async function syncViettelPostTrackingBatch(
         actorType: actor.actorType,
         actorId: actor.actorId,
       });
+      shipmentIds.push(createdShipment.id);
       created++;
     }
 
-    if (trackingNumber) {
-      try {
-        const portalSync = await sendPortalTrackingUpdate({
-          orderId: order.externalOrderId,
-          tracking: trackingNumber,
-          carrier: "USPS",
-          fulfillment: "VIETTEL_POST",
-          sourceChannel: order.sourceChannel,
-          actualShipAt: new Date(),
-        });
-        if (portalSync.attempted) {
-          if (portalSync.delivered) {
-            portalSynced++;
-          } else {
-            portalFailed++;
-          }
-        }
-      } catch {
-        portalFailed++;
-      }
+    const alreadyPortalSynced = order.shipments.some(
+      (s) => s.trackingNumber === trackingNumber && getPortalTrackingSyncState(s.metadata) === "SYNCED",
+    );
+
+    if (trackingNumber && !alreadyPortalSynced) {
+      portalTasks.push({
+        orderId: order.externalOrderId,
+        trackingNumber,
+        sourceChannel: order.sourceChannel,
+        shipmentIds,
+      });
     }
+  }
+
+  const PORTAL_CHUNK_SIZE = 10;
+  const portalCandidates = portalTasks.slice(0, TRACKING_SYNC_BATCH_LIMIT);
+  for (let i = 0; i < portalCandidates.length; i += PORTAL_CHUNK_SIZE) {
+    const chunk = portalCandidates.slice(i, i + PORTAL_CHUNK_SIZE);
+    await Promise.allSettled(
+      chunk.map(async (task) => {
+        try {
+          const portalSync = await sendPortalTrackingUpdate({
+            orderId: task.orderId,
+            tracking: task.trackingNumber,
+            carrier: "USPS",
+            fulfillment: "VIETTEL_POST",
+            sourceChannel: task.sourceChannel,
+            actualShipAt: new Date(),
+          });
+          if (portalSync.attempted) {
+            if (portalSync.delivered) {
+              portalSynced++;
+            } else {
+              portalFailed++;
+            }
+            for (const sId of task.shipmentIds) {
+              await savePortalTrackingSyncState({
+                tenantId,
+                shipmentId: sId,
+                result: portalSync,
+              }).catch(() => null);
+            }
+          }
+        } catch {
+          portalFailed++;
+        }
+      }),
+    );
   }
 
   return {
@@ -1404,6 +1452,55 @@ export async function syncViettelPostTrackingBatch(
   };
 }
 
+async function syncViettelPostTrackingCandidates(
+  tenantId: string,
+  actor: ShipmentActor,
+) {
+  const candidates = await listTrackingSyncCandidates(
+    tenantId,
+    TRACKING_SYNC_BATCH_LIMIT,
+    "VIETTEL_POST",
+  );
+
+  let updated = 0;
+  const results: Array<{
+    shipmentId: string;
+    outcome: "synced" | "no_actual_ship_event" | "failed" | "portal";
+    portalTrackingSyncState?: "SYNCED" | "FAILED" | null;
+    errorCode?: string;
+  }> = [];
+
+  for (const candidate of candidates) {
+    try {
+      const res = await syncShipmentTracking(tenantId, candidate.id, actor);
+      results.push({
+        shipmentId: candidate.id,
+        outcome: "synced",
+        portalTrackingSyncState: res.portalTrackingSyncState,
+      });
+      updated++;
+    } catch (err) {
+      results.push({
+        shipmentId: candidate.id,
+        outcome: "failed",
+        errorCode: err instanceof Error ? err.message : "TRACKING_FAILED",
+      });
+    }
+  }
+
+  return {
+    attempted: candidates.length,
+    synced: updated,
+    noActualShipEvent: 0,
+    failed: results.filter((r) => r.outcome === "failed").length,
+    portalSynced: 0,
+    portalFailed: 0,
+    results,
+    updated,
+    created: 0,
+  };
+}
+
 export async function syncTrackingBatch(
   tenantId: string,
   actor: ShipmentActor,
@@ -1416,6 +1513,7 @@ export async function syncTrackingBatch(
   const candidates = await listTrackingSyncCandidates(
     tenantId,
     TRACKING_SYNC_BATCH_LIMIT,
+    carrierCodeFilter,
   );
   const results: Array<{
     shipmentId: string;

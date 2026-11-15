@@ -4,10 +4,17 @@ import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { WarningBox } from "@/components/ui/WarningBox";
 import { getErrorMessage } from "@/lib/api/base";
-import { saveCredential } from "@/lib/api/carrier-accounts";
+import {
+  saveCredential,
+  saveViettelPostCredential,
+} from "@/lib/api/carrier-accounts";
 import { toastError } from "@/lib/toast";
 import { useFocusTrap } from "@/lib/use-focus-trap";
-import type { CarrierAccount, CredentialFormValues } from "@/types/settings";
+import type {
+  CarrierAccount,
+  CredentialFormValues,
+  ViettelPostCredentialFormValues,
+} from "@/types/settings";
 
 const EMPTY_FORM: CredentialFormValues = {
   customerNo: "",
@@ -20,6 +27,23 @@ const EMPTY_FORM: CredentialFormValues = {
   liveEnabled: false,
 };
 
+const EMPTY_VIETTEL_POST_FORM: ViettelPostCredentialFormValues = {
+  clientId: "",
+  clientSecret: "",
+  authUrl: "https://auth-global.viettelpost.vn",
+  orderUrl: "https://api-global.viettelpost.vn",
+  lineShipId: "VTP_DEFAULT",
+  shipFromFirstName: "Fulfillment",
+  shipFromLastName: "Kho",
+  shipFromPhoneNumber: "0988888888",
+  shipFromAddress1: "123 Pham Van Dong",
+  shipFromCountry: "VN",
+  shipFromState: "Hà Nội",
+  shipFromCity: "Hà Nội",
+  shipFromZipCode: "100000",
+  liveEnabled: false,
+};
+
 export function CredentialForm({
   account,
   onCancel,
@@ -29,7 +53,11 @@ export function CredentialForm({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const isViettelPost = account.carrierCode === "VIETTEL_POST";
   const [values, setValues] = useState<CredentialFormValues>(EMPTY_FORM);
+  const [vpValues, setVpValues] = useState<ViettelPostCredentialFormValues>(
+    EMPTY_VIETTEL_POST_FORM,
+  );
   const [showSecret, setShowSecret] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,12 +72,33 @@ export function CredentialForm({
     setIsPending(true);
 
     try {
-      await saveCredential(account.id, values);
-      setValues(EMPTY_FORM);
+      if (isViettelPost) {
+        const payloadToSave: ViettelPostCredentialFormValues = {
+          ...vpValues,
+          lineShipId: vpValues.lineShipId.trim() || "VTP_DEFAULT",
+          shipFromFirstName: vpValues.shipFromFirstName.trim() || "Hoàng",
+          shipFromLastName: vpValues.shipFromLastName.trim() || "Nguyễn",
+          shipFromPhoneNumber: vpValues.shipFromPhoneNumber.trim() || "0988888888",
+          shipFromAddress1: vpValues.shipFromAddress1.trim() || "Kho Viettel Post",
+          shipFromCity: vpValues.shipFromCity.trim() || "Hà Nội",
+          shipFromState: vpValues.shipFromState.trim() || "Hà Nội",
+          shipFromCountry: vpValues.shipFromCountry.trim() || "VN",
+          shipFromZipCode: vpValues.shipFromZipCode.trim() || "100000",
+        };
+        await saveViettelPostCredential(account.id, payloadToSave);
+        setVpValues(EMPTY_VIETTEL_POST_FORM);
+      } else {
+        await saveCredential(account.id, values);
+        setValues(EMPTY_FORM);
+      }
       onSaved();
-    } catch (error) {
-      setValues((current) => ({ ...current, apiSecret: "" }));
-      setError(getErrorMessage(error));
+    } catch (err) {
+      if (isViettelPost) {
+        setVpValues((cur) => ({ ...cur, clientSecret: "" }));
+      } else {
+        setValues((cur) => ({ ...cur, apiSecret: "" }));
+      }
+      setError(getErrorMessage(err));
       toastError("Failed to save credential.");
       setIsPending(false);
     }
@@ -73,7 +122,267 @@ export function CredentialForm({
           </h2>
         </div>
 
-        <div className="grid gap-4 px-6 py-5">
+        {isViettelPost ? (
+          <div className="grid gap-4 px-6 py-5">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+              Môi trường Viettel Post (Gateway Environment) *
+              <select
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                onChange={(e) => {
+                  if (e.target.value === "staging") {
+                    setVpValues((cur) => ({
+                      ...cur,
+                      authUrl: "https://auth-staging.logistek.com.vn",
+                      orderUrl: "https://order-staging.logistek.com.vn",
+                    }));
+                  } else {
+                    setVpValues((cur) => ({
+                      ...cur,
+                      authUrl: "https://auth-global.viettelpost.vn",
+                      orderUrl: "https://api-global.viettelpost.vn",
+                    }));
+                  }
+                }}
+                value={
+                  vpValues.orderUrl.includes("staging")
+                    ? "staging"
+                    : "production"
+                }
+              >
+                <option value="production">Production (api-global.viettelpost.vn)</option>
+                <option value="staging">Staging / Test Sandbox (order-staging.logistek.com.vn)</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+              Client ID *
+              <input
+                autoComplete="off"
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+                onChange={(event) =>
+                  setVpValues((current) => ({
+                    ...current,
+                    clientId: event.target.value,
+                  }))
+                }
+                placeholder="Nhập Client ID từ Viettel Post"
+                required
+                value={vpValues.clientId}
+              />
+            </label>
+
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+              Client Secret *
+              <span className="flex">
+                <input
+                  autoComplete="off"
+                  className="h-9 min-w-0 flex-1 rounded-l-md border border-r-0 border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+                  onChange={(event) =>
+                    setVpValues((current) => ({
+                      ...current,
+                      clientSecret: event.target.value,
+                    }))
+                  }
+                  placeholder="Nhập Client Secret"
+                  required
+                  spellCheck={false}
+                  type={showSecret ? "text" : "password"}
+                  value={vpValues.clientSecret}
+                />
+                <button
+                  className="inline-flex h-9 items-center gap-1.5 rounded-r-md border border-slate-300 bg-slate-50 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                  onClick={() => setShowSecret((value) => !value)}
+                  type="button"
+                >
+                  {showSecret ? (
+                    <EyeOff className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden />
+                  )}
+                  {showSecret ? "Ẩn" : "Hiện"}
+                </button>
+              </span>
+            </label>
+
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+              Line Ship ID (Mã Line vận chuyển)
+              <input
+                autoComplete="off"
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+                onChange={(event) =>
+                  setVpValues((current) => ({
+                    ...current,
+                    lineShipId: event.target.value,
+                  }))
+                }
+                placeholder="Mặc định: VTP_DEFAULT"
+                value={vpValues.lineShipId}
+              />
+            </label>
+
+            <div className="border-t border-slate-200 pt-3">
+              <h3 className="mb-1 text-xs font-bold text-slate-900">
+                Thông tin kho / Người gửi hàng (Tùy chọn)
+              </h3>
+              <p className="mb-3 text-[11px] text-slate-500">
+                Viettel Post đã lưu hồ sơ của bạn. Bạn có thể để trống hoặc tùy chỉnh nếu gửi từ kho khác.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Họ người gửi
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromLastName: e.target.value,
+                      }))
+                    }
+                    placeholder="Nguyễn"
+                    value={vpValues.shipFromLastName}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Tên người gửi
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromFirstName: e.target.value,
+                      }))
+                    }
+                    placeholder="Hoàng"
+                    value={vpValues.shipFromFirstName}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Số điện thoại người gửi
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromPhoneNumber: e.target.value,
+                      }))
+                    }
+                    placeholder="0988888888"
+                    value={vpValues.shipFromPhoneNumber}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Mã Zip Code
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromZipCode: e.target.value,
+                      }))
+                    }
+                    placeholder="100000"
+                    value={vpValues.shipFromZipCode}
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 grid gap-1.5 text-xs font-semibold text-slate-700">
+                Địa chỉ kho gửi
+                <input
+                  className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                  onChange={(e) =>
+                    setVpValues((cur) => ({
+                      ...cur,
+                      shipFromAddress1: e.target.value,
+                    }))
+                  }
+                  placeholder="Địa chỉ kho hàng"
+                  value={vpValues.shipFromAddress1}
+                />
+              </label>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Thành phố
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromCity: e.target.value,
+                      }))
+                    }
+                    placeholder="Hà Nội"
+                    value={vpValues.shipFromCity}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Tỉnh / Bang
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromState: e.target.value,
+                      }))
+                    }
+                    placeholder="Hà Nội"
+                    value={vpValues.shipFromState}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Quốc gia
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromCountry: e.target.value,
+                      }))
+                    }
+                    placeholder="VN"
+                    value={vpValues.shipFromCountry}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-4">
+              <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-900 cursor-pointer">
+                <input
+                  checked={vpValues.liveEnabled}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                  onChange={(event) =>
+                    setVpValues((current) => ({
+                      ...current,
+                      liveEnabled: event.target.checked,
+                    }))
+                  }
+                  type="checkbox"
+                />
+                Bật chế độ Live (gọi trực tiếp carrier)
+              </label>
+              {vpValues.liveEnabled ? (
+                <div className="mt-3">
+                  <WarningBox
+                    message="CẢNH BÁO LIVE MODE: Đơn hàng sẽ được gửi trực tiếp đến hệ thống Viettel Post thật. Chỉ bật sau khi credentials đã được xác thực an toàn."
+                    variant="danger"
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            {error ? (
+              <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {error}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="grid gap-4 px-6 py-5">
           <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
             Customer No *
             <input
@@ -234,6 +543,7 @@ export function CredentialForm({
             </div>
           ) : null}
         </div>
+      )}
 
         <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50/70 px-6 py-3.5">
           <button

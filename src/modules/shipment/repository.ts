@@ -814,31 +814,40 @@ export async function countShipments(
 export async function listTrackingSyncCandidates(
   tenantId: string,
   limit: number,
+  carrierCode?: string,
 ) {
-  const rows = await prisma.shipment.findMany({
-    where: {
-      tenantId,
-      carrierCode: { not: null },
-      status: { not: "CANCELLED" },
-      AND: [{
-        OR: [
-          {
-            carrierCode: "VIETTEL_POST",
-            status: { in: [...VIETTEL_POST_ACTIVE_TRACKING_STATUSES] as ShipmentStatus[] },
-          },
-          {
-            order: {
-              ...trackingSyncOrderFilter(),
-              purchaseAt: { gte: getTrackingSyncPurchaseAfter() },
-            },
-          },
-        ],
-      }],
+  const where: Prisma.ShipmentWhereInput = {
+    tenantId,
+    status: { not: "CANCELLED" },
+    OR: [
+      { carrierShipmentId: { not: null } },
+      { trackingNumber: { not: null } },
+    ],
+  };
+
+  if (carrierCode === "VIETTEL_POST") {
+    where.carrierCode = "VIETTEL_POST";
+    where.status = { in: [...VIETTEL_POST_ACTIVE_TRACKING_STATUSES] as ShipmentStatus[] };
+  } else {
+    where.carrierCode = { not: null };
+    where.AND = [{
       OR: [
-        { carrierShipmentId: { not: null } },
-        { trackingNumber: { not: null } },
+        {
+          carrierCode: "VIETTEL_POST",
+          status: { in: [...VIETTEL_POST_ACTIVE_TRACKING_STATUSES] as ShipmentStatus[] },
+        },
+        {
+          order: {
+            ...trackingSyncOrderFilter(),
+            purchaseAt: { gte: getTrackingSyncPurchaseAfter() },
+          },
+        },
       ],
-    },
+    }];
+  }
+
+  const rows = await prisma.shipment.findMany({
+    where,
     orderBy: { updatedAt: "asc" },
     take: limit * 10,
     select: { id: true, actualShipAt: true, metadata: true },
@@ -1439,6 +1448,7 @@ export async function findOrdersForViettelPostSync(
           trackingNumber: true,
           carrierShipmentId: true,
           labelUrl: true,
+          metadata: true,
         },
       },
       items: {

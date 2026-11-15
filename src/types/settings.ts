@@ -126,6 +126,23 @@ export type CredentialFormValues = {
   liveEnabled: boolean;
 };
 
+export type ViettelPostCredentialFormValues = {
+  clientId: string;
+  clientSecret: string;
+  authUrl: string;
+  orderUrl: string;
+  lineShipId: string;
+  shipFromFirstName: string;
+  shipFromLastName: string;
+  shipFromPhoneNumber: string;
+  shipFromAddress1: string;
+  shipFromCountry: string;
+  shipFromState: string;
+  shipFromCity: string;
+  shipFromZipCode: string;
+  liveEnabled: boolean;
+};
+
 export type AuditLog = {
   id: string;
   action: string;

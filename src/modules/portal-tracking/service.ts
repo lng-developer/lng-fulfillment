@@ -1,4 +1,5 @@
-const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_TIMEOUT_MS =
+  Number(process.env.PORTAL_TRACKING_UPDATE_TIMEOUT_MS) || 3000;
 const DEFAULT_PORTAL_TRACKING_UPDATE_URL =
   "https://api.lngmerch.co/api/order/update-tracking";
 const DEFAULT_PORTAL_ETSY_TRACKING_BASE_URL = "https://api.lngmerch.co";
