@@ -22,6 +22,22 @@ export async function listCarrierAccounts(signal?: AbortSignal) {
   return { success: true as const, data: { carrierAccounts } };
 }
 
+export async function createCarrierAccount(input: {
+  carrierCode: string;
+  displayName: string;
+  isDefault?: boolean;
+}): Promise<CarrierAccount> {
+  const response = await apiFetch<ApiSuccess<{ carrierAccount: CarrierAccount }>>(
+    "/api/tenants/current/carrier-accounts",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+
+  return response.data.carrierAccount;
+}
+
 export async function updateCarrierAccount(
   carrierAccountId: string,
   input: {

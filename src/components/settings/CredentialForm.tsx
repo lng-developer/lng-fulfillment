@@ -54,10 +54,20 @@ export function CredentialForm({
   onSaved: () => void;
 }) {
   const isViettelPost = account.carrierCode === "VIETTEL_POST";
+  const isStagingAccount =
+    account.displayName.toLowerCase().includes("staging") ||
+    account.displayName.toLowerCase().includes("dev");
+
   const [values, setValues] = useState<CredentialFormValues>(EMPTY_FORM);
-  const [vpValues, setVpValues] = useState<ViettelPostCredentialFormValues>(
-    EMPTY_VIETTEL_POST_FORM,
-  );
+  const [vpValues, setVpValues] = useState<ViettelPostCredentialFormValues>(() => ({
+    ...EMPTY_VIETTEL_POST_FORM,
+    authUrl: isStagingAccount
+      ? "https://auth-staging.logistek.com.vn"
+      : "https://auth-global.viettelpost.vn",
+    orderUrl: isStagingAccount
+      ? "https://order-staging.logistek.com.vn"
+      : "https://api-global.viettelpost.vn",
+  }));
   const [showSecret, setShowSecret] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
