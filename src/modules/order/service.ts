@@ -11,6 +11,7 @@ import {
   listOrderDetailPage,
   listOrders as listOrderRecords,
   listOrdersForExport,
+  updateExistingPortalOrderWithItems,
   updateOrdersToReadyToShip,
 } from "./repository";
 import { validatePortalOrdersInput } from "./validation";
@@ -66,6 +67,20 @@ export async function receivePortalOrders(
   const toInsert = validation.orders.filter(
     (order) => !existingMap.has(order.externalOrderId),
   );
+  const toUpdate = validation.orders.filter(
+    (order) => existingMap.has(order.externalOrderId),
+  );
+  for (const order of toUpdate) {
+    try {
+      const updated = await updateExistingPortalOrderWithItems({
+        tenantId: tenantContext.tenantId,
+        order,
+      });
+      existingMap.set(order.externalOrderId, updated);
+    } catch {
+      // preserve existing record if update fails
+    }
+  }
   const insertResults = new Map<
     string,
     { action: "inserted" | "skipped"; order: ReceivedOrderSummary }

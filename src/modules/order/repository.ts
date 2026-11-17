@@ -120,6 +120,71 @@ export async function findOrdersByExternalIds(
   });
 }
 
+export async function updateExistingPortalOrderWithItems(input: {
+  tenantId: string;
+  order: PortalOrderInput;
+}): Promise<ReceivedOrderSummary> {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findUnique({
+      where: {
+        tenantId_externalOrderId: {
+          tenantId: input.tenantId,
+          externalOrderId: input.order.externalOrderId,
+        },
+      },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!existing) {
+      throw new Error("Order not found");
+    }
+
+    for (const incomingItem of input.order.items) {
+      const match =
+        existing.items.find(
+          (i) =>
+            (incomingItem.externalItemId && i.externalItemId === incomingItem.externalItemId) ||
+            (incomingItem.sku && i.sku === incomingItem.sku),
+        ) ?? (existing.items.length === 1 ? existing.items[0] : null);
+
+      if (match) {
+        await tx.orderItem.update({
+          where: { id: match.id },
+          data: {
+            customizationData:
+              incomingItem.customizationData !== undefined
+                ? (incomingItem.customizationData as Prisma.InputJsonValue)
+                : match.customizationData !== null
+                  ? (match.customizationData as Prisma.InputJsonValue)
+                  : undefined,
+            customizationUrl: incomingItem.customizationUrl ?? match.customizationUrl,
+            snapshotImageUrl: incomingItem.snapshotImageUrl ?? match.snapshotImageUrl,
+            fulfillmentFile:
+              incomingItem.fulfillmentFile !== undefined
+                ? (incomingItem.fulfillmentFile as Prisma.InputJsonValue)
+                : match.fulfillmentFile !== null
+                  ? (match.fulfillmentFile as Prisma.InputJsonValue)
+                  : undefined,
+            productionStatus: incomingItem.productionStatus ?? match.productionStatus,
+            scaleStatus: incomingItem.scaleStatus ?? match.scaleStatus,
+            qcNote: incomingItem.qcNote ?? match.qcNote,
+          },
+        });
+      }
+    }
+
+    return {
+      id: existing.id,
+      tenantId: existing.tenantId,
+      externalOrderId: existing.externalOrderId,
+      status: existing.status,
+      receivedAt: existing.receivedAt,
+    };
+  });
+}
+
 export async function createPortalOrderWithItems(input: {
   tenantId: string;
   order: PortalOrderInput;
@@ -485,6 +550,7 @@ const orderDetailSelect = {
       productionStatus: true,
       scaleStatus: true,
       qcNote: true,
+      rawPayload: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -588,7 +654,12 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
           item.metadata,
           "totalCustomizationPrice",
         ),
-        customizationOptions: buildCustomizationOptions(item.customizationData),
+        customizationOptions: buildCustomizationOptions(
+          item.customizationData ??
+            (asRecord(item.rawPayload)?.customizationData as Prisma.JsonValue | null) ??
+            (asRecord(item.rawPayload)?.customization as Prisma.JsonValue | null) ??
+            null,
+        ),
         trackingInfo: buildPortalItemTrackingInfo(item.metadata),
         fulfillmentFiles: buildPortalFileLinks(item.fulfillmentFile),
         costCenter: buildPortalCostCenter(item.costCenterSnapshot),
@@ -701,7 +772,7 @@ function hasAnyPortalMetadataValue(metadata: OrderPortalMetadata) {
 function buildCustomizationOptions(
   value: Prisma.JsonValue | null,
 ): PortalCustomizationOption[] {
-  if (value === null) {
+  if (value === null || value === undefined) {
     return [];
   }
 
@@ -728,8 +799,30 @@ function collectCustomizationOptions(
 
   appendCustomizationOption(record, options);
 
+  const containerKeys = [
+    "customerInputs",
+    "amazonCustomization",
+    "etsyCustomization",
+    "parsedData",
+    "texts",
+    "options",
+    "inputs",
+    "fields",
+    "elements",
+    "children",
+  ];
+
+  for (const key of containerKeys) {
+    const child = record[key];
+    if (child !== undefined && child !== null) {
+      collectCustomizationOptions(child, options);
+    }
+  }
+
   const customizationInfo = asRecord(record.customizationInfo);
-  const surfaces = customizationInfo?.surfaces;
+  const surfaces =
+    customizationInfo?.surfaces ??
+    (Array.isArray(record.surfaces) ? record.surfaces : undefined);
   if (Array.isArray(surfaces)) {
     for (const surface of surfaces) {
       const surfaceRecord = asRecord(surface);
@@ -741,29 +834,26 @@ function collectCustomizationOptions(
       }
     }
   }
-
-  const children = record.children;
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      collectCustomizationOptions(child, options);
-    }
-  }
 }
 
 function appendCustomizationOption(
   record: Record<string, Prisma.JsonValue>,
   options: PortalCustomizationOption[],
 ) {
-  const label = readOptionalString(record, "label") ?? readOptionalString(record, "name");
+  const label =
+    readOptionalStringOrNumber(record, "label") ??
+    readOptionalStringOrNumber(record, "name") ??
+    readOptionalStringOrNumber(record, "title");
   const optionSelection = asRecord(record.optionSelection);
   const optionValue =
-    readOptionalString(record, "value") ??
-    readOptionalString(record, "displayValue") ??
-    readOptionalString(record, "inputValue") ??
-    readOptionalString(record, "text") ??
-    readOptionalString(record, "optionValue") ??
-    readOptionalString(optionSelection, "label") ??
-    readOptionalString(optionSelection, "name");
+    readOptionalStringOrNumber(record, "value") ??
+    readOptionalStringOrNumber(record, "displayValue") ??
+    readOptionalStringOrNumber(record, "inputValue") ??
+    readOptionalStringOrNumber(record, "text") ??
+    readOptionalStringOrNumber(record, "optionValue") ??
+    readOptionalStringOrNumber(optionSelection, "label") ??
+    readOptionalStringOrNumber(optionSelection, "name") ??
+    readOptionalStringOrNumber(optionSelection, "value");
 
   if (!label || !optionValue) {
     return;
@@ -913,6 +1003,29 @@ function asRecord(value: unknown): Record<string, Prisma.JsonValue> | null {
   }
 
   return value as Record<string, Prisma.JsonValue>;
+}
+
+function readOptionalStringOrNumber(value: unknown, key: string): string | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const entry = record[key];
+  if (entry === null || entry === undefined) {
+    return null;
+  }
+
+  if (typeof entry === "string") {
+    const trimmed = entry.trim();
+    return trimmed || null;
+  }
+
+  if (typeof entry === "number" || typeof entry === "boolean") {
+    return String(entry);
+  }
+
+  return null;
 }
 
 function readOptionalString(value: unknown, key: string): string | null {
