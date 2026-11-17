@@ -152,6 +152,8 @@ export type ShipmentYunEnvironment = "test" | "live";
 export type ShipOrderInput = {
   orderId: string;
   environment: ShipmentYunEnvironment;
+  carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST";
+  carrierAccountId?: string | null;
   options?: ShipOrderOptions;
 };
 

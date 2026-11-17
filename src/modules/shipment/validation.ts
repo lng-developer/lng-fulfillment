@@ -124,10 +124,26 @@ export function validateShipOrderInput(
 
   const body = input as Record<string, unknown>;
 
+  const carrierCode =
+    body.carrierCode === "VIETTEL_POST"
+      ? "VIETTEL_POST"
+      : body.carrierCode === "YUNEXPRESS_OMS"
+        ? "YUNEXPRESS_OMS"
+        : undefined;
+
+  const carrierAccountId =
+    typeof body.carrierAccountId === "string" && body.carrierAccountId.trim()
+      ? body.carrierAccountId.trim()
+      : body.carrierAccountId === null
+        ? null
+        : undefined;
+
   return {
     orderId,
     environment: parseYunEnvironment(body.environment) ?? "test",
-    options: parseShipOrderOptions(body.options),
+    carrierCode,
+    carrierAccountId,
+    options: parseShipOrderOptions(body.options ?? body),
   };
 }
 

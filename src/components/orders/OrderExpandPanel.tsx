@@ -514,6 +514,26 @@ function CustomizationOptions({
   );
 }
 
+function toInlineMediaUrl(rawUrl: string): string {
+  const url = rawUrl.trim();
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.pathname.includes("/api/media/public/assets/") &&
+      !parsed.searchParams.has("disposition")
+    ) {
+      parsed.searchParams.set("disposition", "inline");
+      return parsed.toString();
+    }
+  } catch {
+    if (url.includes("/api/media/public/assets/") && !url.includes("disposition=")) {
+      return url.includes("?") ? `${url}&disposition=inline` : `${url}?disposition=inline`;
+    }
+  }
+  return url;
+}
+
 function FulfillmentFiles({
   files,
   previewImageUrl,
@@ -524,11 +544,11 @@ function FulfillmentFiles({
   const entries = Object.entries(files).filter(([, url]) => hasText(url));
   const images = [
     ...(hasText(previewImageUrl)
-      ? [{ label: "Preview", url: previewImageUrl, preview: true }]
+      ? [{ label: "Preview", url: toInlineMediaUrl(previewImageUrl), preview: true }]
       : []),
     ...entries.map(([side, url]) => ({
       label: side,
-      url,
+      url: toInlineMediaUrl(url),
       preview: false,
     })),
   ];
@@ -548,7 +568,7 @@ function FulfillmentFiles({
             rel="noreferrer"
             target="_blank"
           >
-            <div className="flex  w-full items-center justify-center overflow-hidden bg-[var(--bg-surface2)]">
+            <div className="flex h-24 w-full items-center justify-center overflow-hidden bg-[var(--bg-surface2)]">
               <img
                 alt={
                   image.preview

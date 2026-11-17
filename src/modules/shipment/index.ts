@@ -11,6 +11,8 @@ export {
   applyYunWebhookTrackingUpdate,
   resolveYunWebhookShipment,
   shipOrderWithYun,
+  shipOrderWithViettelPost,
+  shipOrderDirect,
   shipOrdersBatchWithYun,
   syncTrackingBatch,
   syncViettelPostTrackingBatch,

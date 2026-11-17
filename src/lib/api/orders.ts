@@ -89,6 +89,8 @@ export async function shipOrder(
   orderId: string,
   environment: ShipOrderEnvironment,
   options?: ShipOrderOptions,
+  carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST",
+  carrierAccountId?: string | null,
 ) {
   const response = await apiFetch<
     ApiSuccess<{
@@ -107,7 +109,12 @@ export async function shipOrder(
     `/api/orders/${orderId}/ship`,
     {
       method: "POST",
-      body: JSON.stringify({ environment, ...(options ? { options } : {}) }),
+      body: JSON.stringify({
+        environment,
+        carrierCode,
+        carrierAccountId,
+        ...(options ? { options } : {}),
+      }),
     },
   );
 
@@ -236,3 +243,42 @@ export async function shipOrdersBatch(
       })),
   };
 }
+
+export interface MarkOrdersReadyToShipParams {
+  orderIds?: string[];
+  barcode?: string;
+  note?: string;
+}
+
+export interface MarkOrdersReadyToShipResponse {
+  success: boolean;
+  updatedCount: number;
+  orders: Array<{
+    id: string;
+    orderNumber: string | null;
+    externalOrderId: string;
+    status: string;
+  }>;
+  scannedOrder?: {
+    id: string;
+    orderNumber: string | null;
+    externalOrderId: string;
+    status: string;
+  };
+  message: string;
+}
+
+export async function markOrdersReadyToShip(
+  params: MarkOrdersReadyToShipParams,
+): Promise<MarkOrdersReadyToShipResponse> {
+  const response = await apiFetch<ApiSuccess<MarkOrdersReadyToShipResponse>>(
+    "/api/orders/ready-to-ship",
+    {
+      method: "POST",
+      body: JSON.stringify(params),
+    },
+  );
+
+  return response.data;
+}
+

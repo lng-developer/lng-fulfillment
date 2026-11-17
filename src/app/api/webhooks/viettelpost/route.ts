@@ -1,3 +1,4 @@
+import { normalizeViettelPostTrackingNumber } from "@/integrations/viettel-post/adapter";
 import { ok, error as errorResponse } from "@/shared/api-response";
 import { AppError } from "@/shared/errors";
 import {
@@ -46,9 +47,11 @@ export async function POST(request: Request) {
         );
         if (!item) continue;
 
-        const trackingNumber = String(
+        const rawTracking = String(
           item.trackingCode || item.trackingNumber || "",
         ).trim();
+        const trackingNumber =
+          normalizeViettelPostTrackingNumber(rawTracking) || rawTracking;
         const carrierShipmentId = String(
           item.vtpOrderNumber || item.shipmentCode || "",
         ).trim();

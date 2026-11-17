@@ -1,4 +1,4 @@
-import type { OrderStatus, Prisma } from "@prisma/client";
+import type { AuditActorType, OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import { createPendingAutoShipmentJobInTransaction } from "@/modules/auto-shipment/repository";
 import { createLifecycleOutboxInTransaction } from "@/modules/callback/repository";
@@ -91,6 +91,31 @@ export async function findOrderByExternalId(
           },
         },
       },
+    },
+  });
+}
+
+export async function findOrdersByExternalIds(
+  tenantId: string,
+  externalOrderIds: string[],
+): Promise<ReceivedOrderSummary[]> {
+  if (!externalOrderIds.length) {
+    return [];
+  }
+
+  return prisma.order.findMany({
+    where: {
+      tenantId,
+      externalOrderId: {
+        in: externalOrderIds,
+      },
+    },
+    select: {
+      id: true,
+      tenantId: true,
+      externalOrderId: true,
+      status: true,
+      receivedAt: true,
     },
   });
 }
@@ -1047,4 +1072,141 @@ function buildOrderWhereInput(
         }
       : {}),
   };
+}
+
+export async function findOrderByBarcodeOrNumber(
+  tenantId: string,
+  rawQuery: string,
+) {
+  const query = rawQuery.trim().replace(/^#/, "");
+  if (!query) return null;
+
+  return prisma.order.findFirst({
+    where: {
+      tenantId,
+      OR: [
+        { externalOrderId: query },
+        { orderNumber: query },
+        { id: query },
+        { externalOrderId: `#${query}` },
+        { orderNumber: `#${query}` },
+      ],
+    },
+    select: {
+      id: true,
+      orderNumber: true,
+      externalOrderId: true,
+      status: true,
+    },
+  });
+}
+
+export async function updateOrdersToReadyToShip(input: {
+  tenantId: string;
+  orderIds: string[];
+  note?: string;
+  actorType: AuditActorType;
+  actorId?: string;
+}) {
+  if (!input.orderIds.length) return [];
+
+  return prisma.$transaction(async (tx) => {
+    const orders = await tx.order.findMany({
+      where: {
+        tenantId: input.tenantId,
+        id: { in: input.orderIds },
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        externalOrderId: true,
+        status: true,
+      },
+    });
+
+    const eligibleOrders = orders.filter(
+      (o) => o.status === "RECEIVED" || o.status === "ON_HOLD",
+    );
+
+    if (!eligibleOrders.length) {
+      return [];
+    }
+
+    const eligibleIds = eligibleOrders.map((o) => o.id);
+
+    await tx.order.updateMany({
+      where: {
+        tenantId: input.tenantId,
+        id: { in: eligibleIds },
+      },
+      data: {
+        status: "READY_TO_SHIP",
+      },
+    });
+
+    await tx.orderItem.updateMany({
+      where: {
+        tenantId: input.tenantId,
+        orderId: { in: eligibleIds },
+      },
+      data: {
+        productionStatus: "QC_PASSED",
+      },
+    });
+
+    await tx.orderStatusHistory.createMany({
+      data: eligibleIds.map((orderId) => ({
+        tenantId: input.tenantId,
+        orderId,
+        status: "READY_TO_SHIP",
+        note: input.note || "QC Pass - Thành phẩm đạt chuẩn, sẵn sàng đóng gói & giao hàng",
+        actorType: input.actorType,
+        actorId: input.actorId,
+      })),
+    });
+
+    return eligibleOrders.map((o) => ({
+      ...o,
+      status: "READY_TO_SHIP" as OrderStatus,
+    }));
+  });
+}
+
+export async function listOrdersForExport(
+  tenantId: string,
+  query: {
+    orderIds?: string[];
+    status?: OrderStatus;
+    sourceChannel?: OrderSourceChannel;
+    search?: string;
+    from?: Date;
+    to?: Date;
+  },
+): Promise<OrderDetail[]> {
+  const where: Prisma.OrderWhereInput = {
+    tenantId,
+    ...(query.orderIds?.length
+      ? { id: { in: query.orderIds } }
+      : buildOrderWhereInput(tenantId, {
+          page: 1,
+          pageSize: 2000,
+          status: query.status,
+          sourceChannel: query.sourceChannel,
+          search: query.search,
+          from: query.from,
+          to: query.to,
+          sortBy: "receivedAt",
+          sortOrder: "desc",
+          includeExpanded: false,
+        })),
+  };
+
+  const rows = await prisma.order.findMany({
+    where,
+    orderBy: { receivedAt: "desc" },
+    take: 2000,
+    select: orderExpandedListSelect,
+  });
+
+  return rows.map(toOrderDetail);
 }

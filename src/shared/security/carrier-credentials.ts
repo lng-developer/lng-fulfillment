@@ -64,6 +64,7 @@ function parseMasterKey(rawKey: string | undefined): Buffer {
   }
 
   candidates.push(Buffer.from(trimmed, "utf8"));
+  candidates.push(createHash("sha256").update(trimmed, "utf8").digest());
 
   const key = candidates.find((candidate) => candidate.length === KEY_LENGTH_BYTES);
   if (!key) {

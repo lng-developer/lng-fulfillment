@@ -1,6 +1,6 @@
 import type { TenantRole } from "@prisma/client";
 import {
-  shipOrderWithYun,
+  shipOrderDirect,
   validateShipOrderInput,
 } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
@@ -41,7 +41,7 @@ export async function POST(
     timing("paramsResolved");
     const input = validateShipOrderInput(orderId, await readJson(request));
     timing("bodyParsed");
-    const result = await shipOrderWithYun(context.tenantId, input, {
+    const result = await shipOrderDirect(context.tenantId, input, {
       actorType: "USER",
       actorId: context.actorUserId,
     });

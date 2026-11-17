@@ -101,7 +101,7 @@ export function validateOrderListQuery(
     ),
     search: optionalString(searchParams.get("search")),
     from: parseOptionalDate(searchParams.get("from"), "from"),
-    to: parseOptionalDate(searchParams.get("to"), "to"),
+    to: parseOptionalDate(searchParams.get("to"), "to", true),
     sortBy: parseSortBy(searchParams.get("sortBy")),
     sortOrder: parseSortOrder(searchParams.get("sortOrder")),
     includeExpanded: parseIncludeExpanded(searchParams.get("include")),
@@ -687,10 +687,21 @@ function inferSourceChannelFromOrderId(externalOrderId: string): OrderSourceChan
   return OrderSourceChannel.UNKNOWN;
 }
 
-function parseOptionalDate(value: string | null, fieldName: string) {
+function parseOptionalDate(
+  value: string | null,
+  fieldName: string,
+  isEndOfDay = false,
+) {
   const dateString = optionalString(value);
   if (!dateString) {
     return undefined;
+  }
+
+  if (isEndOfDay && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const endOfDayDate = new Date(`${dateString}T23:59:59.999Z`);
+    if (!Number.isNaN(endOfDayDate.getTime())) {
+      return endOfDayDate;
+    }
   }
 
   const date = new Date(dateString);

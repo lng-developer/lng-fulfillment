@@ -2,6 +2,8 @@ import {
   createCarrierError,
   CarrierIntegrationError,
 } from "@/modules/carrier/errors";
+import { normalizeViettelPostTrackingNumber } from "./tracking";
+export { normalizeViettelPostTrackingNumber } from "./tracking";
 import type {
   CarrierAdapter,
   CarrierAdapterContext,
@@ -192,12 +194,8 @@ function getConfig(context: CarrierAdapterContext): ViettelPostConfig {
 export function getViettelPostShipmentMissingFields(input: CreateCarrierShipmentInput): string[] {
   const dimensions = ["weight", "length", "width", "height"] as const;
   const missing: string[] = dimensions.filter((field) => !positiveNumber(input.metadata?.[field]));
-  if (!stringValue(input.metadata?.hsCode)) missing.push("hsCode");
   if (!input.recipient?.name || !input.recipient.phone || !input.recipient.line1 || !input.recipient.country) {
     missing.push("recipient");
-  }
-  if (input.items.some((item) => !positiveNumber(item.weight) || !positiveNumber(item.declaredValue))) {
-    missing.push("itemWeightOrDeclaredValue");
   }
   return missing;
 }
@@ -369,6 +367,7 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
   const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
 
   return {
+    lineCode: config.lineShipId,
     lineShipId: config.lineShipId,
     orderId: orderId || undefined,
     orderReferenceId: orderRef,
@@ -388,15 +387,19 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       name: item.name ?? item.sku ?? item.orderItemId,
       sku: item.sku ?? item.externalItemId ?? item.orderItemId,
       quantity: item.quantity,
-      price: item.declaredValue,
+      price: item.declaredValue && item.declaredValue > 0 ? item.declaredValue : 1.0,
+      currency: "USD",
       countryOfOrigin: "VN",
     })),
     shipFrom: {
       firstName: config.shipFromFirstName,
       lastName: config.shipFromLastName,
+      company: "Metawoods",
       phoneNumber: config.shipFromPhoneNumber,
       address1: config.shipFromAddress1,
       country: normalizeCountryCode(config.shipFromCountry),
+      ward: "Quang Trung",
+      district: "Hà Đông",
       state: config.shipFromState,
       city: config.shipFromCity,
       zipCode: config.shipFromZipCode,
@@ -405,6 +408,7 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
     shipTo: {
       firstName,
       lastName: lastNameParts.join(" ") || undefined,
+      company: (recipient as { company?: string }).company || recipient.name || "Customer",
       phoneNumber: recipient.phone,
       email: recipient.email,
       address1: recipient.line1,
@@ -413,6 +417,7 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       state: recipientState,
       city: recipient.city,
       zipCode: recipient.postalCode,
+      useRawAddress: true,
       isBusinessAddress: true,
     },
   };
@@ -431,7 +436,7 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId,
-    trackingNumber: stringValue(shipment.trackingNumber),
+    trackingNumber: normalizeViettelPostTrackingNumber(stringValue(shipment.trackingNumber)) ?? undefined,
     labelUrl: stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP),
     ...(vtpOrderNumber || shipmentCode
       ? {
@@ -470,7 +475,7 @@ function normalizeTrackingResponse(body: unknown, fallbackShipmentId: string) {
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId: stringValue(shipment.id) ?? fallbackShipmentId,
-    trackingNumber: stringValue(shipment.trackingNumber),
+    trackingNumber: normalizeViettelPostTrackingNumber(stringValue(shipment.trackingNumber)) ?? undefined,
     labelUrl,
     status: normalizeTrackingStatus(status),
     packageState: status,
@@ -492,7 +497,8 @@ function normalizeSubAgencyTrackingItem(item: Record<string, unknown>, fallbackI
   const status = typeof item.status === "number" ? item.status : null;
   const vtpOrderNumber = stringValue(item.vtpOrderNumber) ?? stringValue(item.shipmentCode);
   const shipmentCode = stringValue(item.shipmentCode);
-  const trackingNumber = stringValue(item.trackingCode) ?? stringValue(item.trackingNumber);
+  const rawTracking = stringValue(item.trackingCode) ?? stringValue(item.trackingNumber);
+  const trackingNumber = normalizeViettelPostTrackingNumber(rawTracking) ?? undefined;
   const labelUrl = stringValue(item.labelUrl) ?? stringValue(item.labelUrlVTP);
 
   return {

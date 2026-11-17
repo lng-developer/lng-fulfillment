@@ -311,23 +311,30 @@ export async function claimPendingAutoShipmentJobs(input: {
   tenantId: string;
   limit: number;
 }) {
-  const pending = await prisma.autoShipmentJob.findMany({
-    where: { tenantId: input.tenantId, status: "PENDING" },
-    orderBy: { createdAt: "asc" },
-    take: input.limit,
-    select: { id: true, orderId: true },
-  });
-  const claimed: Array<{ id: string; orderId: string }> = [];
+  return prisma.$transaction(async (tx) => {
+    const pending = await tx.autoShipmentJob.findMany({
+      where: { tenantId: input.tenantId, status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      take: input.limit,
+      select: { id: true, orderId: true },
+    });
 
-  for (const job of pending) {
-    const result = await prisma.autoShipmentJob.updateMany({
-      where: { id: job.id, tenantId: input.tenantId, status: "PENDING" },
+    if (!pending.length) {
+      return [];
+    }
+
+    const pendingIds = pending.map((job) => job.id);
+    await tx.autoShipmentJob.updateMany({
+      where: {
+        id: { in: pendingIds },
+        tenantId: input.tenantId,
+        status: "PENDING",
+      },
       data: { status: "PROCESSING" },
     });
-    if (result.count) claimed.push(job);
-  }
 
-  return claimed;
+    return pending;
+  });
 }
 
 export async function failClaimedAutoShipmentJob(input: {

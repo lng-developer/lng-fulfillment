@@ -4,7 +4,9 @@ import { Boxes, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { getCarrierAccounts } from "@/lib/api/carrier-accounts";
 import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
+import { cn } from "@/lib/utils";
 import type {
   OrderDetail,
   OrderDetailItem,
@@ -13,6 +15,7 @@ import type {
   ShipOrderOptions,
   ShipParcelOverride,
 } from "@/types/orders";
+import type { CarrierAccount } from "@/types/settings";
 import { EnvironmentSelector } from "./EnvironmentSelector";
 
 export const SHIPPING_METHOD_OPTIONS = ["VN-YTYCPREC", "VNFZZXR", "VNTHZXR"] as const;
@@ -91,6 +94,8 @@ export type ShipmentReceiverValues = ShipmentPreview["receiver"];
 
 export type ShipOrderSubmitInput = {
   environment: ShipEnvironment;
+  carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST";
+  carrierAccountId?: string | null;
   options: ShipOrderOptions;
 };
 
@@ -105,6 +110,10 @@ export function ShipOrderModal({
   onClose: () => void;
   onSubmit: (input: ShipOrderSubmitInput) => void;
 }) {
+  const [carrierCode, setCarrierCode] = useState<"YUNEXPRESS_OMS" | "VIETTEL_POST">("YUNEXPRESS_OMS");
+  const [carrierAccounts, setCarrierAccounts] = useState<CarrierAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [tenantIossNumber, setTenantIossNumber] = useState(DEFAULT_YUN_IOSS_NUMBER);
@@ -119,7 +128,12 @@ export function ShipOrderModal({
   const [iossNumber, setIossNumber] = useState(preview.iossNumber);
   const [parcels, setParcels] = useState(preview.parcels);
   const controlsDisabled = hasSubmitted;
-  const iossMissing = useIoss && !iossNumber.trim();
+  const iossMissing = carrierCode === "YUNEXPRESS_OMS" && useIoss && !iossNumber.trim();
+
+  const viettelPostAccounts = useMemo(
+    () => carrierAccounts.filter((a) => a.carrierCode === "VIETTEL_POST"),
+    [carrierAccounts],
+  );
 
   useEffect(() => {
     setShippingMethodCode(preview.shippingMethodCode);
@@ -150,8 +164,47 @@ export function ShipOrderModal({
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoadingAccounts(true);
+
+    getCarrierAccounts(controller.signal)
+      .then((accounts) => {
+        setCarrierAccounts(accounts);
+        const vpAccounts = accounts.filter(
+          (a) => a.carrierCode === "VIETTEL_POST" && a.status === "ACTIVE",
+        );
+        const defaultVp = vpAccounts.find((a) => a.isDefault) || vpAccounts[0];
+        if (defaultVp) {
+          setSelectedAccountId(defaultVp.id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLoadingAccounts(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const handleSelectCarrier = (code: "YUNEXPRESS_OMS" | "VIETTEL_POST") => {
+    setCarrierCode(code);
+    if (code === "VIETTEL_POST" && !selectedAccountId) {
+      const active = viettelPostAccounts.find((a) => a.status === "ACTIVE");
+      if (active) {
+        setSelectedAccountId(active.id);
+      } else if (viettelPostAccounts.length > 0) {
+        setSelectedAccountId(viettelPostAccounts[0].id);
+      }
+    }
+  };
+
   const handleSubmit = () => {
-    if (hasSubmitted || iossMissing) {
+    if (
+      hasSubmitted ||
+      (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
+      (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
+    ) {
       return;
     }
 
@@ -166,7 +219,12 @@ export function ShipOrderModal({
     );
 
     setHasSubmitted(true);
-    onSubmit({ environment, options });
+    onSubmit({
+      environment,
+      carrierCode,
+      carrierAccountId: carrierCode === "VIETTEL_POST" ? selectedAccountId : null,
+      options,
+    });
   };
 
   function updateParcel(index: number, patch: Partial<(typeof parcels)[number]>) {
@@ -196,15 +254,33 @@ export function ShipOrderModal({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/60 shadow-sm">
-              <Truck className="h-4 w-4" aria-hidden />
+            <span
+              className={cn(
+                "grid h-9 w-9 place-items-center rounded-lg border shadow-sm",
+                carrierCode === "VIETTEL_POST"
+                  ? "bg-rose-50 text-rose-600 border-rose-200/60"
+                  : "bg-indigo-50 text-indigo-600 border-indigo-200/60",
+              )}
+            >
+              {carrierCode === "VIETTEL_POST" ? (
+                <Package className="h-4 w-4" aria-hidden />
+              ) : (
+                <Truck className="h-4 w-4" aria-hidden />
+              )}
             </span>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-slate-900">
-                  Đóng gói & Tạo vận đơn
+                  Đóng gói & Tạo vận đơn {carrierCode === "VIETTEL_POST" ? "(Viettel Post)" : "(YunExpress)"}
                 </h2>
-                <span className="font-mono text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+                <span
+                  className={cn(
+                    "font-mono text-xs font-semibold px-2 py-0.5 rounded border",
+                    carrierCode === "VIETTEL_POST"
+                      ? "text-rose-700 bg-rose-50 border-rose-200"
+                      : "text-indigo-700 bg-indigo-50 border-indigo-200",
+                  )}
+                >
                   #{order.orderNumber ?? order.externalOrderId}
                 </span>
               </div>
@@ -225,11 +301,96 @@ export function ShipOrderModal({
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {/* Carrier Selector */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+              Hãng vận chuyển (Carrier)
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold transition-all border",
+                  carrierCode === "YUNEXPRESS_OMS"
+                    ? "bg-white text-indigo-700 border-indigo-300 shadow-sm ring-2 ring-indigo-500/20"
+                    : "bg-slate-100/60 text-slate-600 border-slate-200 hover:bg-white hover:text-slate-900",
+                )}
+                disabled={controlsDisabled}
+                onClick={() => handleSelectCarrier("YUNEXPRESS_OMS")}
+                type="button"
+              >
+                <Truck className="h-4 w-4" />
+                <span>YunExpress</span>
+              </button>
+
+              <button
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold transition-all border",
+                  carrierCode === "VIETTEL_POST"
+                    ? "bg-white text-rose-700 border-rose-300 shadow-sm ring-2 ring-rose-500/20"
+                    : "bg-slate-100/60 text-slate-600 border-slate-200 hover:bg-white hover:text-slate-900",
+                )}
+                disabled={controlsDisabled}
+                onClick={() => handleSelectCarrier("VIETTEL_POST")}
+                type="button"
+              >
+                <Package className="h-4 w-4" />
+                <span>Viettel Post (Logistek)</span>
+              </button>
+            </div>
+
+            {carrierCode === "VIETTEL_POST" && (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50/60 p-3 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                    Tài khoản kết nối Viettel Post:
+                  </label>
+                  <span className="text-[11px] font-medium text-rose-700">
+                    Cổng Logistek API
+                  </span>
+                </div>
+
+                <select
+                  className="h-9 w-full rounded-md border border-rose-300 bg-white px-3 text-xs font-medium text-slate-800 shadow-sm focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  disabled={controlsDisabled || loadingAccounts}
+                  onChange={(e) => setSelectedAccountId(e.target.value || null)}
+                  value={selectedAccountId ?? ""}
+                >
+                  {viettelPostAccounts.length === 0 ? (
+                    <option value="">(Chưa có tài khoản Viettel Post nào)</option>
+                  ) : (
+                    viettelPostAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.displayName} {acc.isDefault ? "★ (Mặc định)" : ""} ({acc.status})
+                      </option>
+                    ))
+                  )}
+                </select>
+
+                {viettelPostAccounts.length === 0 && !loadingAccounts && (
+                  <p className="mt-1.5 text-[11px] font-medium text-rose-600">
+                    Chưa tìm thấy tài khoản Viettel Post nào. Vui lòng thêm tài khoản Viettel Post trong Cài đặt hãng vận chuyển.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Packaging Specs */}
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
-                <Package className="h-4 w-4 text-indigo-600" />
+              <span
+                className={cn(
+                  "flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
+                  carrierCode === "VIETTEL_POST" ? "text-rose-900" : "text-slate-800",
+                )}
+              >
+                <Package
+                  className={cn(
+                    "h-4 w-4",
+                    carrierCode === "VIETTEL_POST" ? "text-rose-600" : "text-indigo-600",
+                  )}
+                />
                 Thông số kiện hàng (Trọng lượng & Kích thước)
               </span>
               <span className="text-xs text-slate-400 font-medium">Đơn vị: kg / cm</span>
@@ -266,18 +427,29 @@ export function ShipOrderModal({
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Dịch vụ vận chuyển (Carrier Method)
                 </label>
-                <select
-                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  disabled={controlsDisabled}
-                  onChange={(event) => setShippingMethodCode(event.target.value)}
-                  value={shippingMethodCode}
-                >
-                  {SHIPPING_METHOD_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option} {option === "VN-YTYCPREC" ? "(YunExpress Tiêu chuẩn)" : ""}
-                    </option>
-                  ))}
-                </select>
+                {carrierCode === "VIETTEL_POST" ? (
+                  <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
+                    <span className="font-mono text-xs font-semibold text-rose-700">
+                      Viettel Post International (Epacket / Fast Line)
+                    </span>
+                    <span className="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800">
+                      Logistek
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    disabled={controlsDisabled}
+                    onChange={(event) => setShippingMethodCode(event.target.value)}
+                    value={shippingMethodCode}
+                  >
+                    {SHIPPING_METHOD_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option} {option === "VN-YTYCPREC" ? "(YunExpress Tiêu chuẩn)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
@@ -285,7 +457,7 @@ export function ShipOrderModal({
                 </label>
                 <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
                   <span className="font-mono">{receiverValues.countryCode || "-"}</span>
-                  {preview.iossEuDetected && (
+                  {preview.iossEuDetected && carrierCode === "YUNEXPRESS_OMS" && (
                     <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
                       Châu Âu (EU)
                     </span>
@@ -298,9 +470,19 @@ export function ShipOrderModal({
           {/* Customs declaration & SKU */}
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
-                <Boxes className="h-4 w-4 text-indigo-600" />
-                Khai báo hải quan & Hàng hóa ({parcels.length} sản phẩm)
+              <span
+                className={cn(
+                  "flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
+                  carrierCode === "VIETTEL_POST" ? "text-rose-900" : "text-slate-800",
+                )}
+              >
+                <Boxes
+                  className={cn(
+                    "h-4 w-4",
+                    carrierCode === "VIETTEL_POST" ? "text-rose-600" : "text-indigo-600",
+                  )}
+                />
+                Khai báo hàng hóa ({parcels.length} sản phẩm)
               </span>
             </div>
             <div className="space-y-3">
@@ -309,7 +491,12 @@ export function ShipOrderModal({
                   className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
                   key={`${parcel.orderItemId ?? parcel.sku}-${index}`}
                 >
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div
+                    className={cn(
+                      "grid gap-2",
+                      carrierCode === "VIETTEL_POST" ? "sm:grid-cols-2" : "sm:grid-cols-3",
+                    )}
+                  >
                     <div>
                       <span className="mb-1 block text-[11px] font-semibold text-slate-500">Mã SKU</span>
                       <div className="h-8 flex items-center font-mono text-xs font-semibold text-slate-800">
@@ -318,7 +505,7 @@ export function ShipOrderModal({
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-semibold text-slate-600">
-                        Tên tiếng Anh (EName)
+                        Tên sản phẩm khai báo (EName)
                       </label>
                       <select
                         className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 shadow-sm"
@@ -343,12 +530,14 @@ export function ShipOrderModal({
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <span className="mb-1 block text-[11px] font-semibold text-slate-500">Tên tiếng Trung (CName)</span>
-                      <div className="h-8 flex items-center text-xs text-slate-700">
-                        {parcel.cName}
+                    {carrierCode === "YUNEXPRESS_OMS" && (
+                      <div>
+                        <span className="mb-1 block text-[11px] font-semibold text-slate-500">Tên tiếng Trung (CName)</span>
+                        <div className="h-8 flex items-center text-xs text-slate-700">
+                          {parcel.cName}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -382,8 +571,8 @@ export function ShipOrderModal({
             </div>
           </section>
 
-          {/* EU IOSS Panel */}
-          {preview.iossEuDetected && (
+          {/* EU IOSS Panel (Only relevant for YunExpress) */}
+          {carrierCode === "YUNEXPRESS_OMS" && preview.iossEuDetected && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -424,8 +613,18 @@ export function ShipOrderModal({
 
           {/* Receiver preview */}
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <span className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-800 uppercase tracking-wide">
-              <UserRound className="h-4 w-4 text-indigo-600" />
+            <span
+              className={cn(
+                "mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
+                carrierCode === "VIETTEL_POST" ? "text-rose-900" : "text-slate-800",
+              )}
+            >
+              <UserRound
+                className={cn(
+                  "h-4 w-4",
+                  carrierCode === "VIETTEL_POST" ? "text-rose-600" : "text-indigo-600",
+                )}
+              />
               Người nhận & Địa chỉ giao hàng
             </span>
             <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
@@ -458,13 +657,34 @@ export function ShipOrderModal({
             Hủy bỏ
           </Button>
           <Button
-            disabled={controlsDisabled || iossMissing}
+            className={
+              carrierCode === "VIETTEL_POST"
+                ? "bg-rose-600 hover:bg-rose-700 focus:ring-rose-500 text-white"
+                : undefined
+            }
+            disabled={
+              controlsDisabled ||
+              (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
+              (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
+            }
             isLoading={hasSubmitted}
-            leftIcon={<Truck className="h-4 w-4" />}
+            leftIcon={
+              carrierCode === "VIETTEL_POST" ? (
+                <Package className="h-4 w-4" />
+              ) : (
+                <Truck className="h-4 w-4" />
+              )
+            }
             onClick={handleSubmit}
             variant="primary"
           >
-            {hasSubmitted ? "Đang tạo vận đơn & nhãn..." : "Xác nhận đóng hàng & Lấy nhãn"}
+            {hasSubmitted
+              ? carrierCode === "VIETTEL_POST"
+                ? "Đang gửi đơn sang Viettel Post..."
+                : "Đang tạo vận đơn & nhãn..."
+              : carrierCode === "VIETTEL_POST"
+                ? "Tạo vận đơn Viettel Post"
+                : "Xác nhận đóng hàng & Lấy nhãn"}
           </Button>
         </div>
       </div>

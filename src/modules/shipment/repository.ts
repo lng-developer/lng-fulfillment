@@ -21,6 +21,7 @@ import {
   withPortalTrackingSyncState,
 } from "./portal-tracking-sync-state";
 import { getFinalMileCarrier, withCarrierSafeMetadata, withFinalMileCarrier } from "./carrier-display";
+import { normalizeViettelPostTrackingNumber } from "@/integrations/viettel-post/adapter";
 import type {
   CreateDraftShipmentInput,
   ShipmentDetail,
@@ -1481,7 +1482,7 @@ export async function linkViettelPostTrackingToShipment(input: {
     data: {
       carrierCode: "VIETTEL_POST",
       carrierShipmentId: input.carrierShipmentId,
-      trackingNumber: input.trackingNumber,
+      trackingNumber: normalizeViettelPostTrackingNumber(input.trackingNumber) ?? input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
       actualShipAt: input.actualShipAt ?? new Date(),
       status: "IN_TRANSIT",
@@ -1518,7 +1519,7 @@ export async function createViettelPostShipmentForOrder(input: {
       orderId: input.orderId,
       carrierCode: "VIETTEL_POST",
       carrierShipmentId: input.carrierShipmentId,
-      trackingNumber: input.trackingNumber,
+      trackingNumber: normalizeViettelPostTrackingNumber(input.trackingNumber) ?? input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
       actualShipAt: input.actualShipAt ?? new Date(),
       status: "IN_TRANSIT",

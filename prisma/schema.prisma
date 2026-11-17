@@ -276,6 +276,7 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([resourceType, resourceId])
+  @@index([tenantId, resourceType, resourceId])
 }
 
 model Order {
@@ -319,7 +320,9 @@ model Order {
 
   @@unique([tenantId, externalOrderId])
   @@index([tenantId])
+  @@index([tenantId, orderNumber])
   @@index([tenantId, status])
+  @@index([tenantId, status, receivedAt(sort: Desc)])
   @@index([tenantId, sourceChannel])
   @@index([tenantId, receivedAt])
   @@index([tenantId, shopName])
@@ -409,6 +412,10 @@ model Shipment {
   @@index([tenantId, orderId])
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
+  @@index([tenantId, trackingNumber])
+  @@index([tenantId, carrierShipmentId])
+  @@index([tenantId, updatedAt])
+  @@index([tenantId, carrierCode, status])
 }
 
 model ShipmentCost {
@@ -552,6 +559,7 @@ model AutoShipmentJob {
 
   @@unique([tenantId, orderId])
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, createdAt])
 }
 

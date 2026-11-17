@@ -365,3 +365,28 @@ export type PaginationMeta = {
     totalPages: number;
   };
 };
+
+export type MarkOrdersReadyToShipInput = {
+  orderIds?: string[];
+  barcode?: string;
+  note?: string;
+};
+
+export type MarkOrdersReadyToShipResult = {
+  success: boolean;
+  updatedCount: number;
+  orders: Array<{
+    id: string;
+    orderNumber: string | null;
+    externalOrderId: string;
+    status: OrderStatus;
+  }>;
+  scannedOrder?: {
+    id: string;
+    orderNumber: string | null;
+    externalOrderId: string;
+    status: OrderStatus;
+  };
+  message: string;
+};
+

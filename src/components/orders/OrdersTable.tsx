@@ -2,12 +2,16 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
+  Calendar,
+  CheckCircle2,
   ChevronDown,
+  Download,
   Layers,
   Loader2,
   MoreHorizontal,
   Package,
   Printer,
+  QrCode,
   RotateCcw,
   Search,
   Truck,
@@ -25,6 +29,7 @@ import {
   confirmOrderShipped,
   getOrder,
   getOrders,
+  markOrdersReadyToShip,
   resetOrder,
   shipOrder,
   shipOrdersBatch,
@@ -40,14 +45,16 @@ import type {
 } from "@/types/orders";
 import { BatchShipModal, type BatchShipSubmitInput } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
+import { DateFilterPopover } from "./DateFilterPopover";
 import { OrderExpandPanel } from "./OrderExpandPanel";
 import { ResetOrderModal } from "./ResetOrderModal";
 import { ShipOrderModal, type ShipOrderSubmitInput } from "./ShipOrderModal";
 
 const STATUS_TABS = [
   { label: "Tất cả", value: "" },
-  { label: "Chờ đóng hàng", value: "READY_TO_SHIP" },
-  { label: "Đang xử lý / Giao", value: "IN_PROCESSING" },
+  { label: "Chờ sản xuất / QC", value: "RECEIVED" },
+  { label: "Sẵn sàng ship (Đã QC)", value: "READY_TO_SHIP" },
+  { label: "Đang giao", value: "IN_PROCESSING" },
   { label: "Đã xuất kho", value: "SHIPPED" },
   { label: "Đã hủy", value: "CANCELLED" },
 ] as const;
@@ -79,7 +86,7 @@ type OrderMutationResult = {
   shipmentCost?: ShipmentCostSummary;
 };
 
-type PendingOrderAction = "ship" | "cancel" | "sync" | "reset";
+type PendingOrderAction = "ship" | "cancel" | "sync" | "reset" | "qc";
 
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
@@ -96,6 +103,12 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [sourceChannel, setSourceChannel] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailCache, setDetailCache] = useState<Record<string, OrderDetail>>({});
@@ -178,6 +191,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             search,
             status,
             sourceChannel,
+            from: fromDate || undefined,
+            to: toDate || undefined,
           },
           controller.signal,
         );
@@ -220,7 +235,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     loadOrders();
 
     return () => controller.abort();
-  }, [page, reloadKey, search, sourceChannel, status]);
+  }, [fromDate, page, reloadKey, search, sourceChannel, status, toDate]);
 
   const toggleRow = useCallback(
     (orderId: string) => {
@@ -298,7 +313,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }));
 
     try {
-      const result = await shipOrder(targetOrder.id, input.environment, input.options);
+      const result = await shipOrder(
+        targetOrder.id,
+        input.environment,
+        input.options,
+        input.carrierCode,
+        input.carrierAccountId,
+      );
       const tracking =
         result.shipment?.trackingNumber || result.orderId;
       const labelUrl = result.shipment?.labelUrl;
@@ -320,7 +341,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         }).catch(() => {});
       }
 
-      toastSuccess(`Tạo vận đơn thành công! Mã tracking: ${tracking}`);
+      const carrierName = input.carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress";
+      toastSuccess(`Tạo vận đơn ${carrierName} thành công! Mã tracking: ${tracking}`);
       applyOrderMutation(result);
     } catch (err) {
       toastError(getErrorMessage(err));
@@ -328,6 +350,71 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       setPendingOrderActions((current) => {
         const next = { ...current };
         delete next[targetOrder.id];
+        return next;
+      });
+    }
+  }
+
+  async function handleBarcodeScan(e: React.FormEvent) {
+    e.preventDefault();
+    const code = barcodeInput.trim();
+    if (!code) return;
+
+    setIsScanning(true);
+    try {
+      const res = await markOrdersReadyToShip({ barcode: code });
+      if (res.success) {
+        toastSuccess(res.message);
+        setBarcodeInput("");
+        if (res.scannedOrder) {
+          applyOrderMutation({
+            orderId: res.scannedOrder.id,
+            orderStatus: "READY_TO_SHIP",
+          });
+        }
+      } else {
+        toastError(res.message);
+      }
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setIsScanning(false);
+      barcodeInputRef.current?.focus();
+    }
+  }
+
+  async function handleQcPass(orderIds: string[]) {
+    if (!orderIds.length) return;
+
+    setPendingOrderActions((current) => ({
+      ...current,
+      ...Object.fromEntries(orderIds.map((id) => [id, "qc" as const])),
+    }));
+
+    try {
+      const res = await markOrdersReadyToShip({ orderIds });
+      if (res.success) {
+        toastSuccess(res.message);
+        orderIds.forEach((id) => {
+          applyOrderMutation({
+            orderId: id,
+            orderStatus: "READY_TO_SHIP",
+          });
+        });
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          orderIds.forEach((id) => next.delete(id));
+          return next;
+        });
+      } else {
+        toastError(res.message);
+      }
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        orderIds.forEach((id) => delete next[id]);
         return next;
       });
     }
@@ -399,6 +486,49 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
+  async function handleExport(exportSelectedOnly = false) {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportSelectedOnly && selectedIds.size > 0) {
+        params.set("orderIds", Array.from(selectedIds).join(","));
+      } else {
+        if (status) params.set("status", status);
+        if (sourceChannel) params.set("sourceChannel", sourceChannel);
+        if (search) params.set("search", search);
+        if (fromDate) params.set("from", fromDate);
+        if (toDate) params.set("to", toDate);
+      }
+
+      const res = await fetch(`/api/orders/export?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error("Không thể xuất file. Vui lòng thử lại.");
+      }
+
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get("Content-Disposition");
+      let filename = "orders_export.csv";
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match?.[1]) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toastSuccess(`Xuất file "${filename}" thành công!`);
+    } catch (err) {
+      toastError(getErrorMessage(err));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   async function handleResetOrder(order: OrderListItem) {
     setResetTarget(null);
     setPendingOrderActions((current) => ({ ...current, [order.id]: "reset" }));
@@ -417,6 +547,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       });
     }
   }
+
+  const selectedOrders = orders.filter((o) => selectedIds.has(o.id));
+  const qcEligibleOrders = selectedOrders.filter(
+    (o) => o.status === "RECEIVED" || o.status === "ON_HOLD",
+  );
+  const shipEligibleOrders = selectedOrders.filter(
+    (o) => o.status === "READY_TO_SHIP",
+  );
 
   return (
     <div className="space-y-4">
@@ -446,15 +584,66 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           })}
         </div>
 
-        <Button
-          leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
-          onClick={refreshOrders}
-          size="sm"
-          variant="secondary"
-        >
-          Làm mới
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            disabled={isExporting}
+            isLoading={isExporting}
+            leftIcon={<Download className="h-3.5 w-3.5" />}
+            onClick={() => void handleExport(selectedIds.size > 0)}
+            size="sm"
+            variant="secondary"
+          >
+            {selectedIds.size > 0
+              ? `Xuất đơn đã chọn (${selectedIds.size})`
+              : "Xuất Excel"}
+          </Button>
+
+          <Button
+            leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+            onClick={refreshOrders}
+            size="sm"
+            variant="secondary"
+          >
+            Làm mới
+          </Button>
+        </div>
       </div>
+
+      {/* Quick QC Barcode Scan Bar */}
+      {can.qcOrder(role) && (
+        <form
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2.5 shadow-sm"
+          onSubmit={handleBarcodeScan}
+        >
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 shrink-0">
+            <QrCode className="h-4 w-4 text-emerald-600" />
+            <span>Quét mã QC / Xong sản xuất:</span>
+          </div>
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <input
+              ref={barcodeInputRef}
+              className="h-8 w-full rounded border border-emerald-300 bg-white px-2.5 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              disabled={isScanning}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              placeholder="Quét mã vạch hoặc nhập mã đơn (#...)..."
+              value={barcodeInput}
+            />
+          </div>
+          <Button
+            className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+            disabled={!barcodeInput.trim() || isScanning}
+            isLoading={isScanning}
+            leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+            size="sm"
+            type="submit"
+          >
+            QC Pass
+          </Button>
+          <span className="hidden text-[11px] text-emerald-700 md:inline">
+            (Bắn mã sản phẩm xưởng hoàn thành để mở khóa tạo vận đơn)
+          </span>
+        </form>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -477,7 +666,18 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Modern Date Filter Popover */}
+          <DateFilterPopover
+            fromDate={fromDate}
+            onChange={(from, to) => {
+              setFromDate(from);
+              setToDate(to);
+              setPage(1);
+            }}
+            toDate={toDate}
+          />
+
           <select
             className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             onChange={(e) => {
@@ -495,13 +695,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
 
           {can.shipOrder(role) && (
             <Button
-              disabled={selectedIds.size === 0}
+              disabled={shipEligibleOrders.length === 0}
               leftIcon={<Layers className="h-3.5 w-3.5" />}
               onClick={() => setShowBatchModal(true)}
               size="sm"
               variant="secondary"
             >
-              Đóng hàng loạt ({selectedIds.size})
+              Đóng hàng loạt ({shipEligibleOrders.length})
             </Button>
           )}
         </div>
@@ -509,19 +709,50 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
 
       {/* Batch Floating / Active selection banner */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-900 shadow-sm animate-in fade-in duration-200">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-900 shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center gap-2">
             <span className="font-semibold">Đã chọn {selectedIds.size} đơn hàng</span>
-            <span className="text-indigo-600">| Sẵn sàng tạo vận đơn hàng loạt</span>
+            {qcEligibleOrders.length > 0 && (
+              <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                {qcEligibleOrders.length} chờ QC
+              </span>
+            )}
+            {shipEligibleOrders.length > 0 && (
+              <span className="rounded bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800">
+                {shipEligibleOrders.length} sẵn sàng ship
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {can.qcOrder(role) && qcEligibleOrders.length > 0 && (
+              <Button
+                className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                onClick={() => void handleQcPass(qcEligibleOrders.map((o) => o.id))}
+                size="sm"
+              >
+                QC Pass hàng loạt ({qcEligibleOrders.length})
+              </Button>
+            )}
+            {can.shipOrder(role) && shipEligibleOrders.length > 0 && (
+              <Button
+                leftIcon={<Truck className="h-3.5 w-3.5" />}
+                onClick={() => setShowBatchModal(true)}
+                size="sm"
+                variant="primary"
+              >
+                Đóng gói ({shipEligibleOrders.length})
+              </Button>
+            )}
             <Button
-              leftIcon={<Truck className="h-3.5 w-3.5" />}
-              onClick={() => setShowBatchModal(true)}
+              className="h-8 text-xs"
+              disabled={isExporting}
+              leftIcon={<Download className="h-3.5 w-3.5" />}
+              onClick={() => void handleExport(true)}
               size="sm"
-              variant="primary"
+              variant="secondary"
             >
-              Đóng gói ngay
+              Xuất ({selectedIds.size})
             </Button>
             <Button onClick={clearSelection} size="sm" variant="ghost">
               Bỏ chọn
@@ -701,6 +932,21 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               ) : (
                                 <span className="text-xs text-slate-400">Đã ship</span>
                               )
+                            ) : order.status === "RECEIVED" ? (
+                              can.qcOrder(role) ? (
+                                <Button
+                                  className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                  disabled={pendingAction === "qc"}
+                                  isLoading={pendingAction === "qc"}
+                                  leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                                  onClick={() => void handleQcPass([order.id])}
+                                  size="sm"
+                                >
+                                  QC Pass
+                                </Button>
+                              ) : (
+                                <span className="text-xs font-medium text-amber-600">Chờ QC</span>
+                              )
                             ) : can.shipOrder(role) ? (
                               <Button
                                 leftIcon={<Truck className="h-3.5 w-3.5" />}
@@ -755,6 +1001,20 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                     onClick={() => setActiveMenuOrderId(null)}
                                   />
                                   <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-dropdown text-left">
+                                    {can.qcOrder(role) &&
+                                      (order.status === "RECEIVED" ||
+                                        order.status === "ON_HOLD") && (
+                                        <button
+                                          className="w-full rounded px-2.5 py-1.5 text-left font-medium text-emerald-700 hover:bg-emerald-50"
+                                          onClick={() => {
+                                            setActiveMenuOrderId(null);
+                                            void handleQcPass([order.id]);
+                                          }}
+                                          type="button"
+                                        >
+                                          QC Pass (Sẵn sàng ship)
+                                        </button>
+                                      )}
                                     {can.cancelYun(role) && isShipped && (
                                       <button
                                         className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50"
@@ -867,7 +1127,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           detailsByOrderId={detailCache}
           onClose={() => setShowBatchModal(false)}
           onSubmit={handleBatchShip}
-          orders={orders.filter((o) => selectedIds.has(o.id))}
+          orders={shipEligibleOrders}
         />
       )}
 

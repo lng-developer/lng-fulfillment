@@ -16,4 +16,5 @@ export const can = {
   confirmShip: (role: Role) => ["OWNER", "ADMIN", "OPERATOR"].includes(role),
   cancelYun: (role: Role) => ["OWNER", "ADMIN", "OPERATOR"].includes(role),
   resetOrder: (role: Role) => ["OWNER", "ADMIN", "OPERATOR"].includes(role),
+  qcOrder: (role: Role) => ["OWNER", "ADMIN", "OPERATOR"].includes(role),
 };

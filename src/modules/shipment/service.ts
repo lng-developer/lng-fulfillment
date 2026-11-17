@@ -50,7 +50,10 @@ import {
   linkViettelPostTrackingToShipment,
   createViettelPostShipmentForOrder,
 } from "./repository";
-import { resolveViettelPostOrderUrl } from "@/integrations/viettel-post/adapter";
+import {
+  normalizeViettelPostTrackingNumber,
+  resolveViettelPostOrderUrl,
+} from "@/integrations/viettel-post/adapter";
 import type {
   CreateDraftShipmentInput,
   ExecuteShipmentInput,
@@ -88,9 +91,8 @@ import { shouldApplyTrackingStatusTransition } from "./tracking-status-reconcili
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
 const DIRECT_SHIP_ORDER_STATUSES = [
-  "FULFILLED",
   "READY_TO_SHIP",
-  "RECEIVED",
+  "FULFILLED",
 ] as const;
 const SHIPPED_CANCEL_WINDOW_MS = 30 * 60 * 1000;
 const YUN_TEST_BASE_URL = "http://omsapi.uat.yunexpress.com/";
@@ -214,9 +216,13 @@ export async function shipOrderWithYun(
   }
 
   if (!DIRECT_SHIP_ORDER_STATUSES.includes(order.status as never)) {
+    const message =
+      order.status === "RECEIVED"
+        ? "Đơn hàng đang ở trạng thái Chờ sản xuất / QC. Vui lòng bấm QC Pass (Sẵn sàng ship) trước khi tạo vận đơn."
+        : "Order cannot be shipped from its current status.";
     throw new AppError(
       "CONFLICT",
-      "Order cannot be shipped from its current status.",
+      message,
       409,
       {
         orderStatus: order.status,
@@ -404,6 +410,202 @@ export async function shipOrderWithYun(
     orderStatus: "IN_PROCESSING",
     environment: input.environment,
   };
+}
+
+export async function shipOrderWithViettelPost(
+  tenantId: string,
+  input: ShipOrderInput,
+  actor: ShipmentActor,
+): Promise<ShipOrderResult> {
+  const timing = createSafeTimingLogger("shipOrderWithViettelPost", {
+    orderId: input.orderId,
+  });
+  const order = await getDirectShipOrderPreparation(tenantId, input.orderId);
+  timing("orderLoaded", {
+    found: Boolean(order),
+    itemCount: order?.items.length ?? 0,
+  });
+
+  if (!order) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+
+  if (!DIRECT_SHIP_ORDER_STATUSES.includes(order.status as never)) {
+    const message =
+      order.status === "RECEIVED"
+        ? "Đơn hàng đang ở trạng thái Chờ sản xuất / QC. Vui lòng bấm QC Pass (Sẵn sàng ship) trước khi tạo vận đơn."
+        : "Order cannot be shipped from its current status.";
+    throw new AppError(
+      "CONFLICT",
+      message,
+      409,
+      {
+        orderStatus: order.status,
+        allowedStatuses: [...DIRECT_SHIP_ORDER_STATUSES],
+      },
+    );
+  }
+
+  if (!order.items.length) {
+    throw new AppError("CONFLICT", "Order must have items.", 409);
+  }
+
+  const adapter = getCarrierAdapter("VIETTEL_POST");
+  const runtimeCredentials = await resolveCarrierRuntimeCredentials(
+    tenantId,
+    "VIETTEL_POST",
+    input.carrierAccountId ?? null,
+  );
+  timing("credentialsResolved", {
+    credentialSource: runtimeCredentials.source,
+  });
+
+  const carrierInput = buildCreateCarrierShipmentInputFromDirectOrder(
+    tenantId,
+    order,
+    "VIETTEL_POST",
+    runtimeCredentials.carrierAccountId ?? null,
+    input.options,
+  );
+  timing("carrierInputBuilt", {
+    itemCount: carrierInput.items.length,
+  });
+
+  let carrierResult;
+  try {
+    carrierResult = await adapter.createShipment(carrierInput, {
+      tenantId,
+      credentials: runtimeCredentials,
+    });
+    timing("carrierCreateCompleted", {
+      trackingPresent: Boolean(carrierResult.trackingNumber),
+      labelPresent: Boolean(carrierResult.labelUrl),
+    });
+    logShipmentTrackingFlow("carrierCreateResult", {
+      carrierCode: carrierResult.carrierCode,
+      carrierShipmentId: carrierResult.carrierShipmentId,
+      trackingNumber: carrierResult.trackingNumber ?? null,
+      labelUrlPresent: Boolean(carrierResult.labelUrl),
+      safeMetadata: carrierResult.metadata?.safe ?? null,
+    });
+  } catch (error) {
+    const appError = mapCarrierErrorToAppError(error);
+    await createDirectShipmentFailureRecord({
+      tenantId,
+      orderId: order.id,
+      items: order.items.map((item) => ({
+        orderItemId: item.id,
+        quantity: item.quantity,
+      })),
+      carrierCode: "VIETTEL_POST",
+      carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+      metadata: buildCarrierFailureMetadata(
+        "VIETTEL_POST",
+        appError,
+        input.environment,
+      ),
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+    });
+
+    if (actor.actorType === "USER" && actor.actorId) {
+      await recordUserAuditLog({
+        tenantId,
+        actorUserId: actor.actorId,
+        action: "SHIPMENT_EXECUTION_FAILED",
+        resourceType: "Order",
+        resourceId: order.id,
+        metadata: {
+          orderId: order.id,
+          carrierCode: "VIETTEL_POST",
+          errorCode: appError.code,
+        },
+      });
+    }
+
+    throw appError;
+  }
+
+  const successStatus = carrierResult.trackingNumber
+    ? carrierResult.labelUrl
+      ? "LABEL_READY"
+      : "TRACKING_PENDING"
+    : "TRACKING_PENDING";
+  const shipment = await createDirectShipmentSuccessRecords({
+    tenantId,
+    orderId: order.id,
+    items: order.items.map((item) => ({
+      orderItemId: item.id,
+      quantity: item.quantity,
+    })),
+    status: successStatus,
+    carrierCode: "VIETTEL_POST",
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+    carrierShipmentId: carrierResult.carrierShipmentId,
+    trackingNumber: carrierResult.trackingNumber ?? null,
+    labelUrl: carrierResult.labelUrl ?? null,
+    metadata: carrierResult.metadata?.safe
+      ? {
+          carrier: {
+            ...carrierResult.metadata.safe,
+            environmentMode: input.environment,
+          },
+        }
+      : undefined,
+    actorType: actor.actorType,
+    actorId: actor.actorId,
+  });
+
+  const portalTrackingSync = await sendPortalTrackingUpdate({
+    orderId: order.externalOrderId,
+    tracking: shipment.trackingNumber,
+    fulfillment: "Viettel Post",
+    sourceChannel: order.sourceChannel,
+  });
+  if (portalTrackingSync.attempted) {
+    await savePortalTrackingSyncState({
+      tenantId,
+      shipmentId: shipment.id,
+      result: portalTrackingSync,
+    });
+  }
+
+  if (actor.actorType === "USER" && actor.actorId) {
+    await recordUserAuditLog({
+      tenantId,
+      actorUserId: actor.actorId,
+      action: "SHIPMENT_EXECUTED",
+      resourceType: "Shipment",
+      resourceId: shipment.id,
+      metadata: {
+        shipmentId: shipment.id,
+        carrierCode: "VIETTEL_POST",
+        carrierShipmentId: carrierResult.carrierShipmentId,
+        trackingNumber: carrierResult.trackingNumber ?? null,
+      },
+    });
+    timing("auditRecorded", { action: "SHIPMENT_EXECUTED" });
+  }
+
+  return {
+    shipment,
+    carrierCode: "VIETTEL_POST",
+    carrierAccountId: runtimeCredentials.carrierAccountId ?? null,
+    orderId: order.id,
+    orderStatus: "IN_PROCESSING",
+    environment: input.environment,
+  };
+}
+
+export async function shipOrderDirect(
+  tenantId: string,
+  input: ShipOrderInput,
+  actor: ShipmentActor,
+): Promise<ShipOrderResult> {
+  if (input.carrierCode === "VIETTEL_POST") {
+    return shipOrderWithViettelPost(tenantId, input, actor);
+  }
+  return shipOrderWithYun(tenantId, input, actor);
 }
 
 export async function shipOrdersBatchWithYun(
@@ -1318,7 +1520,8 @@ export async function syncViettelPostTrackingBatch(
     );
     if (!vtp) continue;
 
-    const trackingNumber = vtp.trackingCode || vtp.trackingNumber;
+    const rawTracking = vtp.trackingCode || vtp.trackingNumber;
+    const trackingNumber = normalizeViettelPostTrackingNumber(rawTracking) || "";
     const carrierShipmentId = vtp.vtpOrderNumber || vtp.shipmentCode;
     const labelUrl = vtp.labelUrl || vtp.labelUrlVTP;
 

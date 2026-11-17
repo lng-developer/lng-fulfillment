@@ -1,7 +1,10 @@
 export {
+  buildOrdersCsv,
+  exportOrdersCsv,
   getTenantOrderDetail,
   getPortalOrderProcessingStatus,
   listTenantOrders,
+  markOrdersReadyToShip,
   receivePortalOrders,
 } from "./service";
 export { validateOrderListQuery, validatePortalOrdersInput } from "./validation";
@@ -13,6 +16,8 @@ export {
   ORDER_LIST_SORT_FIELDS,
 } from "./types";
 export type {
+  MarkOrdersReadyToShipInput,
+  MarkOrdersReadyToShipResult,
   OrderDetail,
   OrderDetailItem,
   OrderDetailStatusHistory,

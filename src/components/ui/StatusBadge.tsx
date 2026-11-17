@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 const STATUS_STYLES: Record<string, string> = {
   READY_TO_SHIP: "bg-blue-50 text-blue-700 border-blue-200",
   FULFILLED: "bg-blue-50 text-blue-700 border-blue-200",
-  RECEIVED: "bg-blue-50 text-blue-700 border-blue-200",
+  RECEIVED: "bg-amber-50 text-amber-700 border-amber-200",
   CREATED: "bg-blue-50 text-blue-700 border-blue-200",
 
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -55,14 +55,14 @@ export function StatusBadge({
 
 export function formatStatus(status: string) {
   const customMap: Record<string, string> = {
-    READY_TO_SHIP: "Chờ gửi hàng",
+    READY_TO_SHIP: "Sẵn sàng ship (Đã QC)",
     IN_PROCESSING: "Đang xử lý",
     SHIPPED: "Đã xuất kho",
     DELIVERED: "Đã giao",
     IN_TRANSIT: "Đang vận chuyển",
     CANCELLED: "Đã hủy",
     ON_HOLD: "Tạm giữ",
-    RECEIVED: "Đã nhận đơn",
+    RECEIVED: "Chờ sản xuất / QC",
     FAILED_CREATE: "Lỗi tạo vận đơn",
     FAILED_LABEL: "Lỗi tạo nhãn",
     EXCEPTION: "Bất thường",
