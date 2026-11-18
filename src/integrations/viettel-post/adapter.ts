@@ -311,29 +311,29 @@ export function normalizeZipCode(zip: string | null | undefined): string {
 
 export function normalizeViettelPostPhone(phone: string | null | undefined, country = "US"): string {
   if (!phone) {
-    return country === "US" ? "+12025550100" : "0988888888";
+    return country === "US" ? "2025550100" : "0988888888";
   }
   // Strip extensions like "ext. 29157" or "x123"
   const stripped = phone.replace(/(?:ext\.?|x)\s*\d+.*$/i, "").trim();
   const rawDigits = stripped.replace(/\D/g, "");
   if (!rawDigits || rawDigits.length < 7) {
-    return country === "US" ? "+12025550100" : "0988888888";
+    return country === "US" ? "2025550100" : "0988888888";
   }
 
   if (country === "US") {
     if (rawDigits.length === 11 && rawDigits.startsWith("1")) {
-      return `+${rawDigits}`;
+      return rawDigits.slice(1);
     }
     if (rawDigits.length === 10) {
-      return `+1${rawDigits}`;
+      return rawDigits;
     }
     if (rawDigits.length > 10) {
-      return `+1${rawDigits.slice(-10)}`;
+      return rawDigits.slice(-10);
     }
-    return `+1${rawDigits.padStart(10, "0")}`;
+    return rawDigits.padStart(10, "0");
   }
 
-  return rawDigits.startsWith("+") ? rawDigits : `+${rawDigits}`;
+  return rawDigits;
 }
 
 export function resolveViettelPostAuthUrl(authUrl: string): string {
@@ -393,6 +393,17 @@ async function requestAccessToken(
   return token;
 }
 
+export const KNOWN_VIETTEL_POST_LINES: Record<string, { lineCode: string; lineShipId: string }> = {
+  LS494228: {
+    lineCode: "LS494228",
+    lineShipId: "437f7a8d-6995-4781-9333-ba297d14c573",
+  },
+  LS946787: {
+    lineCode: "LS946787",
+    lineShipId: "72bc0f88-cb1a-4e52-9bd9-4592aaac12eb",
+  },
+};
+
 export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfig) {
   const recipient = input.recipient!;
   const rawRecipientName = (recipient.name ?? "Customer").trim();
@@ -403,13 +414,17 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
   const recipientCountry = normalizeCountryCode(recipient.country);
   const recipientState = normalizeStateCode(recipient.state, recipientCountry);
   const orderRef = stringValue(input.externalOrderId) ?? stringValue(input.orderId);
-  const orderId = (input.externalOrderId ?? input.orderId ?? "").slice(0, 30);
   const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
 
+  const configuredLine = (config.lineShipId || "").trim();
+  const mapped = KNOWN_VIETTEL_POST_LINES[configuredLine];
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(configuredLine);
+  const lineCode = mapped?.lineCode || (isUUID ? "LS494228" : configuredLine) || "LS494228";
+  const lineShipId = mapped?.lineShipId || (isUUID ? configuredLine : configuredLine) || "437f7a8d-6995-4781-9333-ba297d14c573";
+
   return {
-    lineCode: config.lineShipId,
-    lineShipId: config.lineShipId,
-    orderId: orderId || undefined,
+    lineCode,
+    lineShipId,
     orderReferenceId: orderRef,
     hsCode,
     parcel: {
@@ -421,7 +436,6 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       lengthUnit: 1,
       labelDate: new Date().toISOString(),
       labelFormat: 0,
-      invoiceNumber: orderId || orderRef,
     },
     lineItems: input.items.map((item) => {
       let price = item.declaredValue && item.declaredValue > 0 ? item.declaredValue : 1.0;

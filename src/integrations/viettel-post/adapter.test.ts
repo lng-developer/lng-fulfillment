@@ -336,7 +336,6 @@ test("maps payload adhering to Viettel Post API specifications", () => {
   );
 
   assert.equal(payload.lineShipId, "LS485343");
-  assert.equal(payload.orderId, "ORDER-EXT-LONG-NAME-1234567890"); // sliced to 30 chars
   assert.equal(payload.orderReferenceId, "ORDER-EXT-LONG-NAME-1234567890-ABCDEF");
   assert.equal(payload.hsCode, "6109100004"); // default fallback applied
   assert.equal(payload.parcel.weight, 600); // 0.6kg -> 600g
