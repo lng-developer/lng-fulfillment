@@ -13,6 +13,7 @@ const DOT_COLORS: Record<string, string> = {
   FAILED_CREATE: "bg-rose-500",
   FAILED_LABEL: "bg-rose-500",
   TRACKING_PENDING: "bg-amber-500",
+  LABEL_READY: "bg-emerald-500",
   IN_TRANSIT: "bg-indigo-500",
   DELIVERED: "bg-emerald-500",
   EXCEPTION: "bg-rose-500",

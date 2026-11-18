@@ -14,6 +14,7 @@ const STATUS_STYLES: Record<string, string> = {
   DELIVERED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   IN_TRANSIT: "bg-emerald-50 text-emerald-700 border-emerald-200",
   ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  LABEL_READY: "bg-emerald-50 text-emerald-700 border-emerald-200",
 
   FAILED_CREATE: "bg-rose-50 text-rose-700 border-rose-200",
   FAILED_LABEL: "bg-rose-50 text-rose-700 border-rose-200",
@@ -63,6 +64,7 @@ export function formatStatus(status: string) {
     CANCELLED: "Đã hủy",
     ON_HOLD: "Tạm giữ",
     RECEIVED: "Chờ sản xuất / QC",
+    LABEL_READY: "Đã có nhãn in",
     FAILED_CREATE: "Lỗi tạo vận đơn",
     FAILED_LABEL: "Lỗi tạo nhãn",
     EXCEPTION: "Bất thường",

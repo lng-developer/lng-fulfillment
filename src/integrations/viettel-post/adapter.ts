@@ -54,6 +54,7 @@ export function createViettelPostAdapter(
       const config = getConfig(context);
       const fetchImpl = options.fetchImpl ?? fetch;
       const token = await requestAccessToken(config, fetchImpl, tokenCache);
+      const merchandise = await resolveViettelPostMerchandise(input, config, token, fetchImpl);
       const url = resolveViettelPostOrderUrl(config.orderUrl, "/api/partner/order/shipment");
       const response = await fetchImpl(url, {
         method: "POST",
@@ -62,7 +63,7 @@ export function createViettelPostAdapter(
           accept: "application/json",
           "content-type": "application/json",
         }),
-        body: JSON.stringify(mapShipment(input, config)),
+        body: JSON.stringify(mapShipment(input, config, merchandise)),
       });
 
       if (!response.ok) {
@@ -356,6 +357,167 @@ export function resolveViettelPostOrderUrl(orderUrl: string, endpoint: string): 
   return `${stripped}${cleanEndpoint}`;
 }
 
+export function resolveViettelPostManagementUrl(orderUrl: string, endpoint: string): string {
+  const stripped = stripTrailingSlash(orderUrl);
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (stripped.includes("logistek.com.vn")) {
+    return `https://management-staging.logistek.com.vn${cleanEndpoint}`;
+  }
+  if (stripped.endsWith("/gateway")) {
+    return `${stripped}${cleanEndpoint}`;
+  }
+  if (stripped.includes("api-global.viettelpost.vn")) {
+    return `${stripped}/gateway${cleanEndpoint}`;
+  }
+  return `${stripped}${cleanEndpoint}`;
+}
+
+export type ViettelPostMerchandise = {
+  id: string;
+  code: string;
+  names: Array<{ name: string; languageCode: string }>;
+  merchandiseType: string;
+};
+
+export const FALLBACK_MERCHANDISE_MAP: Record<
+  "staging" | "production",
+  Record<string, ViettelPostMerchandise>
+> = {
+  production: {
+    "6109100004": {
+      id: "2156f0fc-ccd3-4b1c-81a5-14407046f468",
+      code: "6109100004",
+      names: [
+        {
+          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
+          languageCode: "en",
+        },
+        {
+          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
+          languageCode: "vi",
+        },
+      ],
+      merchandiseType: "HTS-61",
+    },
+    "4818300000": {
+      id: "a28df1c3-e2c7-4ebd-b666-fa615df2513b",
+      code: "4818300000",
+      names: [
+        {
+          name: "4818300000 Tablecloths and table napkins",
+          languageCode: "en",
+        },
+        {
+          name: "4818300000 Tablecloths and table napkins",
+          languageCode: "vi",
+        },
+      ],
+      merchandiseType: "HTS-48",
+    },
+    "4421913000": {
+      id: "6985ba4a-53ba-4d12-9279-0cc344793b30",
+      code: "4421913000",
+      names: [
+        {
+          name: "4421913000 Consisting of wooden frames in the center of which are fixed louver boards or slats, with or without their hardware",
+          languageCode: "en",
+        },
+        {
+          name: "4421913000 Consisting of wooden frames in the center of which are fixed louver boards or slats, with or without their hardware",
+          languageCode: "vi",
+        },
+      ],
+      merchandiseType: "HTS-44",
+    },
+  },
+  staging: {
+    "6109100004": {
+      id: "afdc8f8e-d474-4721-a1f4-4c939c251e34",
+      code: "6109100004",
+      names: [
+        {
+          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
+          languageCode: "en",
+        },
+        {
+          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
+          languageCode: "vi",
+        },
+      ],
+      merchandiseType: "HTS-61",
+    },
+  },
+};
+
+export async function resolveViettelPostMerchandise(
+  input: CreateCarrierShipmentInput,
+  config: ViettelPostConfig,
+  token: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ViettelPostMerchandise> {
+  const isProd =
+    !config.orderUrl.includes("logistek.com.vn") &&
+    !config.authUrl.includes("logistek.com.vn");
+  const envKey = isProd ? "production" : "staging";
+  const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
+
+  const fallback =
+    FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
+    FALLBACK_MERCHANDISE_MAP[envKey]?.["6109100004"] ||
+    FALLBACK_MERCHANDISE_MAP.production["6109100004"];
+
+  try {
+    const searchUrl = resolveViettelPostManagementUrl(
+      config.orderUrl,
+      `/api/partner/management/get-merchandise?Filter=${encodeURIComponent(hsCode)}&Take=5&Skip=0`,
+    );
+    const res = await fetchImpl(searchUrl, {
+      headers: new Headers({
+        authorization: `Bearer ${token}`,
+        accept: "application/json",
+      }),
+    });
+    if (res.ok) {
+      const json = await readJson(res);
+      const data = isRecord(json) && isRecord(json.data) ? json.data : json;
+      const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
+      if (items.length > 0 && isRecord(items[0])) {
+        const item = items[0];
+        const id = stringValue(item.id);
+        const code = stringValue(item.code) || hsCode;
+        const parentCode = stringValue(item.parentCode) || "HTS-61";
+        const name = stringValue(item.name) || code;
+        const rawNames = Array.isArray(item.names) ? item.names : [];
+        const names = rawNames
+          .filter(isRecord)
+          .map((n) => ({
+            name: stringValue(n.name) || name,
+            languageCode: stringValue(n.languageCode) || "en",
+          }));
+
+        if (id) {
+          return {
+            id,
+            code,
+            merchandiseType: parentCode,
+            names:
+              names.length > 0
+                ? names
+                : [
+                    { name, languageCode: "en" },
+                    { name, languageCode: "vi" },
+                  ],
+          };
+        }
+      }
+    }
+  } catch {
+    // Ignore error and fall through to fallback
+  }
+
+  return fallback;
+}
+
 async function requestAccessToken(
   config: ViettelPostConfig,
   fetchImpl: typeof fetch,
@@ -404,7 +566,11 @@ export const KNOWN_VIETTEL_POST_LINES: Record<string, { lineCode: string; lineSh
   },
 };
 
-export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfig) {
+export function mapShipment(
+  input: CreateCarrierShipmentInput,
+  config: ViettelPostConfig,
+  merchandise?: ViettelPostMerchandise,
+) {
   const recipient = input.recipient!;
   const rawRecipientName = (recipient.name ?? "Customer").trim();
   const nameParts = rawRecipientName.split(/\s+/).filter(Boolean);
@@ -422,11 +588,22 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
   const lineCode = mapped?.lineCode || (isUUID ? "LS494228" : configuredLine) || "LS494228";
   const lineShipId = mapped?.lineShipId || (isUUID ? configuredLine : configuredLine) || "437f7a8d-6995-4781-9333-ba297d14c573";
 
+  const isProd =
+    !config.orderUrl.includes("logistek.com.vn") &&
+    !config.authUrl.includes("logistek.com.vn");
+  const envKey = isProd ? "production" : "staging";
+  const resolvedMerchandise =
+    merchandise ||
+    FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
+    FALLBACK_MERCHANDISE_MAP[envKey]?.["6109100004"] ||
+    FALLBACK_MERCHANDISE_MAP.production["6109100004"];
+
   return {
     lineCode,
     lineShipId,
     orderReferenceId: orderRef,
     hsCode,
+    ...(resolvedMerchandise ? { merchandise: resolvedMerchandise } : {}),
     parcel: {
       weight: Math.round(Number(input.metadata!.weight) * 1000),
       length: Number(input.metadata!.length),
