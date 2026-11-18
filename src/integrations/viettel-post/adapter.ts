@@ -309,6 +309,33 @@ export function normalizeZipCode(zip: string | null | undefined): string {
   return trimmed.slice(0, 5);
 }
 
+export function normalizeViettelPostPhone(phone: string | null | undefined, country = "US"): string {
+  if (!phone) {
+    return country === "US" ? "+12025550100" : "0988888888";
+  }
+  // Strip extensions like "ext. 29157" or "x123"
+  const stripped = phone.replace(/(?:ext\.?|x)\s*\d+.*$/i, "").trim();
+  const rawDigits = stripped.replace(/\D/g, "");
+  if (!rawDigits || rawDigits.length < 7) {
+    return country === "US" ? "+12025550100" : "0988888888";
+  }
+
+  if (country === "US") {
+    if (rawDigits.length === 11 && rawDigits.startsWith("1")) {
+      return `+${rawDigits}`;
+    }
+    if (rawDigits.length === 10) {
+      return `+1${rawDigits}`;
+    }
+    if (rawDigits.length > 10) {
+      return `+1${rawDigits.slice(-10)}`;
+    }
+    return `+1${rawDigits.padStart(10, "0")}`;
+  }
+
+  return rawDigits.startsWith("+") ? rawDigits : `+${rawDigits}`;
+}
+
 export function resolveViettelPostAuthUrl(authUrl: string): string {
   const stripped = stripTrailingSlash(authUrl);
   if (stripped.endsWith("/connect/token")) {
@@ -429,7 +456,7 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       firstName,
       lastName,
       company: (recipient as { company?: string }).company || rawRecipientName || "Customer",
-      phoneNumber: recipient.phone || "0988888888",
+      phoneNumber: normalizeViettelPostPhone(recipient.phone, recipientCountry),
       email: recipient.email,
       address1: recipient.line1 || "Street Address",
       address2: recipient.line2 || "",
