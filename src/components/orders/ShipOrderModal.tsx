@@ -422,21 +422,12 @@ export function ShipOrderModal({
               />
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Dịch vụ vận chuyển (Carrier Method)
-                </label>
-                {carrierCode === "VIETTEL_POST" ? (
-                  <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
-                    <span className="font-mono text-xs font-semibold text-rose-700">
-                      Viettel Post International (Epacket / Fast Line)
-                    </span>
-                    <span className="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800">
-                      Logistek
-                    </span>
-                  </div>
-                ) : (
+            {carrierCode === "YUNEXPRESS_OMS" ? (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                    Dịch vụ vận chuyển (Carrier Method)
+                  </label>
                   <select
                     className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     disabled={controlsDisabled}
@@ -449,22 +440,22 @@ export function ShipOrderModal({
                       </option>
                     ))}
                   </select>
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  Quốc gia đến
-                </label>
-                <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
-                  <span className="font-mono">{receiverValues.countryCode || "-"}</span>
-                  {preview.iossEuDetected && carrierCode === "YUNEXPRESS_OMS" && (
-                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
-                      Châu Âu (EU)
-                    </span>
-                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                    Quốc gia đến
+                  </label>
+                  <div className="flex h-9 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-800">
+                    <span className="font-mono">{receiverValues.countryCode || "-"}</span>
+                    {preview.iossEuDetected && (
+                      <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                        Châu Âu (EU)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
           </section>
 
           {/* Customs declaration & SKU */}
@@ -540,7 +531,12 @@ export function ShipOrderModal({
                     )}
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div
+                    className={cn(
+                      "mt-2 grid gap-2",
+                      carrierCode === "VIETTEL_POST" ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4",
+                    )}
+                  >
                     <div>
                       <span className="mb-1 block text-[11px] font-semibold text-slate-500">Số lượng</span>
                       <div className="h-8 flex items-center font-mono text-xs font-bold text-slate-800">
@@ -553,18 +549,22 @@ export function ShipOrderModal({
                       onChange={(value) => updateParcel(index, { unitPrice: value })}
                       value={parcel.unitPrice}
                     />
-                    <TextInput
-                      disabled={controlsDisabled}
-                      label="Chất liệu (InvoicePart)"
-                      onChange={(value) => updateParcel(index, { invoicePart: value })}
-                      value={parcel.invoicePart ?? "cotton"}
-                    />
-                    <TextInput
-                      disabled={controlsDisabled}
-                      label="Ghi chú (Remark)"
-                      onChange={(value) => updateParcel(index, { remark: value })}
-                      value={parcel.remark}
-                    />
+                    {carrierCode === "YUNEXPRESS_OMS" && (
+                      <>
+                        <TextInput
+                          disabled={controlsDisabled}
+                          label="Chất liệu (InvoicePart)"
+                          onChange={(value) => updateParcel(index, { invoicePart: value })}
+                          value={parcel.invoicePart ?? "cotton"}
+                        />
+                        <TextInput
+                          disabled={controlsDisabled}
+                          label="Ghi chú (Remark)"
+                          onChange={(value) => updateParcel(index, { remark: value })}
+                          value={parcel.remark}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -639,12 +639,14 @@ export function ShipOrderModal({
             </div>
           </section>
 
-          {/* Environment */}
-          <EnvironmentSelector
-            disabled={controlsDisabled}
-            onChange={setEnvironment}
-            value={environment}
-          />
+          {/* Environment (Only for YunExpress; Viettel Post uses dedicated Carrier Accounts) */}
+          {carrierCode === "YUNEXPRESS_OMS" && (
+            <EnvironmentSelector
+              disabled={controlsDisabled}
+              onChange={setEnvironment}
+              value={environment}
+            />
+          )}
         </div>
 
         {/* Footer */}
@@ -880,6 +882,15 @@ function isEuCountry(countryCode: string | null | undefined) {
   return EU_COUNTRY_CODES.has(normalized);
 }
 
+function normalizeUnitPrice(value: number | undefined): number {
+  if (value === undefined || value === null || !Number.isFinite(value)) return 1;
+  // If price is stored in cents (e.g. 2785 cents = $27.85), convert to dollars
+  if (value > 100) {
+    return Math.round((value / 100) * 100) / 100;
+  }
+  return value;
+}
+
 function buildPreviewParcels(
   order: OrderListItem,
   detail: OrderDetail | null,
@@ -896,7 +907,7 @@ function buildPreviewParcels(
         eName: product.eName,
         cName: product.cName,
         quantity: item.quantity,
-        unitPrice: parseNumber(item.declaredValue) ?? parseNumber(item.unitPrice) ?? 1,
+        unitPrice: normalizeUnitPrice(parseNumber(item.declaredValue) ?? parseNumber(item.unitPrice)),
         unitWeight: parseNumber(item.weight) ?? 0.1,
         currencyCode: item.currency ?? defaultCurrency,
         invoicePart: "cotton",
@@ -915,7 +926,7 @@ function buildPreviewParcels(
         eName: product.eName,
         cName: product.cName,
         quantity: item.quantity,
-        unitPrice: item.unitPrice ?? 1,
+        unitPrice: normalizeUnitPrice(item.unitPrice),
         unitWeight: item.unitWeight ?? 0.1,
         currencyCode: defaultCurrency,
         invoicePart: "cotton",
@@ -979,9 +990,11 @@ function readString(value: unknown) {
 
 function splitName(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? "Recipient";
+  const lastName = parts.length > 1 ? parts.slice(1).join(" ") : firstName;
   return {
-    firstName: parts[0] ?? "Recipient",
-    lastName: parts.length > 1 ? parts.slice(1).join(" ") : "",
+    firstName,
+    lastName,
   };
 }
 

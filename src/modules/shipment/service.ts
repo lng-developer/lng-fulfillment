@@ -2314,12 +2314,22 @@ function buildReceiverNameOverride(
   options: ExecuteShipmentInput["options"] | undefined,
   fallbackName: string | null,
 ) {
-  const overrideName = [options?.receiverFirstName, options?.receiverLastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  return overrideName || fallbackName || undefined;
+  const firstName = options?.receiverFirstName?.trim();
+  const lastName = options?.receiverLastName?.trim();
+  if (firstName && lastName) {
+    return `${firstName} ${lastName}`;
+  }
+  if (firstName) {
+    return `${firstName} ${firstName}`;
+  }
+  if (fallbackName?.trim()) {
+    const parts = fallbackName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      return `${parts[0]} ${parts[0]}`;
+    }
+    return fallbackName.trim();
+  }
+  return undefined;
 }
 
 function decimalToNumber(value: unknown): number | null {

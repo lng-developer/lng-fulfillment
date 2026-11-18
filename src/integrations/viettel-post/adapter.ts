@@ -359,7 +359,11 @@ async function requestAccessToken(
 
 export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPostConfig) {
   const recipient = input.recipient!;
-  const [firstName, ...lastNameParts] = recipient.name!.trim().split(/\s+/);
+  const rawRecipientName = (recipient.name ?? "Customer").trim();
+  const nameParts = rawRecipientName.split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || "Customer";
+  // Viettel Post requires non-empty ShipTo.LastName. If customer has a single name (e.g. "ruby"), duplicate firstName as lastName.
+  const lastName = nameParts.slice(1).join(" ").trim() || firstName;
   const recipientCountry = normalizeCountryCode(recipient.country);
   const recipientState = normalizeStateCode(recipient.state, recipientCountry);
   const orderRef = stringValue(input.externalOrderId) ?? stringValue(input.orderId);
@@ -383,40 +387,47 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       labelFormat: 0,
       invoiceNumber: orderId || orderRef,
     },
-    lineItems: input.items.map((item) => ({
-      name: item.name ?? item.sku ?? item.orderItemId,
-      sku: item.sku ?? item.externalItemId ?? item.orderItemId,
-      quantity: item.quantity,
-      price: item.declaredValue && item.declaredValue > 0 ? item.declaredValue : 1.0,
-      currency: "USD",
-      countryOfOrigin: "VN",
-    })),
+    lineItems: input.items.map((item) => {
+      let price = item.declaredValue && item.declaredValue > 0 ? item.declaredValue : 1.0;
+      // Safeguard: if price is in cents (e.g. 2785 cents = $27.85), convert to dollars
+      if (price > 100) {
+        price = Math.round((price / 100) * 100) / 100;
+      }
+      return {
+        name: item.name ?? item.sku ?? item.orderItemId,
+        sku: item.sku ?? item.externalItemId ?? item.orderItemId,
+        quantity: item.quantity,
+        price,
+        currency: "USD",
+        countryOfOrigin: "VN",
+      };
+    }),
     shipFrom: {
-      firstName: config.shipFromFirstName,
-      lastName: config.shipFromLastName,
+      firstName: config.shipFromFirstName || "Kho",
+      lastName: config.shipFromLastName || "Fulfillment",
       company: "Metawoods",
-      phoneNumber: config.shipFromPhoneNumber,
-      address1: config.shipFromAddress1,
-      country: normalizeCountryCode(config.shipFromCountry),
+      phoneNumber: config.shipFromPhoneNumber || "0988888888",
+      address1: config.shipFromAddress1 || "Kho Viettel Post",
+      country: normalizeCountryCode(config.shipFromCountry) || "VN",
       ward: "Quang Trung",
       district: "Hà Đông",
-      state: config.shipFromState,
-      city: config.shipFromCity,
-      zipCode: config.shipFromZipCode,
+      state: config.shipFromState || "Hà Nội",
+      city: config.shipFromCity || "Hà Nội",
+      zipCode: config.shipFromZipCode || "100000",
       isBusinessAddress: true,
     },
     shipTo: {
       firstName,
-      lastName: lastNameParts.join(" ") || undefined,
-      company: (recipient as { company?: string }).company || recipient.name || "Customer",
-      phoneNumber: recipient.phone,
+      lastName,
+      company: (recipient as { company?: string }).company || rawRecipientName || "Customer",
+      phoneNumber: recipient.phone || "0988888888",
       email: recipient.email,
-      address1: recipient.line1,
-      address2: recipient.line2,
-      country: recipientCountry,
-      state: recipientState,
-      city: recipient.city,
-      zipCode: recipient.postalCode,
+      address1: recipient.line1 || "Street Address",
+      address2: recipient.line2 || "",
+      country: recipientCountry || "US",
+      state: recipientState || "CA",
+      city: recipient.city || "City",
+      zipCode: recipient.postalCode || "00000",
       useRawAddress: true,
       isBusinessAddress: true,
     },
