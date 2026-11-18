@@ -319,7 +319,7 @@ export async function createDirectShipmentFailureRecord(input: {
         create: {
           tenantId: input.tenantId,
           status: "FAILED_CREATE",
-          note: "YunExpress shipment creation failed.",
+          note: `${input.carrierCode} shipment creation failed.`,
           actorType: input.actorType,
           actorId: input.actorId,
         },
