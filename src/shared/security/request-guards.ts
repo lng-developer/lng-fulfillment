@@ -69,6 +69,18 @@ export function rateLimitOrThrow(policy: RateLimitPolicy): void {
 }
 
 export function assertSameOriginRequest(request: Request): void {
+  const requestOrigin =
+    parseOrigin(request.headers.get("origin")) ??
+    parseOrigin(request.headers.get("referer"));
+
+  // Native same-origin check against host / x-forwarded-host
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (host && requestOrigin) {
+    if (requestOrigin === `http://${host}` || requestOrigin === `https://${host}`) {
+      return;
+    }
+  }
+
   const allowedOrigins = getAllowedOrigins();
 
   if (allowedOrigins.size === 0) {
@@ -78,10 +90,6 @@ export function assertSameOriginRequest(request: Request): void {
       403,
     );
   }
-
-  const requestOrigin =
-    parseOrigin(request.headers.get("origin")) ??
-    parseOrigin(request.headers.get("referer"));
 
   if (!requestOrigin || !allowedOrigins.has(requestOrigin)) {
     throw new AppError("FORBIDDEN", "Same-origin request required.", 403);
@@ -108,8 +116,11 @@ function getAllowedOrigins(): Set<string> {
   addVercelOrigin(origins, process.env.VERCEL_URL);
   addVercelOrigin(origins, process.env.VERCEL_BRANCH_URL);
 
-  if (isLocalLikeEnvironment(process.env.APP_ENV)) {
-    for (const port of ["3000", "3001", "3002", "3003"]) {
+  if (
+    process.env.NODE_ENV !== "production" ||
+    isLocalLikeEnvironment(process.env.APP_ENV)
+  ) {
+    for (const port of ["3000", "3001", "3002", "3003", "3004"]) {
       origins.add(`http://localhost:${port}`);
       origins.add(`http://127.0.0.1:${port}`);
     }
