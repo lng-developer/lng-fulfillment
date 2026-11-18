@@ -76,6 +76,10 @@ export function createViettelPostAdapter(
               stringValue(errorBody.error_description) ??
               stringValue(errorBody.error);
             if (msg) remoteMessage = `Viettel Post: ${msg}`;
+            if (response.status === 410 || msg?.toLowerCase().includes("not enough balance")) {
+              remoteMessage =
+                "Viettel Post: Tài khoản chưa đủ số dư tiền cước (Not enough balance). Vui lòng nạp tiền vào tài khoản Viettel Post để tiếp tục tạo vận đơn.";
+            }
           }
         } catch {
           // ignore parsing error
@@ -556,6 +560,7 @@ async function requestAccessToken(
 }
 
 export const KNOWN_VIETTEL_POST_LINES: Record<string, { lineCode: string; lineShipId: string }> = {
+  // Staging lines
   LS494228: {
     lineCode: "LS494228",
     lineShipId: "437f7a8d-6995-4781-9333-ba297d14c573",
@@ -563,6 +568,49 @@ export const KNOWN_VIETTEL_POST_LINES: Record<string, { lineCode: string; lineSh
   LS946787: {
     lineCode: "LS946787",
     lineShipId: "72bc0f88-cb1a-4e52-9bd9-4592aaac12eb",
+  },
+  // Production lines
+  LS485343: {
+    lineCode: "LS485343",
+    lineShipId: "3a18a0cc-bb94-4181-7219-0eefe788762b",
+  },
+  LS220769: {
+    lineCode: "LS220769",
+    lineShipId: "fdcf8264-11fc-438d-ba80-241bd1f383e8",
+  },
+};
+
+export const VIETTEL_POST_LINES_BY_ENV: Record<
+  "staging" | "production",
+  Record<string, { lineCode: string; lineShipId: string }>
+> = {
+  staging: {
+    LS494228: {
+      lineCode: "LS494228",
+      lineShipId: "437f7a8d-6995-4781-9333-ba297d14c573",
+    },
+    LS946787: {
+      lineCode: "LS946787",
+      lineShipId: "72bc0f88-cb1a-4e52-9bd9-4592aaac12eb",
+    },
+  },
+  production: {
+    LS485343: {
+      lineCode: "LS485343",
+      lineShipId: "3a18a0cc-bb94-4181-7219-0eefe788762b",
+    },
+    LS220769: {
+      lineCode: "LS220769",
+      lineShipId: "fdcf8264-11fc-438d-ba80-241bd1f383e8",
+    },
+    LS494228: {
+      lineCode: "LS485343",
+      lineShipId: "3a18a0cc-bb94-4181-7219-0eefe788762b",
+    },
+    LS946787: {
+      lineCode: "LS220769",
+      lineShipId: "fdcf8264-11fc-438d-ba80-241bd1f383e8",
+    },
   },
 };
 
@@ -582,16 +630,26 @@ export function mapShipment(
   const orderRef = stringValue(input.externalOrderId) ?? stringValue(input.orderId);
   const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
 
-  const configuredLine = (config.lineShipId || "").trim();
-  const mapped = KNOWN_VIETTEL_POST_LINES[configuredLine];
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(configuredLine);
-  const lineCode = mapped?.lineCode || (isUUID ? "LS494228" : configuredLine) || "LS494228";
-  const lineShipId = mapped?.lineShipId || (isUUID ? configuredLine : configuredLine) || "437f7a8d-6995-4781-9333-ba297d14c573";
-
   const isProd =
     !config.orderUrl.includes("logistek.com.vn") &&
     !config.authUrl.includes("logistek.com.vn");
   const envKey = isProd ? "production" : "staging";
+
+  const configuredLine = (config.lineShipId || "").trim();
+  const envLines = VIETTEL_POST_LINES_BY_ENV[envKey] || VIETTEL_POST_LINES_BY_ENV.production;
+  const mapped =
+    envLines[configuredLine] ||
+    envLines[configuredLine.toUpperCase()] ||
+    KNOWN_VIETTEL_POST_LINES[configuredLine];
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(configuredLine);
+  const defaultLineCode = isProd ? "LS485343" : "LS494228";
+  const defaultLineShipId = isProd
+    ? "3a18a0cc-bb94-4181-7219-0eefe788762b"
+    : "437f7a8d-6995-4781-9333-ba297d14c573";
+
+  const lineCode = mapped?.lineCode || (isUUID ? defaultLineCode : configuredLine) || defaultLineCode;
+  const lineShipId = mapped?.lineShipId || (isUUID ? configuredLine : defaultLineShipId) || defaultLineShipId;
+
   const resolvedMerchandise =
     merchandise ||
     FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
