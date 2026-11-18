@@ -300,6 +300,15 @@ export function normalizeCountryCode(country: string | null | undefined): string
   return trimmed.slice(0, 2);
 }
 
+export function normalizeZipCode(zip: string | null | undefined): string {
+  if (!zip) return "00000";
+  const trimmed = zip.trim();
+  // Viettel Post requires a 5-digit US zipcode (e.g. 97478-6902 -> 97478)
+  const match = trimmed.match(/^(\d{5})/);
+  if (match) return match[1];
+  return trimmed.slice(0, 5);
+}
+
 export function resolveViettelPostAuthUrl(authUrl: string): string {
   const stripped = stripTrailingSlash(authUrl);
   if (stripped.endsWith("/connect/token")) {
@@ -407,12 +416,12 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       lastName: config.shipFromLastName || "Fulfillment",
       company: "Metawoods",
       phoneNumber: config.shipFromPhoneNumber || "0988888888",
-      address1: config.shipFromAddress1 || "Kho Viettel Post",
+      address1: config.shipFromAddress1 || "123 Pham Van Dong",
       country: normalizeCountryCode(config.shipFromCountry) || "VN",
-      ward: "Quang Trung",
-      district: "Hà Đông",
-      state: config.shipFromState || "Hà Nội",
-      city: config.shipFromCity || "Hà Nội",
+      ward: "Dịch Vọng Hậu",
+      district: "Cầu Giấy",
+      state: "Cầu Giấy",
+      city: "Hà Nội",
       zipCode: config.shipFromZipCode || "100000",
       isBusinessAddress: true,
     },
@@ -427,7 +436,7 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
       country: recipientCountry || "US",
       state: recipientState || "CA",
       city: recipient.city || "City",
-      zipCode: recipient.postalCode || "00000",
+      zipCode: normalizeZipCode(recipient.postalCode),
       useRawAddress: true,
       isBusinessAddress: true,
     },
@@ -437,17 +446,24 @@ export function mapShipment(input: CreateCarrierShipmentInput, config: ViettelPo
 function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   const data = isRecord(body) && isRecord(body.data) ? body.data : body;
   const shipment = isRecord(data) ? data : {};
-  const carrierShipmentId = stringValue(shipment.shipmentId) ?? stringValue(shipment.id) ?? stringValue(shipment.trackingNumber);
+  const carrierShipmentId =
+    stringValue(shipment.shipmentId) ??
+    stringValue(shipment.id) ??
+    stringValue(shipment.trackingNumber) ??
+    stringValue(shipment.code);
   if (!carrierShipmentId) {
     throw carrierError("REMOTE_REJECTED", "Viettel Post returned no shipment identifier.", false, 502);
   }
-  const vtpOrderNumber = stringValue(shipment.vtpOrderNumber);
-  const shipmentCode = stringValue(shipment.shipmentCode);
+  const vtpOrderNumber = stringValue(shipment.vtpOrderNumber) ?? stringValue(shipment.code);
+  const shipmentCode = stringValue(shipment.shipmentCode) ?? stringValue(shipment.code);
 
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId,
-    trackingNumber: normalizeViettelPostTrackingNumber(stringValue(shipment.trackingNumber)) ?? undefined,
+    trackingNumber:
+      normalizeViettelPostTrackingNumber(stringValue(shipment.trackingNumber)) ??
+      normalizeViettelPostTrackingNumber(stringValue(shipment.code)) ??
+      undefined,
     labelUrl: stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP),
     ...(vtpOrderNumber || shipmentCode
       ? {
