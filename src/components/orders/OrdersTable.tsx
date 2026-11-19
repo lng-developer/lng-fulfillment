@@ -810,13 +810,27 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     order.latestTrackingNumber ??
                     detail?.shipments?.[0]?.trackingNumber ??
                     null;
+                  const firstShipment = detail?.shipments?.[0] as
+                    | (Record<string, unknown> & { labelUrl?: string | null; trackingNumber?: string | null })
+                    | undefined;
+                  const metadataCarrier =
+                    firstShipment?.metadata &&
+                    typeof firstShipment.metadata === "object" &&
+                    !Array.isArray(firstShipment.metadata) &&
+                    (firstShipment.metadata as Record<string, unknown>).carrier &&
+                    typeof (firstShipment.metadata as Record<string, unknown>).carrier === "object"
+                      ? ((firstShipment.metadata as Record<string, unknown>).carrier as Record<string, unknown>)
+                      : null;
                   const labelUrl =
                     order.labelUrl ??
                     order.latestLabelUrl ??
-                    detail?.shipments?.[0]?.labelUrl ??
+                    firstShipment?.labelUrl ??
+                    (typeof metadataCarrier?.labelUrl === "string" ? metadataCarrier.labelUrl : null) ??
                     null;
                   const isShipped =
-                    order.status === "SHIPPED" || Boolean(labelUrl);
+                    order.status === "SHIPPED" ||
+                    Boolean(labelUrl) ||
+                    (order.status === "IN_PROCESSING" && Boolean(tracking));
                   const pendingAction = pendingOrderActions[order.id] ?? null;
                   const isMenuOpen = activeMenuOrderId === order.id;
 
@@ -940,7 +954,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                   In nhãn
                                 </a>
                               ) : (
-                                <span className="text-xs text-slate-400">Đã ship</span>
+                                <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-500">
+                                  {tracking ? "Chờ nhãn in" : "Đã ship"}
+                                </span>
                               )
                             ) : order.status === "RECEIVED" ? (
                               can.qcOrder(role) ? (

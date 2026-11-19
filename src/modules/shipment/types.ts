@@ -262,7 +262,7 @@ export type ShipOrdersBatchResult = {
 export type ConfirmOrderShippedResult = {
   orderId: string;
   orderStatus: "SHIPPED";
-  labelUrl: string;
+  labelUrl: string | null;
   shipment: ShipmentDetail;
   shipmentCost: ShipmentCostSummary;
 };

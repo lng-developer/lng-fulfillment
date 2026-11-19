@@ -636,7 +636,12 @@ export async function confirmOrderShipped(
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
   }
 
-  if (!shipment.labelUrl) {
+  const carrierMeta = asRecord(asRecord(shipment.metadata)?.carrier);
+  const effectiveLabelUrl =
+    shipment.labelUrl ||
+    (typeof carrierMeta?.labelUrl === "string" ? carrierMeta.labelUrl : null);
+
+  if (!effectiveLabelUrl && shipment.carrierCode !== "VIETTEL_POST") {
     throw new AppError("CONFLICT", "Shipment label is not available.", 409);
   }
 
@@ -673,7 +678,9 @@ export async function confirmOrderShipped(
     tenantId,
     orderId,
     status: "SHIPPED",
-    note: "Shipment confirmed and label opened.",
+    note: effectiveLabelUrl
+      ? "Shipment confirmed and label opened."
+      : "Shipment package dimensions confirmed.",
     actorType: actor.actorType,
     actorId: actor.actorId,
   });
@@ -681,7 +688,7 @@ export async function confirmOrderShipped(
   return {
     orderId,
     orderStatus: "SHIPPED",
-    labelUrl: shipment.labelUrl,
+    labelUrl: effectiveLabelUrl,
     shipment,
     shipmentCost,
   };

@@ -453,6 +453,8 @@ export const FALLBACK_MERCHANDISE_MAP: Record<
   },
 };
 
+const MERCHANDISE_CACHE = new Map<string, ViettelPostMerchandise>();
+
 export async function resolveViettelPostMerchandise(
   input: CreateCarrierShipmentInput,
   config: ViettelPostConfig,
@@ -464,6 +466,13 @@ export async function resolveViettelPostMerchandise(
     !config.authUrl.includes("logistek.com.vn");
   const envKey = isProd ? "production" : "staging";
   const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
+
+  // Check in-memory cache for previously resolved merchandise
+  const cacheKey = `${envKey}:${hsCode}`;
+  const cached = MERCHANDISE_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
   const fallback =
     FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
@@ -480,6 +489,7 @@ export async function resolveViettelPostMerchandise(
         authorization: `Bearer ${token}`,
         accept: "application/json",
       }),
+      signal: AbortSignal.timeout(3000),
     });
     if (res.ok) {
       const json = await readJson(res);
@@ -500,7 +510,7 @@ export async function resolveViettelPostMerchandise(
           }));
 
         if (id) {
-          return {
+          const resolved: ViettelPostMerchandise = {
             id,
             code,
             merchandiseType: parentCode,
@@ -512,6 +522,8 @@ export async function resolveViettelPostMerchandise(
                     { name, languageCode: "vi" },
                   ],
           };
+          MERCHANDISE_CACHE.set(cacheKey, resolved);
+          return resolved;
         }
       }
     }
@@ -519,6 +531,8 @@ export async function resolveViettelPostMerchandise(
     // Ignore error and fall through to fallback
   }
 
+  // Cache fallback so subsequent requests skip redundant network calls
+  MERCHANDISE_CACHE.set(cacheKey, fallback);
   return fallback;
 }
 
