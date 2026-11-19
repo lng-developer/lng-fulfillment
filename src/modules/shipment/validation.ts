@@ -125,11 +125,9 @@ export function validateShipOrderInput(
   const body = input as Record<string, unknown>;
 
   const carrierCode =
-    body.carrierCode === "VIETTEL_POST"
-      ? "VIETTEL_POST"
-      : body.carrierCode === "YUNEXPRESS_OMS"
-        ? "YUNEXPRESS_OMS"
-        : undefined;
+    body.carrierCode === "YUNEXPRESS_OMS"
+      ? "YUNEXPRESS_OMS"
+      : "VIETTEL_POST";
 
   const carrierAccountId =
     typeof body.carrierAccountId === "string" && body.carrierAccountId.trim()

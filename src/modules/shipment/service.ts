@@ -602,51 +602,26 @@ export async function shipOrderDirect(
   input: ShipOrderInput,
   actor: ShipmentActor,
 ): Promise<ShipOrderResult> {
-  if (input.carrierCode === "VIETTEL_POST") {
-    return shipOrderWithViettelPost(tenantId, input, actor);
+  if (input.carrierCode === "YUNEXPRESS_OMS") {
+    throw new AppError(
+      "CARRIER_ERROR",
+      "Kết nối YunExpress đã bị tắt. Vui lòng sử dụng Viettel Post.",
+      400,
+    );
   }
-  return shipOrderWithYun(tenantId, input, actor);
+  return shipOrderWithViettelPost(tenantId, input, actor);
 }
 
 export async function shipOrdersBatchWithYun(
   tenantId: string,
-  input: ShipOrdersBatchInput,
-  actor: ShipmentActor,
+  _input: ShipOrdersBatchInput,
+  _actor: ShipmentActor,
 ): Promise<ShipOrdersBatchResult> {
-  const results: ShipOrdersBatchResult["results"] = [];
-
-  for (const orderId of input.orderIds) {
-    try {
-      const result = await shipOrderWithYun(
-        tenantId,
-        {
-          orderId,
-          environment: input.environment,
-          options: input.optionsByOrderId?.[orderId],
-        },
-        actor,
-      );
-      results.push({
-        orderId,
-        success: true,
-        shipment: result.shipment,
-      });
-    } catch (error) {
-      const appError =
-        error instanceof AppError ? error : mapCarrierErrorToAppError(error);
-      results.push({
-        orderId,
-        success: false,
-        error: {
-          code: appError.code,
-          message: appError.message,
-          details: appError.details,
-        },
-      });
-    }
-  }
-
-  return { results };
+  throw new AppError(
+    "CARRIER_ERROR",
+    "Kết nối YunExpress đã bị tắt. Vui lòng sử dụng Viettel Post.",
+    400,
+  );
 }
 
 export async function confirmOrderShipped(
@@ -839,11 +814,11 @@ export async function resetCancelledOrder(
 
     throw new AppError(
       "CONFLICT",
-      "Only cancelled orders can be reset.",
+      "Only cancelled or in-processing orders can be reset.",
       409,
       {
         orderStatus: orderState.status,
-        allowedStatuses: ["CANCELLED"],
+        allowedStatuses: ["CANCELLED", "IN_PROCESSING"],
       },
     );
   }
@@ -857,7 +832,7 @@ export async function resetCancelledOrder(
       resourceId: orderId,
       metadata: {
         orderId,
-        previousStatus: "CANCELLED",
+        previousStatus: "IN_PROCESSING",
         nextStatus: "FULFILLED",
       },
     });

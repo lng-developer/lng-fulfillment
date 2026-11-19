@@ -304,6 +304,15 @@ export function ShipmentsTable({
                             Viettel Post
                           </span>
                         )}
+                        {(shipment.carrierAccountId === "cmwjc0l9q0001iq1sse3mzemj" || shipment.labelUrl?.includes(".stg.")) ? (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 border border-amber-300">
+                            STAGING
+                          </span>
+                        ) : (
+                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 border border-emerald-200">
+                            PROD
+                          </span>
+                        )}
                       </div>
                       {shipment.sourceChannel && (
                         <span className="text-[10px] text-slate-400 block uppercase">

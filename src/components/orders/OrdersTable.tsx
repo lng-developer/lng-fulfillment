@@ -892,11 +892,22 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         {/* Tracking */}
                         <td className="px-3.5 py-2.5">
                           {tracking ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-mono font-semibold text-slate-800 text-[11px]">
                                 {tracking}
                               </span>
                               <CopyButton value={tracking} />
+                              {(order.latestCarrierAccountId === "cmwjc0l9q0001iq1sse3mzemj" ||
+                                labelUrl?.includes(".stg.") ||
+                                order.latestLabelUrl?.includes(".stg.")) ? (
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 border border-amber-300">
+                                  STAGING
+                                </span>
+                              ) : (
+                                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 border border-emerald-200">
+                                  PROD
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-slate-400 text-xs">-</span>
@@ -1014,7 +1025,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                           QC Pass (Sẵn sàng ship)
                                         </button>
                                       )}
-                                    {can.cancelYun(role) && isShipped && (
+                                    {can.cancelYun(role) && isShipped && order.latestCarrierCode === "YUNEXPRESS_OMS" && (
                                       <button
                                         className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50"
                                         onClick={() => {

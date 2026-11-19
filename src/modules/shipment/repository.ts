@@ -661,7 +661,7 @@ export async function resetCancelledOrderRecords(input: {
       where: {
         id: input.orderId,
         tenantId: input.tenantId,
-        status: "CANCELLED",
+        status: { in: ["CANCELLED", "IN_PROCESSING"] },
       },
       data: {
         status: "FULFILLED",
@@ -703,6 +703,7 @@ export async function resetCancelledOrderRecords(input: {
             tenantId: input.tenantId,
           },
           data: {
+            status: "CANCELLED",
             carrierShipmentId: null,
             trackingNumber: null,
             labelUrl: null,
@@ -746,6 +747,7 @@ export async function listShipments(
       orderId: true,
       status: true,
       carrierCode: true,
+      carrierAccountId: true,
       carrierShipmentId: true,
       trackingNumber: true,
       actualShipAt: true,
@@ -778,6 +780,7 @@ export async function listShipments(
     carrierCode: row.carrierCode,
     carrierName: getFinalMileCarrier(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS" : row.carrierCode),
     shippingMethod: getShippingMethod(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard"),
+    carrierAccountId: row.carrierAccountId,
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,
     actualShipAt: row.actualShipAt,

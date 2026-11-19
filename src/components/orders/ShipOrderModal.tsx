@@ -110,7 +110,7 @@ export function ShipOrderModal({
   onClose: () => void;
   onSubmit: (input: ShipOrderSubmitInput) => void;
 }) {
-  const [carrierCode, setCarrierCode] = useState<"YUNEXPRESS_OMS" | "VIETTEL_POST">("YUNEXPRESS_OMS");
+  const [carrierCode, setCarrierCode] = useState<"YUNEXPRESS_OMS" | "VIETTEL_POST">("VIETTEL_POST");
   const [carrierAccounts, setCarrierAccounts] = useState<CarrierAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
@@ -310,21 +310,6 @@ export function ShipOrderModal({
               <button
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold transition-all border",
-                  carrierCode === "YUNEXPRESS_OMS"
-                    ? "bg-white text-indigo-700 border-indigo-300 shadow-sm ring-2 ring-indigo-500/20"
-                    : "bg-slate-100/60 text-slate-600 border-slate-200 hover:bg-white hover:text-slate-900",
-                )}
-                disabled={controlsDisabled}
-                onClick={() => handleSelectCarrier("YUNEXPRESS_OMS")}
-                type="button"
-              >
-                <Truck className="h-4 w-4" />
-                <span>YunExpress</span>
-              </button>
-
-              <button
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold transition-all border",
                   carrierCode === "VIETTEL_POST"
                     ? "bg-white text-rose-700 border-rose-300 shadow-sm ring-2 ring-rose-500/20"
                     : "bg-slate-100/60 text-slate-600 border-slate-200 hover:bg-white hover:text-slate-900",
@@ -335,6 +320,16 @@ export function ShipOrderModal({
               >
                 <Package className="h-4 w-4" />
                 <span>Viettel Post (Logistek)</span>
+              </button>
+
+              <button
+                className="flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold border bg-slate-100/40 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                disabled={true}
+                title="Kết nối YunExpress đã bị tắt"
+                type="button"
+              >
+                <Truck className="h-4 w-4" />
+                <span>YunExpress (Đã tắt)</span>
               </button>
             </div>
 
@@ -366,6 +361,13 @@ export function ShipOrderModal({
                     ))
                   )}
                 </select>
+
+                {selectedAccountId === "cmwjc0l9q0001iq1sse3mzemj" && (
+                  <div className="mt-2 rounded-md bg-amber-50 border border-amber-300 p-2 text-[11px] font-medium text-amber-800 flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span><strong>Tài khoản TEST STAGING:</strong> Bạn đang chọn cổng thử nghiệm. Mã tracking tạo ra sẽ không được chuyển phát thật!</span>
+                  </div>
+                )}
 
                 {viettelPostAccounts.length === 0 && !loadingAccounts && (
                   <p className="mt-1.5 text-[11px] font-medium text-rose-600">

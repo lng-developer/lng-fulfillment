@@ -201,6 +201,8 @@ export type OrderListItem = {
   latestShipmentStatus: string | null;
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
+  latestCarrierAccountId?: string | null;
+  latestCarrierCode?: string | null;
   latestShipmentCost?: ShipmentCostSummary | null;
   autoShipmentJob?: OrderAutoShipmentJobSummary | null;
   trackingNumber?: string | null;

@@ -51,13 +51,12 @@ export function ResetOrderModal({
 
         <div className="grid gap-3 px-4 py-4">
           <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3 text-xs text-[var(--text-secondary)]">
-            Existing cancelled shipment history remains unchanged. A new YunExpress
-            shipment can be created from the reset order.
+            Vận đơn hiện tại sẽ được hủy để bạn có thể tạo lại vận đơn mới với tài khoản/hãng mong muốn.
           </div>
           <div className="grid gap-2 text-xs">
             <InfoRow label="Order #" mono value={order.orderNumber ?? order.externalOrderId} />
-            <InfoRow label="Current status" value="CANCELLED" />
-            <InfoRow label="Next status" value="FULFILLED" />
+            <InfoRow label="Current status" value={order.status} />
+            <InfoRow label="Next status" value="FULFILLED (Sẵn sàng ship)" />
           </div>
         </div>
 

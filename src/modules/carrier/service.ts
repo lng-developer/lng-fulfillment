@@ -611,7 +611,11 @@ export async function resolveCarrierCredentials(
     }
 
     if (normalizedCarrierCode === "YUNEXPRESS_OMS") {
-      return resolveYunExpressEnvFallback();
+      throw new AppError(
+        "CARRIER_ERROR",
+        "Kết nối YunExpress đã bị tắt. Vui lòng sử dụng Viettel Post.",
+        400,
+      );
     }
 
     throw new AppError("CARRIER_ERROR", "Carrier account is not configured.", 503, {

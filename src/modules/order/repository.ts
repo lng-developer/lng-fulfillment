@@ -352,6 +352,8 @@ export async function listOrders(
           status: true,
           trackingNumber: true,
           labelUrl: true,
+          carrierAccountId: true,
+          carrierCode: true,
           cost: {
             select: shipmentCostSelect,
           },
@@ -413,6 +415,8 @@ export async function listOrders(
     latestShipmentStatus: row.shipments[0]?.status ?? null,
     latestTrackingNumber: row.shipments[0]?.trackingNumber ?? null,
     latestLabelUrl: row.shipments[0]?.labelUrl ?? null,
+    latestCarrierAccountId: row.shipments[0]?.carrierAccountId ?? null,
+    latestCarrierCode: row.shipments[0]?.carrierCode ?? null,
     latestShipmentCost: row.shipments[0]?.cost
       ? toShipmentCostSummary(row.shipments[0].cost)
       : null,
