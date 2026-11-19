@@ -79,7 +79,15 @@ export function createViettelPostAdapter(
               stringValue(errorBody.message) ??
               stringValue(errorBody.error_description) ??
               stringValue(errorBody.error);
-            if (msg) remoteMessage = `Viettel Post: ${msg}`;
+            const detailMsg =
+              stringValue(errorBody.details) ??
+              stringValue(errorBody.detail) ??
+              (Array.isArray(errorBody.validationErrors)
+                ? errorBody.validationErrors
+                    .map((v: unknown) => (isRecord(v) && stringValue(v.message)) || JSON.stringify(v))
+                    .join("; ")
+                : undefined);
+            if (msg) remoteMessage = `Viettel Post: ${msg}${detailMsg ? ` (${detailMsg})` : ""}`;
             if (response.status === 410 || msg?.toLowerCase().includes("not enough balance")) {
               remoteMessage =
                 "Viettel Post: Tài khoản chưa đủ số dư tiền cước (Not enough balance). Vui lòng nạp tiền vào tài khoản Viettel Post để tiếp tục tạo vận đơn.";
@@ -715,13 +723,15 @@ export function mapShipment(
       lastName: config.shipFromLastName || "Mai",
       company: config.shipFromCompanyName || "ECOMATRIX",
       phoneNumber: config.shipFromPhoneNumber || "0389029339",
+      email: config.shipFromEmail || "Ecomatrixgroup@gmail.com",
       address1: config.shipFromAddress1 || "Hoa Lâm",
       country: normalizeCountryCode(config.shipFromCountry) || "VN",
       ward: config.shipFromWard || "Việt Hưng",
       district: config.shipFromDistrict || "Long Biên",
-      state: config.shipFromState || "Hà Nội",
+      state: config.shipFromDistrict || config.shipFromState || "Long Biên",
       city: config.shipFromCity || "Hà Nội",
-      zipCode: config.shipFromZipCode || "10000",
+      zipCode: normalizeZipCode(config.shipFromZipCode || "10000"),
+      useRawAddress: true,
       isBusinessAddress: true,
     },
     shipTo: {
