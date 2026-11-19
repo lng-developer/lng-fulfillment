@@ -60,6 +60,8 @@ export function createViettelPostAdapter(
       const token = await requestAccessToken(config, fetchImpl, tokenCache);
       const merchandise = await resolveViettelPostMerchandise(input, config, token, fetchImpl);
       const url = resolveViettelPostOrderUrl(config.orderUrl, "/api/partner/order/shipment");
+      const shipmentPayload = mapShipment(input, config, merchandise);
+      console.log("[ViettelPost] Sending shipment shipFrom:", JSON.stringify(shipmentPayload.shipFrom));
       const response = await fetchImpl(url, {
         method: "POST",
         headers: new Headers({
@@ -67,13 +69,14 @@ export function createViettelPostAdapter(
           accept: "application/json",
           "content-type": "application/json",
         }),
-        body: JSON.stringify(mapShipment(input, config, merchandise)),
+        body: JSON.stringify(shipmentPayload),
       });
 
       if (!response.ok) {
         let remoteMessage = "Viettel Post rejected shipment creation.";
         try {
           const errorBody = await readJson(response);
+          console.error("[ViettelPost] Error response:", response.status, JSON.stringify(errorBody));
           if (isRecord(errorBody)) {
             const msg =
               stringValue(errorBody.message) ??
@@ -723,15 +726,13 @@ export function mapShipment(
       lastName: config.shipFromLastName || "Mai",
       company: config.shipFromCompanyName || "ECOMATRIX",
       phoneNumber: config.shipFromPhoneNumber || "0389029339",
-      email: config.shipFromEmail || "Ecomatrixgroup@gmail.com",
-      address1: config.shipFromAddress1 || "Hoa Lâm",
+      address1: config.shipFromAddress1 || "123 Pham Van Dong",
       country: normalizeCountryCode(config.shipFromCountry) || "VN",
-      ward: config.shipFromWard || "Việt Hưng",
-      district: config.shipFromDistrict || "Long Biên",
-      state: config.shipFromDistrict || config.shipFromState || "Long Biên",
+      ward: config.shipFromWard || "Dịch Vọng Hậu",
+      district: config.shipFromDistrict || "Cầu Giấy",
+      state: config.shipFromState || "Cầu Giấy",
       city: config.shipFromCity || "Hà Nội",
-      zipCode: normalizeZipCode(config.shipFromZipCode || "10000"),
-      useRawAddress: true,
+      zipCode: config.shipFromZipCode || "100000",
       isBusinessAddress: true,
     },
     shipTo: {
