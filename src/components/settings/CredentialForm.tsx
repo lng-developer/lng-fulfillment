@@ -134,6 +134,18 @@ export function CredentialForm({
 
         {isViettelPost ? (
           <div className="grid gap-4 px-6 py-5">
+            {account.credential && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Đang sử dụng cấu hình đã lưu ({account.credential.keyPrefix ?? "Active"})</span>
+                </div>
+                <p className="mt-1 text-[11px] text-emerald-700">
+                  Thông tin kết nối trước đó đã được lưu và mã hóa an toàn trên máy chủ. Bạn chỉ cần điền lại nếu muốn thay đổi thông tin kết nối mới.
+                </p>
+              </div>
+            )}
+
             <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
               Môi trường Viettel Post (Gateway Environment) *
               <select
@@ -214,21 +226,40 @@ export function CredentialForm({
               </span>
             </label>
 
-            <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
-              Line Ship ID (Mã Line vận chuyển)
-              <input
-                autoComplete="off"
-                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                Line Ship ID (Gói tuyến vận chuyển Viettel Post)
+              </label>
+              <select
+                className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-mono"
                 onChange={(event) =>
                   setVpValues((current) => ({
                     ...current,
                     lineShipId: event.target.value,
                   }))
                 }
-                placeholder="Mặc định: VTP_DEFAULT"
                 value={vpValues.lineShipId}
-              />
-            </label>
+              >
+                {vpValues.orderUrl.includes("staging") ? (
+                  <>
+                    <option value="LS494228">LS494228 - LINE NHANH TEST (Chặng cuối USPS - Mặc định)</option>
+                    <option value="LS946787">LS946787 - LINE TIẾT KIỆM TEST (US)</option>
+                    <option value="VTP_DEFAULT">VTP_DEFAULT (Tự động map)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="LS485343">LS485343 - LINE NHANH PROD (Chặng cuối USPS - Mặc định)</option>
+                    <option value="LS220769">LS220769 - LINE TIẾT KIỆM PROD (US)</option>
+                    <option value="VTP_DEFAULT">VTP_DEFAULT (Tự động map)</option>
+                  </>
+                )}
+              </select>
+              <p className="text-[11px] text-slate-500">
+                {vpValues.orderUrl.includes("staging")
+                  ? "Staging hiện có 2 line: LS494228 (Line Nhanh) và LS946787 (Line Tiết kiệm)."
+                  : "Production hiện có 2 line: LS485343 (Line Nhanh) và LS220769 (Line Tiết kiệm)."}
+              </p>
+            </div>
 
             <div className="border-t border-slate-200 pt-3">
               <h3 className="mb-1 text-xs font-bold text-slate-900">
