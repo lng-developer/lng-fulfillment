@@ -614,15 +614,48 @@ export async function shipOrderDirect(
 
 export async function shipOrdersBatchWithYun(
   tenantId: string,
-  _input: ShipOrdersBatchInput,
-  _actor: ShipmentActor,
+  input: ShipOrdersBatchInput,
+  actor: ShipmentActor,
 ): Promise<ShipOrdersBatchResult> {
-  throw new AppError(
-    "CARRIER_ERROR",
-    "Kết nối YunExpress đã bị tắt. Vui lòng sử dụng Viettel Post.",
-    400,
-  );
+  const results: ShipOrdersBatchResult["results"] = [];
+
+  for (const orderId of input.orderIds) {
+    try {
+      const result = await shipOrderDirect(
+        tenantId,
+        {
+          orderId,
+          environment: input.environment,
+          carrierCode: input.carrierCode ?? "VIETTEL_POST",
+          carrierAccountId: input.carrierAccountId,
+          options: input.optionsByOrderId?.[orderId],
+        },
+        actor,
+      );
+      results.push({
+        orderId,
+        success: true,
+        shipment: result.shipment,
+      });
+    } catch (error) {
+      const appError =
+        error instanceof AppError ? error : mapCarrierErrorToAppError(error);
+      results.push({
+        orderId,
+        success: false,
+        error: {
+          code: appError.code,
+          message: appError.message,
+          details: appError.details,
+        },
+      });
+    }
+  }
+
+  return { results };
 }
+
+export const shipOrdersBatchDirect = shipOrdersBatchWithYun;
 
 export async function confirmOrderShipped(
   tenantId: string,

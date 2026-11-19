@@ -1,6 +1,6 @@
 import type { TenantRole } from "@prisma/client";
 import {
-  shipOrdersBatchWithYun,
+  shipOrdersBatchDirect,
   validateShipOrdersBatchInput,
 } from "@/modules/shipment";
 import { ok, error as errorResponse } from "@/shared/api-response";
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     });
 
     const input = validateShipOrdersBatchInput(await readJson(request));
-    const result = await shipOrdersBatchWithYun(context.tenantId, input, {
+    const result = await shipOrdersBatchDirect(context.tenantId, input, {
       actorType: "USER",
       actorId: context.actorUserId,
     });

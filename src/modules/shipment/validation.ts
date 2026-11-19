@@ -152,6 +152,17 @@ export function validateShipOrdersBatchInput(input: unknown): ShipOrdersBatchInp
 
   const body = input as Record<string, unknown>;
   const environment = parseYunEnvironment(body.environment) ?? "test";
+  const carrierCode =
+    body.carrierCode === "YUNEXPRESS_OMS"
+      ? "YUNEXPRESS_OMS"
+      : "VIETTEL_POST";
+
+  const carrierAccountId =
+    typeof body.carrierAccountId === "string" && body.carrierAccountId.trim()
+      ? body.carrierAccountId.trim()
+      : body.carrierAccountId === null
+        ? null
+        : undefined;
 
   if (!Array.isArray(body.orderIds) || body.orderIds.length === 0) {
     throw new AppError("VALIDATION_ERROR", "orderIds is required.", 400);
@@ -160,7 +171,7 @@ export function validateShipOrdersBatchInput(input: unknown): ShipOrdersBatchInp
   if (body.orderIds.length > 10) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "YunExpress accepts at most 10 orders per batch.",
+      "Chỉ chấp nhận tối đa 10 đơn hàng mỗi lần đóng gói hàng loạt.",
       400,
     );
   }
@@ -182,6 +193,8 @@ export function validateShipOrdersBatchInput(input: unknown): ShipOrdersBatchInp
   return {
     orderIds,
     environment,
+    carrierCode,
+    carrierAccountId,
     ...(optionsByOrderId ? { optionsByOrderId } : {}),
   };
 }

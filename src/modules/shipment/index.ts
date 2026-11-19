@@ -13,6 +13,7 @@ export {
   shipOrderWithYun,
   shipOrderWithViettelPost,
   shipOrderDirect,
+  shipOrdersBatchDirect,
   shipOrdersBatchWithYun,
   syncTrackingBatch,
   syncViettelPostTrackingBatch,

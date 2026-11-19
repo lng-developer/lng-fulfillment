@@ -164,6 +164,8 @@ export type ShipOrderInput = {
 export type ShipOrdersBatchInput = {
   orderIds: string[];
   environment: ShipmentYunEnvironment;
+  carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST";
+  carrierAccountId?: string | null;
   optionsByOrderId?: Record<string, ShipOrderOptions | undefined>;
 };
 
