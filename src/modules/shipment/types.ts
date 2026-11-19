@@ -60,6 +60,7 @@ export type ShipmentListItem = {
   status: ShipmentStatus;
   carrierCode: string | null;
   carrierName: string | null;
+  shippingMethod: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   actualShipAt: Date | null;
@@ -79,6 +80,8 @@ export type ShipmentDetail = {
   sourceChannel: OrderSourceChannel | null;
   status: ShipmentStatus;
   carrierCode: string | null;
+  carrierName?: string | null;
+  shippingMethod?: string | null;
   carrierAccountId: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;

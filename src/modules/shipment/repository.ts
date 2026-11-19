@@ -20,7 +20,12 @@ import {
   getPortalTrackingSyncState,
   withPortalTrackingSyncState,
 } from "./portal-tracking-sync-state";
-import { getFinalMileCarrier, withCarrierSafeMetadata, withFinalMileCarrier } from "./carrier-display";
+import {
+  getFinalMileCarrier,
+  getShippingMethod,
+  withCarrierSafeMetadata,
+  withFinalMileCarrier,
+} from "./carrier-display";
 import { normalizeViettelPostTrackingNumber } from "@/integrations/viettel-post/adapter";
 import type {
   CreateDraftShipmentInput,
@@ -226,6 +231,7 @@ export async function createDirectShipmentSuccessRecords(input: {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  actualShipAt?: Date | null;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
@@ -241,6 +247,7 @@ export async function createDirectShipmentSuccessRecords(input: {
         carrierShipmentId: input.carrierShipmentId,
         trackingNumber: input.trackingNumber,
         labelUrl: input.labelUrl,
+        ...(input.actualShipAt !== undefined ? { actualShipAt: input.actualShipAt } : {}),
         ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         items: {
           create: input.items.map((item) => ({
@@ -769,7 +776,8 @@ export async function listShipments(
     sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
-    carrierName: getFinalMileCarrier(row.metadata),
+    carrierName: getFinalMileCarrier(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS" : row.carrierCode),
+    shippingMethod: getShippingMethod(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard"),
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,
     actualShipAt: row.actualShipAt,
@@ -1006,6 +1014,7 @@ export async function updateShipmentExecutionSucceeded(input: {
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
+  actualShipAt?: Date | null;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
@@ -1021,6 +1030,7 @@ export async function updateShipmentExecutionSucceeded(input: {
         carrierShipmentId: input.carrierShipmentId,
         trackingNumber: input.trackingNumber,
         labelUrl: input.labelUrl,
+        ...(input.actualShipAt !== undefined ? { actualShipAt: input.actualShipAt } : {}),
         ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         statusHistory: {
           create: {
@@ -1344,6 +1354,8 @@ function toShipmentDetail(row: {
     sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
+    carrierName: getFinalMileCarrier(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS" : row.carrierCode),
+    shippingMethod: getShippingMethod(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard"),
     carrierAccountId: row.carrierAccountId,
     carrierShipmentId: row.carrierShipmentId,
     trackingNumber: row.trackingNumber,

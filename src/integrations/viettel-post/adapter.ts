@@ -733,6 +733,13 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   }
   const vtpOrderNumber = stringValue(shipment.vtpOrderNumber) ?? stringValue(shipment.code);
   const shipmentCode = stringValue(shipment.shipmentCode) ?? stringValue(shipment.code);
+  const shipBy = stringValue(shipment.shipBy);
+  const finalMileCarrier = shipBy ? shipBy.toUpperCase() : "USPS";
+  const lineShip = isRecord(shipment.lineShip) ? shipment.lineShip : null;
+  const lineShipCode = stringValue(lineShip?.code);
+  const lineShipName = stringValue(lineShip?.name);
+  const shippingMethod = finalMileCarrier === "USPS" ? "USPS First Class" : (lineShipName || "Standard");
+  const actualShipAt = stringValue(shipment.dateCreate);
 
   return {
     carrierCode: "VIETTEL_POST",
@@ -742,16 +749,18 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
       normalizeViettelPostTrackingNumber(stringValue(shipment.code)) ??
       undefined,
     labelUrl: stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP),
-    ...(vtpOrderNumber || shipmentCode
-      ? {
-          metadata: {
-            safe: {
-              ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
-              ...(shipmentCode ? { shipmentCode } : {}),
-            },
-          },
-        }
-      : {}),
+    metadata: {
+      safe: {
+        ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
+        ...(shipmentCode ? { shipmentCode } : {}),
+        finalMileCarrier,
+        carrierName: finalMileCarrier,
+        shippingMethod,
+        ...(lineShipCode ? { shippingMethodCode: lineShipCode } : {}),
+        ...(lineShipName ? { shippingMethodName: lineShipName } : {}),
+        ...(actualShipAt ? { actualShipAt } : {}),
+      },
+    },
   };
 }
 
@@ -789,6 +798,9 @@ function normalizeTrackingResponse(body: unknown, fallbackShipmentId: string) {
     metadata: {
       safe: {
         shipmentStatus: status ?? "unknown",
+        finalMileCarrier: stringValue(shipment.shipBy)?.toUpperCase() || "USPS",
+        carrierName: stringValue(shipment.shipBy)?.toUpperCase() || "USPS",
+        shippingMethod: (stringValue(shipment.shipBy)?.toUpperCase() || "USPS") === "USPS" ? "USPS First Class" : "Standard",
         ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
         ...(shipmentCode ? { shipmentCode } : {}),
         ...(labelUrl ? { labelUrl } : {}),
@@ -818,6 +830,9 @@ function normalizeSubAgencyTrackingItem(item: Record<string, unknown>, fallbackI
     metadata: {
       safe: {
         shipmentStatus: status ?? "unknown",
+        finalMileCarrier: stringValue(item.shipBy)?.toUpperCase() || "USPS",
+        carrierName: stringValue(item.shipBy)?.toUpperCase() || "USPS",
+        shippingMethod: (stringValue(item.shipBy)?.toUpperCase() || "USPS") === "USPS" ? "USPS First Class" : "Standard",
         ...(vtpOrderNumber ? { vtpOrderNumber } : {}),
         ...(shipmentCode ? { shipmentCode } : {}),
         ...(labelUrl ? { labelUrl } : {}),

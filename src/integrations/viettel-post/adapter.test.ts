@@ -189,6 +189,13 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
     carrierShipmentId: "vp-shipment-1",
     trackingNumber: "VP123",
     labelUrl: "https://label.example/VP123.pdf",
+    metadata: {
+      safe: {
+        carrierName: "USPS",
+        finalMileCarrier: "USPS",
+        shippingMethod: "USPS First Class",
+      },
+    },
   });
   assert.equal(requests.length, 3);
   assert.equal(requests[2]?.url, "https://order-staging.logistek.com.vn/api/partner/order/shipment");

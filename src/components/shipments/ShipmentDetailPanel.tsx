@@ -280,14 +280,32 @@ export function ShipmentDetailPanel({
               <PanelSection icon={<Truck className="h-4 w-4" />} title="Thông tin vận chuyển">
                 <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">Hãng vận chuyển</span>
+                    <span className="text-xs text-slate-500 font-medium">Hãng đẩy Amazon</span>
                     <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-semibold shadow-2xs",
-                        carrierInfo.badgeClass,
-                      )}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 shadow-2xs"
                     >
+                      {shipment.carrierName ?? (shipment.carrierCode === "VIETTEL_POST" ? "USPS" : carrierInfo.name)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-200/70">
+                    <span className="text-slate-500 font-medium">Đối tác vận chuyển</span>
+                    <span className="font-semibold text-slate-700">
                       {carrierInfo.name}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-200/70">
+                    <span className="text-slate-500 font-medium">Gói dịch vụ (Amazon)</span>
+                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200 font-mono">
+                      {shipment.shippingMethod ?? (shipment.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-200/70">
+                    <span className="text-slate-500 font-medium">Ngày gửi (Amazon Ship Date)</span>
+                    <span className="font-mono text-xs font-semibold text-slate-800">
+                      {(shipment.actualShipAt ?? shipment.createdAt)?.slice(0, 10)}
                     </span>
                   </div>
 

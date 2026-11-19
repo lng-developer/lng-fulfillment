@@ -45,6 +45,7 @@ export type ShipmentListItem = {
   status: ShipmentStatus;
   carrierCode: string | null;
   carrierName: string | null;
+  shippingMethod: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   actualShipAt: string | null;

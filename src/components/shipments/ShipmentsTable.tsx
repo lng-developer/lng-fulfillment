@@ -267,11 +267,12 @@ export function ShipmentsTable({
               <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-3.5 py-2.5">Mã Vận đơn & Đơn</th>
-                  <th className="px-3.5 py-2.5">Hãng vận chuyển</th>
+                  <th className="px-3.5 py-2.5">Hãng (Amazon)</th>
                   <th className="px-3.5 py-2.5">Mã Tracking</th>
+                  <th className="px-3.5 py-2.5">Gói dịch vụ (Amazon)</th>
                   <th className="px-3.5 py-2.5 text-center">Trạng thái</th>
                   <th className="px-3.5 py-2.5">Đồng bộ Portal</th>
-                  <th className="px-3.5 py-2.5">Thời gian tạo</th>
+                  <th className="px-3.5 py-2.5">Ngày gửi / Tạo</th>
                   <th className="px-3.5 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -292,11 +293,18 @@ export function ShipmentsTable({
                       </span>
                     </td>
 
-                    {/* Carrier */}
+                    {/* Carrier (Amazon Carrier) */}
                     <td className="px-3.5 py-2.5">
-                      <span className="font-medium text-slate-800">
-                        {shipment.carrierName ?? (shipment.carrierCode === "YUNEXPRESS_OMS" ? "YunExpress" : shipment.carrierCode === "VIETTEL_POST" ? "Viettel Post" : shipment.carrierCode)}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900 text-xs">
+                          {shipment.carrierName ?? (shipment.carrierCode === "VIETTEL_POST" ? "USPS" : shipment.carrierCode === "YUNEXPRESS_OMS" ? "YunExpress" : (shipment.carrierCode ?? "Other"))}
+                        </span>
+                        {shipment.carrierCode === "VIETTEL_POST" && (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                            Viettel Post
+                          </span>
+                        )}
+                      </div>
                       {shipment.sourceChannel && (
                         <span className="text-[10px] text-slate-400 block uppercase">
                           Kênh: {shipment.sourceChannel}
@@ -316,6 +324,13 @@ export function ShipmentsTable({
                       ) : (
                         <span className="text-slate-400 text-xs">Chờ tạo tracking</span>
                       )}
+                    </td>
+
+                    {/* Shipping Method (Amazon Ship Method) */}
+                    <td className="px-3.5 py-2.5">
+                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200 font-mono">
+                        {shipment.shippingMethod ?? (shipment.carrierName === "USPS" || shipment.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard")}
+                      </span>
                     </td>
 
                     {/* Status */}
@@ -338,9 +353,14 @@ export function ShipmentsTable({
                       )}
                     </td>
 
-                    {/* Created Time */}
-                    <td className="px-3.5 py-2.5 text-[11px] text-slate-500">
-                      {formatDate(shipment.createdAt)}
+                    {/* Ship Date & Created Time */}
+                    <td className="px-3.5 py-2.5">
+                      <span className="font-mono font-bold text-slate-800 text-[11px] block">
+                        {formatAmazonDate(shipment.actualShipAt ?? shipment.createdAt)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        Tạo: {formatDate(shipment.createdAt)}
+                      </span>
                     </td>
 
                     {/* Actions */}
@@ -415,6 +435,13 @@ export function ShipmentsTable({
       )}
     </div>
   );
+}
+
+function formatAmazonDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toISOString().slice(0, 10);
 }
 
 function formatDate(value: string | null | undefined) {

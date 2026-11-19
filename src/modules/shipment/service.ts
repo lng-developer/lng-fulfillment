@@ -15,7 +15,7 @@ import {
 } from "@/modules/carrier";
 import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
 import { shouldSendPortalTrackingUpdate } from "./portal-tracking-resync";
-import { getFinalMileCarrier } from "./carrier-display";
+import { getFinalMileCarrier, getShippingMethod } from "./carrier-display";
 import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate";
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
@@ -1062,6 +1062,8 @@ export async function executeShipment(
         ? "LABEL_READY"
         : "TRACKING_PENDING"
       : "TRACKING_PENDING";
+    const rawActualShipAt = result.metadata?.safe?.actualShipAt;
+    const actualShipAt = typeof rawActualShipAt === "string" ? new Date(rawActualShipAt) : new Date();
     const updatedShipment = await updateShipmentExecutionSucceeded({
       tenantId,
       shipmentId,
@@ -1069,6 +1071,7 @@ export async function executeShipment(
       carrierShipmentId: result.carrierShipmentId,
       trackingNumber: result.trackingNumber ?? null,
       labelUrl: result.labelUrl ?? null,
+      actualShipAt,
       metadata: result.metadata?.safe
         ? {
             carrier: {
@@ -1529,6 +1532,10 @@ export async function syncViettelPostTrackingBatch(
 
     const carrier = vtp.shipBy ? vtp.shipBy.toUpperCase() : "USPS";
     const actualShipAt = vtp.dateCreate ? new Date(vtp.dateCreate) : new Date();
+    const lineShip = asRecord((vtp as Record<string, unknown>).lineShip);
+    const lineShipName = typeof lineShip?.name === "string" ? lineShip.name : undefined;
+    const lineShipCode = typeof lineShip?.code === "string" ? lineShip.code : undefined;
+    const shippingMethod = carrier === "USPS" ? "USPS First Class" : (lineShipName || "Standard");
 
     const metadata = {
       safe: {
@@ -1537,12 +1544,18 @@ export async function syncViettelPostTrackingBatch(
         ...(labelUrl ? { labelUrl } : {}),
         carrierName: carrier,
         finalMileCarrier: carrier,
+        shippingMethod,
+        ...(lineShipCode ? { shippingMethodCode: lineShipCode } : {}),
+        ...(lineShipName ? { shippingMethodName: lineShipName } : {}),
       },
       carrier: {
         finalMileCarrier: carrier,
         carrierName: carrier,
+        shippingMethod,
         ...(vtp.vtpOrderNumber ? { vtpOrderNumber: vtp.vtpOrderNumber } : {}),
         ...(vtp.shipmentCode ? { shipmentCode: vtp.shipmentCode } : {}),
+        ...(lineShipCode ? { shippingMethodCode: lineShipCode } : {}),
+        ...(lineShipName ? { shippingMethodName: lineShipName } : {}),
       },
     };
 
@@ -1553,7 +1566,8 @@ export async function syncViettelPostTrackingBatch(
           (carrierShipmentId && s.carrierShipmentId !== carrierShipmentId) ||
           (labelUrl && s.labelUrl !== labelUrl) ||
           !s.actualShipAt ||
-          !getFinalMileCarrier(s.metadata);
+          !getFinalMileCarrier(s.metadata) ||
+          !getShippingMethod(s.metadata);
 
         if (needsUpdate) {
           await linkViettelPostTrackingToShipment({

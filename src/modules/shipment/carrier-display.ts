@@ -5,7 +5,19 @@ export function getFinalMileCarrier(metadata: unknown): string | null {
     return null;
   }
 
-  const value = metadata.carrier.finalMileCarrier;
+  const value = metadata.carrier.finalMileCarrier ?? metadata.carrier.carrierName;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function getShippingMethod(metadata: unknown): string | null {
+  if (!isRecord(metadata) || !isRecord(metadata.carrier)) {
+    return null;
+  }
+
+  const value =
+    metadata.carrier.shippingMethod ??
+    metadata.carrier.shippingMethodName ??
+    metadata.carrier.lineShipName;
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 

@@ -371,6 +371,8 @@ export type ShipmentListItem = {
   externalOrderId: string;
   status: string;
   carrierCode: string | null;
+  carrierName?: string | null;
+  shippingMethod?: string | null;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
