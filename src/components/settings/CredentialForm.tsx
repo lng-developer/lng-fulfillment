@@ -249,6 +249,8 @@ export function CredentialForm({
               Client ID *
               <input
                 autoComplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
                 className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
                 onChange={(event) =>
                   setVpValues((current) => ({
@@ -266,7 +268,9 @@ export function CredentialForm({
               Client Secret *
               <span className="flex">
                 <input
-                  autoComplete="off"
+                  autoComplete="new-password"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
                   className="h-9 min-w-0 flex-1 rounded-l-md border border-r-0 border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors"
                   onChange={(event) =>
                     setVpValues((current) => ({
