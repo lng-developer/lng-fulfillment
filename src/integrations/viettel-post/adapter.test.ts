@@ -62,7 +62,7 @@ test("preflight reports each missing Viettel Post shipment data group", async ()
   assert.deepEqual(result.warnings, [
     "Viettel Post credential is not configured.",
     "Live Viettel Post shipment creation is disabled.",
-    "Viettel Post shipment data is incomplete: weight, length, width, height, hsCode, recipient, itemWeightOrDeclaredValue.",
+    "Viettel Post shipment data is incomplete: weight, length, width, height, recipient.",
   ]);
 });
 
@@ -190,9 +190,9 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
     trackingNumber: "VP123",
     labelUrl: "https://label.example/VP123.pdf",
   });
-  assert.equal(requests.length, 2);
-  assert.equal(requests[1]?.url, "https://order-staging.logistek.com.vn/api/partner/order/shipment");
-  assert.equal(requests[1]?.init?.headers instanceof Headers ? requests[1].init.headers.get("authorization") : undefined, "Bearer test-access-token");
+  assert.equal(requests.length, 3);
+  assert.equal(requests[2]?.url, "https://order-staging.logistek.com.vn/api/partner/order/shipment");
+  assert.equal(requests[2]?.init?.headers instanceof Headers ? requests[2].init.headers.get("authorization") : undefined, "Bearer test-access-token");
 
   await adapter.createShipment(
     {
@@ -335,7 +335,9 @@ test("maps payload adhering to Viettel Post API specifications", () => {
     },
   );
 
-  assert.equal(payload.lineShipId, "LS485343");
+  assert.equal(payload.lineShipId, "3a18a0cc-bb94-4181-7219-0eefe788762b");
+  assert.equal(payload.lineCode, "LS485343");
+  assert.equal(payload.orderId, "ORDER-EXT-LONG-NAME-1234567890-ABCDEF");
   assert.equal(payload.orderReferenceId, "ORDER-EXT-LONG-NAME-1234567890-ABCDEF");
   assert.equal(payload.hsCode, "6109100004"); // default fallback applied
   assert.equal(payload.parcel.weight, 600); // 0.6kg -> 600g

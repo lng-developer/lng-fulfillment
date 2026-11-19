@@ -659,6 +659,7 @@ export function mapShipment(
   return {
     lineCode,
     lineShipId,
+    orderId: orderRef,
     orderReferenceId: orderRef,
     hsCode,
     ...(resolvedMerchandise ? { merchandise: resolvedMerchandise } : {}),
