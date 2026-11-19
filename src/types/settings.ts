@@ -135,8 +135,12 @@ export type ViettelPostCredentialFormValues = {
   lineShipId: string;
   shipFromFirstName: string;
   shipFromLastName: string;
+  shipFromCompanyName?: string;
+  shipFromEmail?: string;
   shipFromPhoneNumber: string;
   shipFromAddress1: string;
+  shipFromWard?: string;
+  shipFromDistrict?: string;
   shipFromCountry: string;
   shipFromState: string;
   shipFromCity: string;

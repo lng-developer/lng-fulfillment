@@ -33,10 +33,14 @@ const EMPTY_VIETTEL_POST_FORM: ViettelPostCredentialFormValues = {
   authUrl: "https://auth-global.viettelpost.vn",
   orderUrl: "https://api-global.viettelpost.vn",
   lineShipId: "VTP_DEFAULT",
-  shipFromFirstName: "Fulfillment",
-  shipFromLastName: "Kho",
-  shipFromPhoneNumber: "0988888888",
-  shipFromAddress1: "123 Pham Van Dong",
+  shipFromFirstName: "Hung",
+  shipFromLastName: "Mai",
+  shipFromCompanyName: "ECOMATRIX",
+  shipFromEmail: "Ecomatrixgroup@gmail.com",
+  shipFromPhoneNumber: "0389029339",
+  shipFromAddress1: "Hoa Lâm",
+  shipFromWard: "Việt Hưng",
+  shipFromDistrict: "Long Biên",
   shipFromCountry: "VN",
   shipFromState: "Hà Nội",
   shipFromCity: "Hà Nội",
@@ -100,19 +104,35 @@ export function CredentialForm({
       shipFromFirstName:
         typeof existingConfig?.shipFromFirstName === "string"
           ? existingConfig.shipFromFirstName
-          : "Fulfillment",
+          : "Hung",
       shipFromLastName:
         typeof existingConfig?.shipFromLastName === "string"
           ? existingConfig.shipFromLastName
-          : "Kho",
+          : "Mai",
+      shipFromCompanyName:
+        typeof existingConfig?.shipFromCompanyName === "string"
+          ? existingConfig.shipFromCompanyName
+          : "ECOMATRIX",
+      shipFromEmail:
+        typeof existingConfig?.shipFromEmail === "string"
+          ? existingConfig.shipFromEmail
+          : "Ecomatrixgroup@gmail.com",
       shipFromPhoneNumber:
         typeof existingConfig?.shipFromPhoneNumber === "string"
           ? existingConfig.shipFromPhoneNumber
-          : "0988888888",
+          : "0389029339",
       shipFromAddress1:
         typeof existingConfig?.shipFromAddress1 === "string"
           ? existingConfig.shipFromAddress1
-          : "123 Pham Van Dong",
+          : "Hoa Lâm",
+      shipFromWard:
+        typeof existingConfig?.shipFromWard === "string"
+          ? existingConfig.shipFromWard
+          : "Việt Hưng",
+      shipFromDistrict:
+        typeof existingConfig?.shipFromDistrict === "string"
+          ? existingConfig.shipFromDistrict
+          : "Long Biên",
       shipFromCity:
         typeof existingConfig?.shipFromCity === "string"
           ? existingConfig.shipFromCity
@@ -153,10 +173,14 @@ export function CredentialForm({
         const payloadToSave: ViettelPostCredentialFormValues = {
           ...vpValues,
           lineShipId: vpValues.lineShipId.trim() || "VTP_DEFAULT",
-          shipFromFirstName: vpValues.shipFromFirstName.trim() || "Hoàng",
-          shipFromLastName: vpValues.shipFromLastName.trim() || "Nguyễn",
-          shipFromPhoneNumber: vpValues.shipFromPhoneNumber.trim() || "0988888888",
-          shipFromAddress1: vpValues.shipFromAddress1.trim() || "Kho Viettel Post",
+          shipFromFirstName: vpValues.shipFromFirstName.trim() || "Hung",
+          shipFromLastName: vpValues.shipFromLastName.trim() || "Mai",
+          shipFromCompanyName: vpValues.shipFromCompanyName?.trim() || "ECOMATRIX",
+          shipFromEmail: vpValues.shipFromEmail?.trim() || "Ecomatrixgroup@gmail.com",
+          shipFromPhoneNumber: vpValues.shipFromPhoneNumber.trim() || "0389029339",
+          shipFromAddress1: vpValues.shipFromAddress1.trim() || "Hoa Lâm",
+          shipFromWard: vpValues.shipFromWard?.trim() || "Việt Hưng",
+          shipFromDistrict: vpValues.shipFromDistrict?.trim() || "Long Biên",
           shipFromCity: vpValues.shipFromCity.trim() || "Hà Nội",
           shipFromState: vpValues.shipFromState.trim() || "Hà Nội",
           shipFromCountry: vpValues.shipFromCountry.trim() || "VN",
@@ -352,7 +376,7 @@ export function CredentialForm({
                         shipFromLastName: e.target.value,
                       }))
                     }
-                    placeholder="Nguyễn"
+                    placeholder="Mai"
                     value={vpValues.shipFromLastName}
                   />
                 </label>
@@ -366,8 +390,39 @@ export function CredentialForm({
                         shipFromFirstName: e.target.value,
                       }))
                     }
-                    placeholder="Hoàng"
+                    placeholder="Hung"
                     value={vpValues.shipFromFirstName}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Tên công ty
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromCompanyName: e.target.value,
+                      }))
+                    }
+                    placeholder="ECOMATRIX"
+                    value={vpValues.shipFromCompanyName ?? ""}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Email
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromEmail: e.target.value,
+                      }))
+                    }
+                    placeholder="Ecomatrixgroup@gmail.com"
+                    value={vpValues.shipFromEmail ?? ""}
                   />
                 </label>
               </div>
@@ -383,7 +438,7 @@ export function CredentialForm({
                         shipFromPhoneNumber: e.target.value,
                       }))
                     }
-                    placeholder="0988888888"
+                    placeholder="0389029339"
                     value={vpValues.shipFromPhoneNumber}
                   />
                 </label>
@@ -404,7 +459,7 @@ export function CredentialForm({
               </div>
 
               <label className="mt-3 grid gap-1.5 text-xs font-semibold text-slate-700">
-                Địa chỉ kho gửi
+                Địa chỉ kho gửi (Street 1)
                 <input
                   className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
                   onChange={(e) =>
@@ -413,10 +468,41 @@ export function CredentialForm({
                       shipFromAddress1: e.target.value,
                     }))
                   }
-                  placeholder="Địa chỉ kho hàng"
+                  placeholder="Hoa Lâm"
                   value={vpValues.shipFromAddress1}
                 />
               </label>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Phường / Xã (Ward)
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromWard: e.target.value,
+                      }))
+                    }
+                    placeholder="Việt Hưng"
+                    value={vpValues.shipFromWard ?? ""}
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Quận / Huyện (District)
+                  <input
+                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    onChange={(e) =>
+                      setVpValues((cur) => ({
+                        ...cur,
+                        shipFromDistrict: e.target.value,
+                      }))
+                    }
+                    placeholder="Long Biên"
+                    value={vpValues.shipFromDistrict ?? ""}
+                  />
+                </label>
+              </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-1.5 text-xs font-semibold text-slate-700">

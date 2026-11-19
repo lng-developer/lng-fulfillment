@@ -78,8 +78,12 @@ const VIETTEL_POST_CREDENTIAL_KEYS = [
   "lineShipId",
   "shipFromFirstName",
   "shipFromLastName",
+  "shipFromCompanyName",
+  "shipFromEmail",
   "shipFromPhoneNumber",
   "shipFromAddress1",
+  "shipFromWard",
+  "shipFromDistrict",
   "shipFromCountry",
   "shipFromState",
   "shipFromCity",
@@ -172,8 +176,12 @@ export type ViettelPostCredentialPayload = {
   lineShipId: string;
   shipFromFirstName: string;
   shipFromLastName: string;
+  shipFromCompanyName?: string;
+  shipFromEmail?: string;
   shipFromPhoneNumber: string;
   shipFromAddress1: string;
+  shipFromWard?: string;
+  shipFromDistrict?: string;
   shipFromCountry: string;
   shipFromState: string;
   shipFromCity: string;
@@ -274,8 +282,12 @@ function extractSafeCredentialConfig(
         lineShipId: typeof p.lineShipId === "string" ? p.lineShipId : undefined,
         shipFromFirstName: typeof p.shipFromFirstName === "string" ? p.shipFromFirstName : undefined,
         shipFromLastName: typeof p.shipFromLastName === "string" ? p.shipFromLastName : undefined,
+        shipFromCompanyName: typeof p.shipFromCompanyName === "string" ? p.shipFromCompanyName : undefined,
+        shipFromEmail: typeof p.shipFromEmail === "string" ? p.shipFromEmail : undefined,
         shipFromPhoneNumber: typeof p.shipFromPhoneNumber === "string" ? p.shipFromPhoneNumber : undefined,
         shipFromAddress1: typeof p.shipFromAddress1 === "string" ? p.shipFromAddress1 : undefined,
+        shipFromWard: typeof p.shipFromWard === "string" ? p.shipFromWard : undefined,
+        shipFromDistrict: typeof p.shipFromDistrict === "string" ? p.shipFromDistrict : undefined,
         shipFromCity: typeof p.shipFromCity === "string" ? p.shipFromCity : undefined,
         shipFromState: typeof p.shipFromState === "string" ? p.shipFromState : undefined,
         shipFromCountry: typeof p.shipFromCountry === "string" ? p.shipFromCountry : undefined,
@@ -1169,14 +1181,33 @@ function validateViettelPostCredentialPayload(
     lineShipId: validateRequiredSecretString(credentials.lineShipId, "lineShipId"),
     shipFromFirstName: validateRequiredSecretString(credentials.shipFromFirstName, "shipFromFirstName"),
     shipFromLastName: validateRequiredSecretString(credentials.shipFromLastName, "shipFromLastName"),
+    shipFromCompanyName: validateOptionalSecretString(credentials.shipFromCompanyName, "shipFromCompanyName"),
+    shipFromEmail: validateOptionalSecretString(credentials.shipFromEmail, "shipFromEmail"),
     shipFromPhoneNumber: validateRequiredSecretString(credentials.shipFromPhoneNumber, "shipFromPhoneNumber"),
     shipFromAddress1: validateRequiredSecretString(credentials.shipFromAddress1, "shipFromAddress1"),
+    shipFromWard: validateOptionalSecretString(credentials.shipFromWard, "shipFromWard"),
+    shipFromDistrict: validateOptionalSecretString(credentials.shipFromDistrict, "shipFromDistrict"),
     shipFromCountry: validateRequiredSecretString(credentials.shipFromCountry, "shipFromCountry"),
     shipFromState: validateRequiredSecretString(credentials.shipFromState, "shipFromState"),
     shipFromCity: validateRequiredSecretString(credentials.shipFromCity, "shipFromCity"),
     shipFromZipCode: validateRequiredSecretString(credentials.shipFromZipCode, "shipFromZipCode"),
     liveEnabled: validateOptionalBoolean(credentials.liveEnabled, false, "liveEnabled"),
   };
+}
+
+function validateOptionalSecretString(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new AppError("VALIDATION_ERROR", `${field} is invalid.`, 400);
+  }
+  const text = value.trim();
+  if (!text) return undefined;
+  if (text.length > MAX_SECRET_REF_LENGTH) {
+    throw new AppError("VALIDATION_ERROR", `${field} is too long.`, 400);
+  }
+  return text;
 }
 
 function validateRequiredSecretString(value: unknown, field: string) {

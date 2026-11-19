@@ -21,10 +21,14 @@ type ViettelPostConfig = {
   lineShipId: string;
   shipFromFirstName: string;
   shipFromLastName: string;
+  shipFromCompanyName?: string;
+  shipFromEmail?: string;
   shipFromPhoneNumber: string;
   shipFromAddress1: string;
   shipFromCountry: string;
   shipFromState: string;
+  shipFromDistrict?: string;
+  shipFromWard?: string;
   shipFromCity: string;
   shipFromZipCode: string;
   liveEnabled: boolean;
@@ -186,10 +190,14 @@ function getConfig(context: CarrierAdapterContext): ViettelPostConfig {
     lineShipId: stringValue(payload.lineShipId)!,
     shipFromFirstName: stringValue(payload.shipFromFirstName)!,
     shipFromLastName: stringValue(payload.shipFromLastName)!,
+    shipFromCompanyName: stringValue(payload.shipFromCompanyName),
+    shipFromEmail: stringValue(payload.shipFromEmail),
     shipFromPhoneNumber: stringValue(payload.shipFromPhoneNumber)!,
     shipFromAddress1: stringValue(payload.shipFromAddress1)!,
     shipFromCountry: stringValue(payload.shipFromCountry)!,
     shipFromState: stringValue(payload.shipFromState)!,
+    shipFromDistrict: stringValue(payload.shipFromDistrict),
+    shipFromWard: stringValue(payload.shipFromWard),
     shipFromCity: stringValue(payload.shipFromCity)!,
     shipFromZipCode: stringValue(payload.shipFromZipCode)!,
     liveEnabled: payload.liveEnabled === true,
@@ -703,17 +711,17 @@ export function mapShipment(
       };
     }),
     shipFrom: {
-      firstName: config.shipFromFirstName || "Kho",
-      lastName: config.shipFromLastName || "Fulfillment",
-      company: "Metawoods",
-      phoneNumber: config.shipFromPhoneNumber || "0988888888",
-      address1: config.shipFromAddress1 || "123 Pham Van Dong",
+      firstName: config.shipFromFirstName || "Hung",
+      lastName: config.shipFromLastName || "Mai",
+      company: config.shipFromCompanyName || "ECOMATRIX",
+      phoneNumber: config.shipFromPhoneNumber || "0389029339",
+      address1: config.shipFromAddress1 || "Hoa Lâm",
       country: normalizeCountryCode(config.shipFromCountry) || "VN",
-      ward: "Dịch Vọng Hậu",
-      district: "Cầu Giấy",
-      state: "Cầu Giấy",
-      city: "Hà Nội",
-      zipCode: config.shipFromZipCode || "100000",
+      ward: config.shipFromWard || "Việt Hưng",
+      district: config.shipFromDistrict || "Long Biên",
+      state: config.shipFromState || "Hà Nội",
+      city: config.shipFromCity || "Hà Nội",
+      zipCode: config.shipFromZipCode || "10000",
       isBusinessAddress: true,
     },
     shipTo: {
