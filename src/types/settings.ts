@@ -76,6 +76,7 @@ export type CarrierAccount = {
     lastValidatedAt: string | null;
     expiresAt: string | null;
     updatedAt: string;
+    safeConfig?: Record<string, unknown> | null;
   } | null;
 };
 

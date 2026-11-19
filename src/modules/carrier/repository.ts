@@ -20,6 +20,7 @@ const carrierCredentialSafeSelect = {
   expiresAt: true,
   createdAt: true,
   updatedAt: true,
+  encryptedPayload: true,
 } satisfies Prisma.CarrierCredentialSelect;
 
 const carrierAccountSafeSelect = {

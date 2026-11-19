@@ -58,16 +58,83 @@ export function CredentialForm({
     account.displayName.toLowerCase().includes("staging") ||
     account.displayName.toLowerCase().includes("dev");
 
-  const [values, setValues] = useState<CredentialFormValues>(EMPTY_FORM);
-  const [vpValues, setVpValues] = useState<ViettelPostCredentialFormValues>(() => ({
-    ...EMPTY_VIETTEL_POST_FORM,
-    authUrl: isStagingAccount
-      ? "https://auth-staging.logistek.com.vn"
-      : "https://auth-global.viettelpost.vn",
-    orderUrl: isStagingAccount
-      ? "https://order-staging.logistek.com.vn"
-      : "https://api-global.viettelpost.vn",
+  const existingConfig = account.credential?.safeConfig as
+    | Record<string, unknown>
+    | undefined;
+
+  const [values, setValues] = useState<CredentialFormValues>(() => ({
+    ...EMPTY_FORM,
+    ...(typeof existingConfig?.customerNo === "string" ? { customerNo: existingConfig.customerNo } : {}),
+    ...(typeof existingConfig?.baseUrl === "string" ? { baseUrl: existingConfig.baseUrl } : {}),
+    ...(typeof existingConfig?.shippingMethodCode === "string" ? { shippingMethodCode: existingConfig.shippingMethodCode } : {}),
+    ...(typeof existingConfig?.liveEnabled === "boolean" ? { liveEnabled: existingConfig.liveEnabled } : {}),
   }));
+  const [vpValues, setVpValues] = useState<ViettelPostCredentialFormValues>(() => {
+    const isStaging =
+      isStagingAccount ||
+      (typeof existingConfig?.orderUrl === "string" && existingConfig.orderUrl.includes("staging"));
+    return {
+      ...EMPTY_VIETTEL_POST_FORM,
+      lineShipId:
+        typeof existingConfig?.lineShipId === "string" && existingConfig.lineShipId
+          ? existingConfig.lineShipId
+          : isStaging
+            ? "LS494228"
+            : "LS485343",
+      authUrl:
+        typeof existingConfig?.authUrl === "string" && existingConfig.authUrl
+          ? existingConfig.authUrl
+          : isStaging
+            ? "https://auth-staging.logistek.com.vn"
+            : "https://auth-global.viettelpost.vn",
+      orderUrl:
+        typeof existingConfig?.orderUrl === "string" && existingConfig.orderUrl
+          ? existingConfig.orderUrl
+          : isStaging
+            ? "https://order-staging.logistek.com.vn"
+            : "https://api-global.viettelpost.vn",
+      clientId:
+        typeof existingConfig?.clientId === "string"
+          ? existingConfig.clientId
+          : "",
+      shipFromFirstName:
+        typeof existingConfig?.shipFromFirstName === "string"
+          ? existingConfig.shipFromFirstName
+          : "Fulfillment",
+      shipFromLastName:
+        typeof existingConfig?.shipFromLastName === "string"
+          ? existingConfig.shipFromLastName
+          : "Kho",
+      shipFromPhoneNumber:
+        typeof existingConfig?.shipFromPhoneNumber === "string"
+          ? existingConfig.shipFromPhoneNumber
+          : "0988888888",
+      shipFromAddress1:
+        typeof existingConfig?.shipFromAddress1 === "string"
+          ? existingConfig.shipFromAddress1
+          : "123 Pham Van Dong",
+      shipFromCity:
+        typeof existingConfig?.shipFromCity === "string"
+          ? existingConfig.shipFromCity
+          : "Hà Nội",
+      shipFromState:
+        typeof existingConfig?.shipFromState === "string"
+          ? existingConfig.shipFromState
+          : "Hà Nội",
+      shipFromCountry:
+        typeof existingConfig?.shipFromCountry === "string"
+          ? existingConfig.shipFromCountry
+          : "VN",
+      shipFromZipCode:
+        typeof existingConfig?.shipFromZipCode === "string"
+          ? existingConfig.shipFromZipCode
+          : "100000",
+      liveEnabled:
+        typeof existingConfig?.liveEnabled === "boolean"
+          ? existingConfig.liveEnabled
+          : false,
+    };
+  });
   const [showSecret, setShowSecret] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,12 +223,14 @@ export function CredentialForm({
                       ...cur,
                       authUrl: "https://auth-staging.logistek.com.vn",
                       orderUrl: "https://order-staging.logistek.com.vn",
+                      lineShipId: "LS494228",
                     }));
                   } else {
                     setVpValues((cur) => ({
                       ...cur,
                       authUrl: "https://auth-global.viettelpost.vn",
                       orderUrl: "https://api-global.viettelpost.vn",
+                      lineShipId: "LS485343",
                     }));
                   }
                 }}

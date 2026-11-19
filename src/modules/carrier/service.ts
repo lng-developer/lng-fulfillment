@@ -118,7 +118,9 @@ export type CarrierAccountManagementSummary = Omit<
   CarrierAccountSummary,
   "tenantId"
 > & {
-  credential: Omit<CarrierCredentialSummary, "tenantId" | "carrierAccountId"> | null;
+  credential: (Omit<CarrierCredentialSummary, "tenantId" | "carrierAccountId"> & {
+    safeConfig?: Record<string, unknown> | null;
+  }) | null;
 };
 
 export type CarrierAccountCreateInput = {
@@ -253,10 +255,61 @@ function toCarrierCredentialSummary(
   };
 }
 
+function extractSafeCredentialConfig(
+  credentialType: CarrierCredentialType,
+  encryptedPayload: unknown,
+): Record<string, unknown> | null {
+  if (!encryptedPayload) return null;
+  try {
+    const payload = decryptCarrierCredentialPayload(encryptedPayload);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return null;
+    }
+    const p = payload as Record<string, unknown>;
+    if (credentialType === "VIETTEL_POST") {
+      return {
+        clientId: typeof p.clientId === "string" ? p.clientId : undefined,
+        authUrl: typeof p.authUrl === "string" ? p.authUrl : undefined,
+        orderUrl: typeof p.orderUrl === "string" ? p.orderUrl : undefined,
+        lineShipId: typeof p.lineShipId === "string" ? p.lineShipId : undefined,
+        shipFromFirstName: typeof p.shipFromFirstName === "string" ? p.shipFromFirstName : undefined,
+        shipFromLastName: typeof p.shipFromLastName === "string" ? p.shipFromLastName : undefined,
+        shipFromPhoneNumber: typeof p.shipFromPhoneNumber === "string" ? p.shipFromPhoneNumber : undefined,
+        shipFromAddress1: typeof p.shipFromAddress1 === "string" ? p.shipFromAddress1 : undefined,
+        shipFromCity: typeof p.shipFromCity === "string" ? p.shipFromCity : undefined,
+        shipFromState: typeof p.shipFromState === "string" ? p.shipFromState : undefined,
+        shipFromCountry: typeof p.shipFromCountry === "string" ? p.shipFromCountry : undefined,
+        shipFromZipCode: typeof p.shipFromZipCode === "string" ? p.shipFromZipCode : undefined,
+        liveEnabled: typeof p.liveEnabled === "boolean" ? p.liveEnabled : undefined,
+      };
+    }
+    if (credentialType === "YUNEXPRESS_OMS") {
+      return {
+        customerNo: typeof p.customerNo === "string" ? p.customerNo : undefined,
+        baseUrl: typeof p.baseUrl === "string" ? p.baseUrl : undefined,
+        lang: typeof p.lang === "string" ? p.lang : undefined,
+        shippingMethodCode: typeof p.shippingMethodCode === "string" ? p.shippingMethodCode : undefined,
+        sourceCode: typeof p.sourceCode === "string" ? p.sourceCode : undefined,
+        sizeUnit: typeof p.sizeUnit === "string" ? p.sizeUnit : undefined,
+        liveEnabled: typeof p.liveEnabled === "boolean" ? p.liveEnabled : undefined,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function toCarrierCredentialManagementSummary(
-  credential: Omit<CarrierCredentialSummary, "tenantId" | "carrierAccountId">,
+  credential: Omit<CarrierCredentialSummary, "tenantId" | "carrierAccountId"> & {
+    encryptedPayload?: unknown;
+  },
 ) {
-  return credential;
+  const { encryptedPayload, ...rest } = credential;
+  return {
+    ...rest,
+    safeConfig: extractSafeCredentialConfig(credential.credentialType, encryptedPayload),
+  };
 }
 
 function toCarrierAccountManagementSummary(account: {
@@ -279,6 +332,7 @@ function toCarrierAccountManagementSummary(account: {
     expiresAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    encryptedPayload?: unknown;
   }>;
 }): CarrierAccountManagementSummary {
   return {
