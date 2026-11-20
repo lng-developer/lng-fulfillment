@@ -51,7 +51,7 @@ export async function POST(request: Request) {
           item.trackingCode || item.trackingNumber || "",
         ).trim();
         const trackingNumber =
-          normalizeViettelPostTrackingNumber(rawTracking) || rawTracking;
+          normalizeViettelPostTrackingNumber(rawTracking) || "";
         const carrierShipmentId = String(
           item.vtpOrderNumber || item.shipmentCode || "",
         ).trim();
