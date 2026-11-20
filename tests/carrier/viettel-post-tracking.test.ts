@@ -42,4 +42,11 @@ assert.equal(normalizeViettelPostTrackingNumber("   "), null);
 assert.equal(normalizeViettelPostTrackingNumber(null), null);
 assert.equal(normalizeViettelPostTrackingNumber(undefined), null);
 
+// Test 7: Internal Viettel Post order code (e.g. EPK...) should not be treated as a tracking number
+assert.equal(
+  normalizeViettelPostTrackingNumber("EPK1125036242"),
+  null,
+  "Should reject EPK internal shipment code as tracking number",
+);
+
 console.log("viettel-post tracking normalization tests: ALL PASSED");

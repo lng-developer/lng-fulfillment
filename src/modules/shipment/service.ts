@@ -1596,6 +1596,17 @@ export async function syncViettelPostTrackingBatch(
             actorType: actor.actorType,
             actorId: actor.actorId,
           });
+
+          if (trackingNumber && trackingNumber !== s.trackingNumber) {
+            await sendPortalTrackingUpdate({
+              orderId: order.externalOrderId,
+              tracking: trackingNumber,
+              carrier,
+              fulfillment: "Viettel Post",
+              sourceChannel: order.sourceChannel,
+              actualShipAt,
+            });
+          }
         }
         updated++;
       }

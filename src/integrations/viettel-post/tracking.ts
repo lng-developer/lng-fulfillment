@@ -17,6 +17,11 @@ export function normalizeViettelPostTrackingNumber(
   const trimmed = rawTracking.trim();
   if (!trimmed) return null;
 
+  // An internal Viettel Post order/shipment code (e.g. EPK1125036242) is NOT a delivery tracking number
+  if (/^EPK\d+$/i.test(trimmed)) {
+    return null;
+  }
+
   // Match: 420 + 5-digit or 9-digit ZIP + 20-22 digit USPS tracking (typically starting with 9)
   const uspsWithRoutingMatch = trimmed.match(/^420\d{5,9}(9\d{19,21})$/);
   if (uspsWithRoutingMatch) {

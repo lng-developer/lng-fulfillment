@@ -775,13 +775,14 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   const shippingMethod = finalMileCarrier === "USPS" ? "USPS First Class" : (lineShipName || "Standard");
   const actualShipAt = stringValue(shipment.dateCreate);
 
+  const rawTracking =
+    stringValue(shipment.trackingCode) ??
+    stringValue(shipment.trackingNumber);
+
   return {
     carrierCode: "VIETTEL_POST",
     carrierShipmentId,
-    trackingNumber:
-      normalizeViettelPostTrackingNumber(stringValue(shipment.trackingNumber)) ??
-      normalizeViettelPostTrackingNumber(stringValue(shipment.code)) ??
-      undefined,
+    trackingNumber: normalizeViettelPostTrackingNumber(rawTracking) ?? undefined,
     labelUrl: stringValue(shipment.labelUrl) ?? stringValue(shipment.labelUrlVTP),
     metadata: {
       safe: {
