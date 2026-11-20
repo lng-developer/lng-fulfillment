@@ -698,9 +698,9 @@ export function mapShipment(
     ...(resolvedMerchandise ? { merchandise: resolvedMerchandise } : {}),
     parcel: {
       weight: Math.round(Number(input.metadata!.weight) * 1000),
-      length: Number(input.metadata!.length),
-      width: Number(input.metadata!.width),
-      height: Number(input.metadata!.height),
+      length: Number(input.metadata?.length) || 5,
+      width: Number(input.metadata?.width) || 5,
+      height: Number(input.metadata?.height) || 2,
       weightUnit: 2,
       lengthUnit: 1,
       labelDate: new Date().toISOString(),

@@ -157,19 +157,19 @@ export function ConfirmShipModal({
             <NumberField
               label="Length (cm)"
               onChange={setLengthCm}
-              placeholder="20"
+              placeholder="5"
               value={lengthCm}
             />
             <NumberField
               label="Width (cm)"
               onChange={setWidthCm}
-              placeholder="15"
+              placeholder="5"
               value={widthCm}
             />
             <NumberField
               label="Height (cm)"
               onChange={setHeightCm}
-              placeholder="5"
+              placeholder="2"
               value={heightCm}
             />
           </div>

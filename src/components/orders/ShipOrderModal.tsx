@@ -407,19 +407,19 @@ export function ShipOrderModal({
               <NumberInput
                 disabled={controlsDisabled}
                 label="Dài (cm)"
-                onChange={(value) => updatePackage({ length: value ?? 15 })}
+                onChange={(value) => updatePackage({ length: value ?? 5 })}
                 value={packageValues.length}
               />
               <NumberInput
                 disabled={controlsDisabled}
                 label="Rộng (cm)"
-                onChange={(value) => updatePackage({ width: value ?? 10 })}
+                onChange={(value) => updatePackage({ width: value ?? 5 })}
                 value={packageValues.width}
               />
               <NumberInput
                 disabled={controlsDisabled}
                 label="Cao (cm)"
-                onChange={(value) => updatePackage({ height: value ?? 5 })}
+                onChange={(value) => updatePackage({ height: value ?? 2 })}
                 value={packageValues.height}
               />
             </div>
@@ -860,9 +860,9 @@ export function buildShipmentPreview(
     },
     package: {
       weight: Math.max(weight, 0.1),
-      length: 20,
-      width: 15,
-      height: 5,
+      length: 5,
+      width: 5,
+      height: 2,
       sizeUnits: "cm",
       packageCount: 1,
       applicationType: 4,

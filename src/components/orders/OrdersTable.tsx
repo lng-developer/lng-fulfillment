@@ -333,8 +333,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         void confirmOrderShipped(targetOrder.id, {
           weightKg: input.options.weight,
           lengthCm: input.options.length,
-          widthCm: input.options.width ?? 10,
-          heightCm: input.options.height ?? 5,
+          widthCm: input.options.width ?? 5,
+          heightCm: input.options.height ?? 2,
         }).then((costRes) => {
           applyOrderMutation(costRes);
         }).catch(() => {});
