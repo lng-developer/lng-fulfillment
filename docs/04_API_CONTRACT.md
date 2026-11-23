@@ -1,5 +1,13 @@
 # 04 API Contract
 
+## Viettel Post label choices
+
+`GET /api/shipments/:shipmentId/labels` is authenticated and tenant-scoped. It returns `labelUrl`, `mergeLabelUrl` and `requiresAccount`, without exposing credentials or raw carrier payloads. Optional `carrierAccountId` is used only for legacy shipments missing account provenance; it cannot override a recorded account. Responses are private and not cached.
+
+The label service reads the exact VP shipment detail using its original account. It does not create shipments, change shipment/order status, or send tracking callbacks. Single uses `labelUrl` (fallback `labelUrlVTP`); the double-label option uses VP's `mergeLabelUrl` only. Missing merged PDF disables the double option; it never substitutes or duplicates the single PDF. Cancelled shipments cannot be printed through this endpoint.
+
+The supplied 2026-03-31 public API document does not define the merged PDF layout. The choice is wired to VP's merged-file response; actual A6 double-label layout and printer output still need validation with a representative VP file.
+
 ## Reset an order for resubmission
 
 `POST /api/orders/:orderId/reset` accepts optional `{ "oldCarrierAccountId": "..." }` for legacy shipments without a recorded account. This is the old account used to verify cancellation, not the account for the next shipment. OWNER, ADMIN and OPERATOR may reset; tenant scope, same-origin and rate limits apply.

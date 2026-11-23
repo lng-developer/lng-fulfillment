@@ -65,3 +65,5 @@ export type {
   ShipOrdersBatchResult,
   SortOrder,
 } from "./types";
+
+export { getShipmentLabels } from "./labels";

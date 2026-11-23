@@ -104,8 +104,27 @@ export function createViettelPostAdapter(
 
       return normalizeCreateResponse(await readJson(response));
     },
-    async getLabel() {
-      throw notSupported("Viettel Post label retrieval is not implemented.");
+    async getLabel(input, context) {
+      const tracking = await this.getTracking({ ...input, requireExactShipment: true }, context);
+      const config = getConfig(context);
+      const fetchImpl = options.fetchImpl ?? fetch;
+      const token = await requestAccessToken(config, fetchImpl, tokenCache);
+      const response = await fetchImpl(resolveViettelPostOrderUrl(config.orderUrl,
+        `/api/partner/order/shipment/${encodeURIComponent(tracking.carrierShipmentId!)}`), {
+        headers: new Headers({ authorization: `Bearer ${token}`, accept: "application/json" }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) throw carrierError("REMOTE_REJECTED", "Viettel Post không trả được file nhãn của vận đơn này.", false, response.status);
+      const body = await readJson(response);
+      const data = isRecord(body) && isRecord(body.data) ? body.data : body;
+      if (!isRecord(data) || ![data.id, data.shipmentCode, data.vtpOrderNumber].includes(input.carrierShipmentId)) {
+        throw carrierError("VALIDATION_FAILED", "Label response does not match the requested shipment.", false, 409);
+      }
+      const mergeLabelUrl = stringValue(data.mergeLabelUrl);
+      return { carrierCode: "VIETTEL_POST", carrierShipmentId: tracking.carrierShipmentId!,
+        labelUrl: stringValue(data.labelUrl) ?? stringValue(data.labelUrlVTP), mimeType: "application/pdf",
+        metadata: { safe: { ...(mergeLabelUrl ? { mergeLabelUrl } : {}) } },
+      };
     },
     async getTracking(input, context) {
       const shipmentIdentifier = input.carrierShipmentId || input.customerOrderNumber;

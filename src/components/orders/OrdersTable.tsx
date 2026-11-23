@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { PrintLabelModal } from "./PrintLabelModal";
 import {
   CheckCircle2,
   ChevronDown,
@@ -121,6 +122,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
+  const [printOrderId, setPrintOrderId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, above: false });
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
@@ -964,16 +966,15 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                 Đang xử lý...
                               </span>
                             ) : isShipped ? (
-                              labelUrl ? (
-                                <a
+                              (labelUrl || (order.latestCarrierCode === "VIETTEL_POST" && order.latestShipmentStatus !== "CANCELLED")) ? (
+                                <button
                                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-3 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
-                                  href={labelUrl}
-                                  rel="noreferrer"
-                                  target="_blank"
+                                  type="button"
+                                  onClick={() => setPrintOrderId(order.id)}
                                 >
                                   <Printer className="h-3.5 w-3.5" />
                                   In nhãn
-                                </a>
+                                </button>
                               ) : (
                                 <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-500">
                                   {tracking ? "Chờ nhãn in" : "Đã ship"}
@@ -1199,6 +1200,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       )}
 
       {/* Reset Order Modal */}
+      {printOrderId && <PrintLabelModal orderId={printOrderId} onClose={() => setPrintOrderId(null)} />}
       {resetTarget && (
         <ResetOrderModal
           onClose={() => setResetTarget(null)}

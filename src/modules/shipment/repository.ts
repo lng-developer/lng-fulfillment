@@ -1540,3 +1540,8 @@ export async function createViettelPostShipmentForOrder(input: {
   });
 }
 
+
+export function getShipmentLabelRecord(tenantId: string, shipmentId: string) {
+  return prisma.shipment.findFirst({ where: { tenantId, id: shipmentId },
+    select: { status: true, carrierCode: true, carrierAccountId: true, carrierShipmentId: true, trackingNumber: true, labelUrl: true, metadata: true } });
+}
