@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckCircle2,
   ChevronDown,
@@ -120,6 +121,26 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, above: false });
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!activeMenuOrderId) return;
+    const close = () => setActiveMenuOrderId(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close();
+        menuTriggerRef.current?.focus();
+      }
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeMenuOrderId]);
   const [pendingOrderActions, setPendingOrderActions] = useState<
     Record<string, PendingOrderAction>
   >({});
@@ -1012,22 +1033,30 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                             <div className="relative">
                               <button
                                 aria-label="Tùy chọn khác"
+                                aria-expanded={isMenuOpen}
                                 className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-400 shadow-sm hover:bg-slate-50 hover:text-slate-700 flex items-center justify-center"
-                                onClick={() =>
-                                  setActiveMenuOrderId(isMenuOpen ? null : order.id)
-                                }
+                                onClick={(event) => {
+                                  const rect = event.currentTarget.getBoundingClientRect();
+                                  menuTriggerRef.current = event.currentTarget;
+                                  const above = window.innerHeight - rect.bottom < 150;
+                                  setMenuPosition({ top: above ? rect.top - 4 : rect.bottom + 4,
+                                    left: Math.max(8, Math.min(rect.right - 176, window.innerWidth - 184)), above });
+                                  setActiveMenuOrderId(isMenuOpen ? null : order.id);
+                                }}
                                 type="button"
                               >
                                 <MoreHorizontal className="h-3.5 w-3.5" />
                               </button>
 
-                              {isMenuOpen && (
+                              {isMenuOpen && createPortal(
                                 <>
                                   <div
                                     className="fixed inset-0 z-20"
                                     onClick={() => setActiveMenuOrderId(null)}
                                   />
-                                  <div className="absolute right-0 z-30 mt-1 w-44 rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-dropdown text-left">
+                                  <div className="fixed z-30 w-44 rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-dropdown text-left"
+                                    style={{ top: menuPosition.top, left: menuPosition.left,
+                                      transform: menuPosition.above ? "translateY(-100%)" : undefined }}>
                                     {can.qcOrder(role) &&
                                       (order.status === "RECEIVED" ||
                                         order.status === "ON_HOLD") && (
@@ -1066,7 +1095,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                       Reset để gửi lại
                                     </button>}
                                   </div>
-                                </>
+                                </>, document.body
                               )}
                             </div>
                           </div>
