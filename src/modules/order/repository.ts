@@ -7,6 +7,7 @@ import {
   toShipmentCostSummary,
 } from "@/modules/shipment-cost/repository";
 import { buildShipmentFailureSummary } from "./shipment-failure";
+import { buildRecipientRefresh, recipientRefreshWhere } from "./portal-recipient";
 import type {
   OrderDetail,
   OrderListItem,
@@ -139,6 +140,19 @@ export async function updateExistingPortalOrderWithItems(input: {
 
     if (!existing) {
       throw new Error("Order not found");
+    }
+
+    const recipientData = buildRecipientRefresh(input.order, existing.recipientAddress);
+    if (Object.keys(recipientData).length) {
+      await tx.order.updateMany({
+        where: {
+          tenantId: input.tenantId,
+          id: existing.id,
+          updatedAt: existing.updatedAt,
+          ...recipientRefreshWhere,
+        },
+        data: recipientData,
+      });
     }
 
     for (const incomingItem of input.order.items) {

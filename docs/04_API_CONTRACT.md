@@ -487,6 +487,7 @@ Rules:
 - Missing/invalid/revoked/expired API key trả `401 UNAUTHORIZED`.
 - Per-order validation error trong batch được trả trong `data.errors`; các order hợp lệ vẫn được xử lý.
 - Duplicate `externalOrderId` trong cùng tenant được skip idempotently, không tạo duplicate và không update destructive fields.
+- Duplicate intake refreshes non-empty recipient name, phone, email and address fields only while the order is RECEIVED, READY_TO_SHIP, IN_PROCESSING or ON_HOLD, with no shipment beyond DRAFT/FAILED_CREATE/CANCELLED and no carrier shipment ID, tracking number or actual ship date. Empty fields preserve existing values. Status, shipment history and the duplicate response contract remain unchanged.
 
 Request body:
 
