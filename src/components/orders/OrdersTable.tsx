@@ -528,13 +528,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
-  async function handleResetOrder(order: OrderListItem) {
+  async function handleResetOrder(order: OrderListItem, oldCarrierAccountId?: string) {
     setResetTarget(null);
     setPendingOrderActions((current) => ({ ...current, [order.id]: "reset" }));
 
     try {
-      const result = await resetOrder(order.id);
-      toastSuccess("Đã thiết lập lại trạng thái đơn hàng.");
+      const result = await resetOrder(order.id, oldCarrierAccountId);
+      toastSuccess("Đã reset và giữ lịch sử vận đơn. Chọn tài khoản mới ở bước Ship để gửi lại.");
       applyOrderMutation(result);
     } catch (err) {
       toastError(getErrorMessage(err));
@@ -829,7 +829,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     null;
                   const isShipped =
                     order.status === "SHIPPED" ||
-                    Boolean(labelUrl) ||
+                    (order.latestShipmentStatus !== "CANCELLED" && Boolean(labelUrl)) ||
                     (order.status === "IN_PROCESSING" && Boolean(tracking));
                   const pendingAction = pendingOrderActions[order.id] ?? null;
                   const isMenuOpen = activeMenuOrderId === order.id;
@@ -975,6 +975,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               )
                             ) : can.shipOrder(role) ? (
                               <Button
+                                disabled={Boolean(pendingAction)}
                                 leftIcon={<Truck className="h-3.5 w-3.5" />}
                                 onClick={() => {
                                   if (!detailCacheRef.current[order.id]) {
@@ -1053,7 +1054,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                         Hủy vận đơn Yun (30p)
                                       </button>
                                     )}
-                                    <button
+                                    {can.cancelYun(role) && ["CANCELLED", "IN_PROCESSING", "READY_TO_SHIP", "SHIPPED"].includes(order.status) && <button
+                                      disabled={Boolean(pendingAction)}
                                       className="w-full rounded px-2.5 py-1.5 text-left text-slate-700 hover:bg-slate-50"
                                       onClick={() => {
                                         setActiveMenuOrderId(null);
@@ -1061,8 +1063,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                       }}
                                       type="button"
                                     >
-                                      Reset trạng thái đơn
-                                    </button>
+                                      Reset để gửi lại
+                                    </button>}
                                   </div>
                                 </>
                               )}
@@ -1171,7 +1173,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       {resetTarget && (
         <ResetOrderModal
           onClose={() => setResetTarget(null)}
-          onSubmit={() => handleResetOrder(resetTarget)}
+          onSubmit={(oldAccount) => handleResetOrder(resetTarget, oldAccount)}
           order={resetTarget}
         />
       )}

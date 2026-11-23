@@ -171,7 +171,7 @@ export async function cancelYunShipment(orderId: string) {
 
 export const cancelYunOrder = cancelYunShipment;
 
-export async function resetOrder(orderId: string) {
+export async function resetOrder(orderId: string, oldCarrierAccountId?: string) {
   const response = await apiFetch<
     ApiSuccess<{
       orderId: string;
@@ -189,6 +189,7 @@ export async function resetOrder(orderId: string) {
     `/api/orders/${orderId}/reset`,
     {
       method: "POST",
+      body: JSON.stringify({ oldCarrierAccountId }),
     },
   );
 

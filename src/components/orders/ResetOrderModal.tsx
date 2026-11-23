@@ -1,6 +1,9 @@
 "use client";
 
 import type React from "react";
+import { useEffect, useState } from "react";
+import { getCarrierAccounts } from "@/lib/api/carrier-accounts";
+import type { CarrierAccount } from "@/types/settings";
 import { RotateCcw, X } from "lucide-react";
 import type { OrderListItem } from "@/types/orders";
 
@@ -11,8 +14,19 @@ export function ResetOrderModal({
 }: {
   order: OrderListItem;
   onClose: () => void;
-  onSubmit: (order: OrderListItem) => void;
+  onSubmit: (oldCarrierAccountId?: string) => void;
 }) {
+  const [accounts, setAccounts] = useState<CarrierAccount[]>([]);
+  const [oldAccount, setOldAccount] = useState(order.latestCarrierAccountId || "");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    void getCarrierAccounts(controller.signal).then(setAccounts).catch(() => {
+      if (!controller.signal.aborted) setError("Không tải được tài khoản carrier. Vui lòng mở lại hộp thoại.");
+    });
+    return () => controller.abort();
+  }, []);
+  const needsOldAccount = Boolean(order.latestCarrierCode) && !order.latestCarrierAccountId;
   return (
     <div
       aria-modal="true"
@@ -32,10 +46,10 @@ export function ResetOrderModal({
             </span>
             <div>
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-                Reset cancelled order?
+                Reset để gửi lại
               </h2>
               <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                This moves the order back to FULFILLED so it can be shipped again.
+                Xác minh hủy vận đơn cũ trước khi cho phép gửi lại.
               </p>
             </div>
           </div>
@@ -51,8 +65,19 @@ export function ResetOrderModal({
 
         <div className="grid gap-3 px-4 py-4">
           <div className="rounded-sm border border-[var(--border)] bg-[var(--bg-surface2)] p-3 text-xs text-[var(--text-secondary)]">
-            Vận đơn hiện tại sẽ được hủy để bạn có thể tạo lại vận đơn mới với tài khoản/hãng mong muốn.
+            Hãy hủy vận đơn trên hãng trước. Hệ thống chỉ kiểm tra việc hủy, giữ lịch sử và dừng job tự động cũ. Sau reset, chọn tài khoản mới ở bước Ship; hệ thống không tự gửi lại.
           </div>
+          <label className="grid gap-1 text-xs text-[var(--text-primary)]">
+            Tài khoản cũ dùng để xác minh (không phải tài khoản gửi lại)
+            <select className="rounded border border-[var(--border)] bg-[var(--bg-surface)] p-2"
+              disabled={Boolean(order.latestCarrierAccountId)} value={oldAccount}
+              onChange={(event) => setOldAccount(event.target.value)}>
+              <option value="">Chọn tài khoản cũ</option>
+              {accounts.filter(a => !order.latestCarrierCode || a.carrierCode === order.latestCarrierCode)
+                .map(a => <option key={a.id} value={a.id}>{a.displayName}</option>)}
+            </select>
+          </label>
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
           <div className="grid gap-2 text-xs">
             <InfoRow label="Order #" mono value={order.orderNumber ?? order.externalOrderId} />
             <InfoRow label="Current status" value={order.status} />
@@ -67,14 +92,15 @@ export function ResetOrderModal({
             onClick={onClose}
             type="button"
           >
-            Keep cancelled
+            Đóng
           </button>
           <button
             className="inline-flex h-9 items-center gap-2 rounded-sm border border-[var(--brand-dark)] bg-[var(--brand)] px-3 text-xs font-medium text-white hover:bg-[var(--brand-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => onSubmit(order)}
+            disabled={Boolean(error) || (needsOldAccount && !oldAccount)}
+            onClick={() => onSubmit(oldAccount || undefined)}
             type="button"
           >
-            Reset order
+            Xác minh và reset
           </button>
         </div>
       </div>

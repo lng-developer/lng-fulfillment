@@ -114,7 +114,7 @@ export function createViettelPostAdapter(
       }
       const config = getConfig(context);
       const fetchImpl = options.fetchImpl ?? fetch;
-      const token = process.env.VIETTEL_POST_BEARER_TOKEN || await requestAccessToken(config, fetchImpl, tokenCache);
+      const token = (!input.requireExactShipment && process.env.VIETTEL_POST_BEARER_TOKEN) || await requestAccessToken(config, fetchImpl, tokenCache);
 
       // Try partner shipment search first
       try {
@@ -132,8 +132,11 @@ export function createViettelPostAdapter(
           const json = await readJson(searchRes);
           const data = isRecord(json) && isRecord(json.data) ? json.data : json;
           const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
-          if (items.length > 0 && isRecord(items[0])) {
-            return normalizeSubAgencyTrackingItem(items[0], shipmentIdentifier);
+          const item = input.requireExactShipment
+            ? items.find((item) => isRecord(item) && [item.id, item.shipmentCode, item.vtpOrderNumber].includes(shipmentIdentifier))
+            : items[0];
+          if (isRecord(item)) {
+            return normalizeSubAgencyTrackingItem(item, shipmentIdentifier);
           }
         }
       } catch {
@@ -163,7 +166,14 @@ export function createViettelPostAdapter(
         }
         throw carrierError("REMOTE_REJECTED", remoteMessage, false, response.status);
       }
-      return normalizeTrackingResponse(await readJson(response), shipmentIdentifier);
+      const body = await readJson(response);
+      if (input.requireExactShipment) {
+        const data = isRecord(body) && isRecord(body.data) ? body.data : body;
+        if (!isRecord(data) || ![data.id, data.shipmentCode, data.vtpOrderNumber].includes(shipmentIdentifier)) {
+          throw carrierError("VALIDATION_FAILED", "Carrier response does not match the requested shipment.", false, 409);
+        }
+      }
+      return normalizeTrackingResponse(body, shipmentIdentifier);
     },
     async cancelShipment() {
       throw notSupported("Viettel Post shipment cancellation is not implemented.");

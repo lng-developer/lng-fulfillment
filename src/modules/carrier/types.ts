@@ -127,6 +127,7 @@ export type GetCarrierLabelResult = {
 };
 
 export type GetCarrierTrackingInput = {
+  requireExactShipment?: boolean;
   tenantId: string;
   shipmentId: string;
   carrierCode: string;

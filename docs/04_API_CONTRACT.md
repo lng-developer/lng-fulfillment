@@ -1,5 +1,13 @@
 # 04 API Contract
 
+## Reset an order for resubmission
+
+`POST /api/orders/:orderId/reset` accepts optional `{ "oldCarrierAccountId": "..." }` for legacy shipments without a recorded account. This is the old account used to verify cancellation, not the account for the next shipment. OWNER, ADMIN and OPERATOR may reset; tenant scope, same-origin and rate limits apply.
+
+Reset supports CANCELLED, IN_PROCESSING, READY_TO_SHIP and SHIPPED orders. All external shipments must be confirmed CANCELLED by the carrier using the exact shipment identifier. An unavailable lookup, mismatched identity, cancellation request without confirmation, CREATING shipment or PROCESSING automation blocks reset. Missing account provenance requires explicit selection; the tenant default is never substituted.
+
+On success the order becomes FULFILLED; old shipments become CANCELLED while retaining identifiers, tracking, labels and handoff evidence. Pending automation is stopped. History and audit are committed atomically with concurrency checks. The operator then selects the new account in Ship; reset neither cancels a live carrier shipment nor automatically submits a new one.
+
 Tài liệu này định nghĩa API contract dự kiến. Đây chưa phải implementation.
 
 ## Standard API Response Format

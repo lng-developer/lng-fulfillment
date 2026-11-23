@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+
+
 import { hasCarrierAdapter } from "@/modules/carrier";
 import { preflightCarrierShipmentCreation } from "@/modules/carrier/preflight";
 import { validateCarrierCredentialSaveInput } from "@/modules/carrier/service";
@@ -357,4 +359,30 @@ test("maps payload adhering to Viettel Post API specifications", () => {
   assert.equal(payload.shipFrom.country, "VN");
   assert.equal(payload.lineItems[0]?.countryOfOrigin, "VN");
   assert.equal(payload.lineItems[0]?.price, 25.5);
+});
+
+test("reset lookup matches the exact shipment rather than an unrelated cancelled result", async () => {
+  const context = { tenantId: "tenant-1", credentials: { source: "tenantCredential" as const, payload: {
+    clientId: "client-id", clientSecret: "client-secret", authUrl: "https://auth-staging.logistek.com.vn/connect/token",
+    orderUrl: "https://order-staging.logistek.com.vn", lineShipId: "line-ship-1",
+    shipFromFirstName: "Fulfillment", shipFromLastName: "Team", shipFromPhoneNumber: "0987654321",
+    shipFromAddress1: "Warehouse 1", shipFromCountry: "VN", shipFromState: "Ha Noi", shipFromCity: "Ha Noi",
+    shipFromZipCode: "100000", liveEnabled: true,
+  } } };
+  const input = { tenantId: "tenant-1", shipmentId: "local", carrierCode: "VIETTEL_POST",
+    carrierShipmentId: "EPK1", requireExactShipment: true };
+  const adapter = createViettelPostAdapter({ fetchImpl: async url => {
+    if (String(url).includes("connect/token")) return Response.json({ access_token: "mock-token" });
+    return Response.json({ items: [{ id: "other", shipmentCode: "EPK2", status: 5 },
+      { id: "uuid1", shipmentCode: "EPK1", status: 2 }] });
+  } });
+  const result = await adapter.getTracking(input, context);
+  assert.equal(result.carrierShipmentId, "uuid1");
+  assert.equal(result.status, "IN_TRANSIT");
+  const mismatch = createViettelPostAdapter({ fetchImpl: async url => {
+    if (String(url).includes("connect/token")) return Response.json({ access_token: "mock-token" });
+    if (String(url).includes("?")) return Response.json({ items: [{ id: "other", status: 5 }] });
+    return Response.json({ id: "other", status: 5 });
+  } });
+  await assert.rejects(mismatch.getTracking(input, context));
 });

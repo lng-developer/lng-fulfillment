@@ -5,6 +5,17 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
 
+export function countProcessingJobsForOrder(tx: Prisma.TransactionClient, tenantId: string, orderId: string) {
+  return tx.autoShipmentJob.count({ where: { tenantId, orderId, status: "PROCESSING" } });
+}
+
+export function stopJobsForOrderReset(tx: Prisma.TransactionClient, tenantId: string, orderId: string) {
+  return tx.autoShipmentJob.updateMany({ where: { tenantId, orderId }, data: {
+    status: "SKIPPED_DISABLED", errorCode: null,
+    errorMessage: "Stopped by order reset. Select a carrier account and ship manually.",
+  } });
+}
+
 export const autoShipmentJobSelect = {
   id: true,
   tenantId: true,
@@ -323,17 +334,16 @@ export async function claimPendingAutoShipmentJobs(input: {
       return [];
     }
 
-    const pendingIds = pending.map((job) => job.id);
-    await tx.autoShipmentJob.updateMany({
-      where: {
-        id: { in: pendingIds },
-        tenantId: input.tenantId,
-        status: "PENDING",
-      },
-      data: { status: "PROCESSING" },
-    });
-
-    return pending;
+    const claimed = [];
+    for (const job of pending) {
+      const result = await tx.autoShipmentJob.updateMany({
+        where: { id: job.id, tenantId: input.tenantId, status: "PENDING" },
+        data: { status: "PROCESSING" },
+      });
+      // A reset may have stopped the job after the pending list was read.
+      if (result.count === 1) claimed.push(job);
+    }
+    return claimed;
   });
 }
 

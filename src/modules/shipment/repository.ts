@@ -6,6 +6,9 @@ import type {
   ShipmentStatus,
 } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import { AppError } from "@/shared/errors";
+import { stopAutoShipmentForReset } from "@/modules/auto-shipment/reset";
+import type { ResetVerification } from "./reset-policy";
 import { createLifecycleOutboxInTransaction } from "@/modules/callback/repository";
 import {
   etsyTrackingSyncOrderFilter,
@@ -650,84 +653,60 @@ export async function clearLatestShipmentCarrierArtifacts(input: {
   return toShipmentDetail(row);
 }
 
+export async function getOrderResetPreparation(tenantId: string, orderId: string) {
+  return prisma.order.findFirst({ where: { tenantId, id: orderId },
+    include: { shipments: { orderBy: { createdAt: "desc" } } } });
+}
+
 export async function resetCancelledOrderRecords(input: {
   tenantId: string;
-  orderId: string;
+  order: NonNullable<Awaited<ReturnType<typeof getOrderResetPreparation>>>;
+  verified: ResetVerification[];
   actorType: AuditActorType;
   actorId?: string;
 }) {
   return prisma.$transaction(async (tx) => {
+    const conflict = () => new AppError("CONFLICT", "Đơn hoặc vận đơn đã thay đổi. Vui lòng tải lại và xác minh lại.", 409);
     const orderUpdate = await tx.order.updateMany({
-      where: {
-        id: input.orderId,
-        tenantId: input.tenantId,
-        status: { in: ["CANCELLED", "IN_PROCESSING"] },
-      },
-      data: {
-        status: "FULFILLED",
-      },
+      where: { id: input.order.id, tenantId: input.tenantId,
+        status: input.order.status, updatedAt: input.order.updatedAt },
+      data: { status: "FULFILLED" },
     });
-
-    if (orderUpdate.count === 0) {
-      return null;
+    if (orderUpdate.count !== 1) throw conflict();
+    const current = await tx.shipment.findMany({ where: { tenantId: input.tenantId, orderId: input.order.id },
+      select: { id: true, updatedAt: true } });
+    if (current.length !== input.order.shipments.length || current.some(s =>
+      !input.order.shipments.some(old => old.id === s.id && old.updatedAt.getTime() === s.updatedAt.getTime()))) throw conflict();
+    await stopAutoShipmentForReset(tx, input.tenantId, input.order.id);
+    for (const shipment of input.order.shipments) {
+      const verification = input.verified.find(v => v.shipmentId === shipment.id);
+      const metadata = shipment.metadata && typeof shipment.metadata === "object" && !Array.isArray(shipment.metadata)
+        ? shipment.metadata : {};
+      await tx.shipment.update({ where: { id: shipment.id, tenantId: input.tenantId }, data: {
+        status: "CANCELLED",
+        ...(verification ? { carrierAccountId: verification.carrierAccountId,
+          metadata: { ...metadata, resetVerifiedAt: verification.verifiedAt } as Prisma.InputJsonObject } : {}),
+        statusHistory: { create: { tenantId: input.tenantId, status: "CANCELLED",
+          note: "Archived for resubmission after cancellation verification. Identifiers retained.",
+          actorType: input.actorType, actorId: input.actorId } },
+      } });
     }
-
-    await tx.orderStatusHistory.create({
-      data: {
-        tenantId: input.tenantId,
-        orderId: input.orderId,
-        status: "FULFILLED",
-        note: "Cancelled order reset for shipment recreation.",
-        actorType: input.actorType,
-        actorId: input.actorId,
-      },
-    });
-
-    const latestShipment = await tx.shipment.findFirst({
-      where: {
-        tenantId: input.tenantId,
-        orderId: input.orderId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    const shipment = latestShipment
-      ? await tx.shipment.update({
-          where: {
-            id: latestShipment.id,
-            tenantId: input.tenantId,
-          },
-          data: {
-            status: "CANCELLED",
-            carrierShipmentId: null,
-            trackingNumber: null,
-            labelUrl: null,
-          },
-          select: {
-            id: true,
-            status: true,
-            carrierCode: true,
-            carrierShipmentId: true,
-            trackingNumber: true,
-            labelUrl: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
-      : null;
-
-    return {
-      order: {
-        id: input.orderId,
-        status: "FULFILLED" as const,
-      },
-      shipment,
-    };
+    await tx.orderStatusHistory.create({ data: { tenantId: input.tenantId, orderId: input.order.id,
+      status: "FULFILLED", note: "Reset for manual resubmission; shipment history retained.",
+      actorType: input.actorType, actorId: input.actorId } });
+    await tx.auditLog.create({ data: { tenantId: input.tenantId, actorType: input.actorType,
+      ...(input.actorType === "USER" ? { actorUserId: input.actorId } : {}),
+      action: "ORDER_RESET_AFTER_CANCEL", resourceType: "Order", resourceId: input.order.id,
+      metadata: { previousStatus: input.order.status, nextStatus: "FULFILLED",
+        verified: input.verified, shipmentIds: input.order.shipments.map(s => s.id) } } });
+    const latest = input.order.shipments[0];
+    return { order: { id: input.order.id, status: "FULFILLED" as const },
+      shipment: latest ? await tx.shipment.findFirst({ where: { id: latest.id, tenantId: input.tenantId } }) : null };
+  }, { isolationLevel: "Serializable" }).catch((error: unknown) => {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2034") {
+      throw new AppError("CONFLICT", "Đơn đang được xử lý đồng thời. Vui lòng tải lại và xác minh lại.", 409);
+    }
+    throw error;
   });
 }
 
@@ -1169,6 +1148,7 @@ export async function updateShipmentTrackingSyncResult(input: {
       where: {
         id: input.shipmentId,
         tenantId: input.tenantId,
+        status: { not: "CANCELLED" },
       },
       data: {
         status: input.status,
@@ -1493,6 +1473,7 @@ export async function linkViettelPostTrackingToShipment(input: {
     where: {
       id: input.shipmentId,
       tenantId: input.tenantId,
+      status: { not: "CANCELLED" },
     },
     data: {
       carrierCode: "VIETTEL_POST",

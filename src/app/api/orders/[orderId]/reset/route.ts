@@ -31,10 +31,22 @@ export async function POST(
     });
 
     const { orderId } = await params;
+    const text = await request.text();
+    let body: unknown = {};
+    try { body = text ? JSON.parse(text) : {}; } catch {
+      throw new AppError("VALIDATION_ERROR", "Invalid reset request.", 400);
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new AppError("VALIDATION_ERROR", "Invalid reset request.", 400);
+    }
+    const account = (body as Record<string, unknown>).oldCarrierAccountId;
+    if (account !== undefined && (typeof account !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(account))) {
+      throw new AppError("VALIDATION_ERROR", "Invalid old carrier account.", 400);
+    }
     const result = await resetCancelledOrder(context.tenantId, orderId, {
       actorType: "USER",
       actorId: context.actorUserId,
-    });
+    }, account as string | undefined);
 
     return ok(result);
   } catch (error) {

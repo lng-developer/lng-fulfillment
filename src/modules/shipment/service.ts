@@ -32,7 +32,7 @@ import {
   getDirectShipOrderPreparation,
   getLatestShipmentForOrder,
   getOrderCostContext,
-  getOrderWorkflowState,
+  getOrderResetPreparation,
   getShipmentCarrierPreparation,
   getShipmentDetail as getShipmentDetailRecord,
   findYunWebhookShipment,
@@ -87,6 +87,8 @@ import {
   getTrackingSyncStep,
   shouldEmitTrackingLifecycleEvent,
 } from "./tracking-sync-batch";
+import { RESETTABLE_ORDER_STATUSES, verifyResetShipments } from "./reset-policy";
+import { matchesViettelShipment } from "./viettel-shipment-match";
 import { shouldApplyTrackingStatusTransition } from "./tracking-status-reconciliation";
 
 const EXECUTABLE_SHIPMENT_STATUSES = ["DRAFT", "FAILED_CREATE"] as const;
@@ -830,60 +832,25 @@ export async function resetCancelledOrder(
   tenantId: string,
   orderId: string,
   actor: ShipmentActor,
+  oldCarrierAccountId?: string,
 ): Promise<ResetCancelledOrderResult> {
-  const timing = createSafeTimingLogger("resetCancelledOrder", {
-    orderId,
-  });
-  const result = await resetCancelledOrderRecords({
-    tenantId,
-    orderId,
-    actorType: actor.actorType,
-    actorId: actor.actorId,
-  });
-  timing("resetRecordsUpdated", {
-    success: Boolean(result),
-    shipmentCleared: Boolean(result?.shipment),
-  });
-
-  if (!result) {
-    const orderState = await getOrderWorkflowState(tenantId, orderId);
-
-    if (!orderState) {
-      throw new AppError("NOT_FOUND", "Order not found.", 404);
-    }
-
-    throw new AppError(
-      "CONFLICT",
-      "Only cancelled or in-processing orders can be reset.",
-      409,
-      {
-        orderStatus: orderState.status,
-        allowedStatuses: ["CANCELLED", "IN_PROCESSING"],
-      },
-    );
+  const order = await getOrderResetPreparation(tenantId, orderId);
+  if (!order) throw new AppError("NOT_FOUND", "Order not found.", 404);
+  if (!RESETTABLE_ORDER_STATUSES.includes(order.status as never)) {
+    throw new AppError("CONFLICT", "Đơn không ở trạng thái cho phép reset để gửi lại.", 409);
   }
-
-  if (actor.actorType === "USER" && actor.actorId) {
-    await recordUserAuditLog({
-      tenantId,
-      actorUserId: actor.actorId,
-      action: "ORDER_RESET_AFTER_CANCEL",
-      resourceType: "Order",
-      resourceId: orderId,
-      metadata: {
-        orderId,
-        previousStatus: "IN_PROCESSING",
-        nextStatus: "FULFILLED",
-      },
-    });
-    timing("auditRecorded", { action: "ORDER_RESET_AFTER_CANCEL" });
-  }
-
-  return {
-    orderId,
-    orderStatus: result.order.status,
-    shipment: result.shipment ?? undefined,
-  };
+  const verified = await verifyResetShipments(order.shipments, oldCarrierAccountId, async (shipment, accountId) => {
+    const carrierCode = normalizeCarrierCode(shipment.carrierCode!);
+    const credentials = await resolveCarrierRuntimeCredentials(tenantId, carrierCode, accountId);
+    return getCarrierAdapter(carrierCode).getTracking({ tenantId, shipmentId: shipment.id, carrierCode,
+      requireExactShipment: true,
+      carrierShipmentId: shipment.carrierShipmentId, trackingNumber: shipment.trackingNumber,
+      customerOrderNumber: order.externalOrderId,
+    }, { tenantId, credentials });
+  });
+  const result = await resetCancelledOrderRecords({ tenantId, order, verified,
+    actorType: actor.actorType, actorId: actor.actorId });
+  return { orderId, orderStatus: result.order.status, shipment: result.shipment ?? undefined };
 }
 
 export async function prepareShipmentCarrierExecution(
@@ -1195,6 +1162,9 @@ export async function syncShipmentTracking(
   options: { refreshCompleted?: boolean } = {},
 ): Promise<ShipmentTrackingSyncResult> {
   const shipment = await getTenantShipmentDetail(tenantId, shipmentId);
+  if (shipment.status === "CANCELLED") {
+    throw new AppError("CONFLICT", "Vận đơn đã hủy; không đồng bộ lại tracking cũ.", 409);
+  }
   const syncStep = getTrackingSyncStep({
     actualShipAt: shipment.actualShipAt,
     portalTrackingSyncState: shipment.portalTrackingSyncState,
@@ -1533,8 +1503,10 @@ export async function syncViettelPostTrackingBatch(
   let created = 0;
 
   for (const order of matchedOrders) {
-    const vtp = vtpItems.find(
-      (it) => it.orderId === order.externalOrderId || it.orderId === order.orderNumber,
+    const vtp = vtpItems.find((it) =>
+      (it.orderId === order.externalOrderId || it.orderId === order.orderNumber) &&
+      !order.shipments.some(s => s.status === "CANCELLED" && matchesViettelShipment(s, it)) &&
+      (!order.shipments.length || order.shipments.some(s => s.status !== "CANCELLED" && matchesViettelShipment(s, it))),
     );
     if (!vtp) continue;
 
@@ -1576,6 +1548,7 @@ export async function syncViettelPostTrackingBatch(
 
     if (order.shipments.length > 0) {
       for (const s of order.shipments) {
+        if (s.status === "CANCELLED" || s.carrierCode !== "VIETTEL_POST" || !matchesViettelShipment(s, vtp)) continue;
         const needsUpdate =
           s.trackingNumber !== trackingNumber ||
           (carrierShipmentId && s.carrierShipmentId !== carrierShipmentId) ||
