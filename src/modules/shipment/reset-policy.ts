@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { GetCarrierTrackingResult } from "@/modules/carrier";
+import { mapCarrierErrorToAppError } from "@/modules/carrier";
 import { AppError } from "@/shared/errors";
 
 export const RESETTABLE_ORDER_STATUSES = ["CANCELLED", "IN_PROCESSING", "READY_TO_SHIP", "SHIPPED"] as const;
@@ -28,7 +29,13 @@ export async function verifyResetShipments(
     }
     const accountId = shipment.carrierAccountId || oldCarrierAccountId;
     if (!accountId) throw new AppError("VALIDATION_ERROR", "Vui lòng chọn tài khoản cũ đã tạo vận đơn để xác minh hủy.", 400);
-    const result = await lookup(shipment, accountId);
+    let result: GetCarrierTrackingResult;
+    try {
+      result = await lookup(shipment, accountId);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw mapCarrierErrorToAppError(error);
+    }
     const safe = result.metadata?.safe;
     if (result.carrierCode !== shipment.carrierCode || ![
       result.carrierShipmentId, safe?.shipmentCode, safe?.vtpOrderNumber,
