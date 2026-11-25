@@ -128,6 +128,10 @@ export function ShipOrderModal({
   const [iossNumber, setIossNumber] = useState(preview.iossNumber);
   const [parcels, setParcels] = useState(preview.parcels);
   const controlsDisabled = hasSubmitted;
+  const phoneInvalid = carrierCode === "VIETTEL_POST" &&
+    (!/^\+?[\d\s().-]+$/.test(receiverValues.phone.trim()) ||
+      receiverValues.phone.replace(/\D/g, "").length < 7 ||
+      receiverValues.phone.replace(/\D/g, "").length > 15);
   const iossMissing = carrierCode === "YUNEXPRESS_OMS" && useIoss && !iossNumber.trim();
 
   const viettelPostAccounts = useMemo(
@@ -202,6 +206,7 @@ export function ShipOrderModal({
   const handleSubmit = () => {
     if (
       hasSubmitted ||
+      phoneInvalid ||
       (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
       (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
     ) {
@@ -639,6 +644,26 @@ export function ShipOrderModal({
                 <span className="font-medium text-slate-700">{receiverValues.street}, {receiverValues.city}, {receiverValues.state} {receiverValues.zip}</span>
               </div>
             </div>
+            <label className="mt-3 block text-xs font-semibold text-slate-700">
+              Số điện thoại người nhận{carrierCode === "VIETTEL_POST" ? " *" : ""}
+              <input
+                type="tel"
+                autoComplete="tel"
+                value={receiverValues.phone}
+                disabled={controlsDisabled}
+                required={carrierCode === "VIETTEL_POST"}
+                aria-invalid={phoneInvalid}
+                aria-describedby="recipient-phone-help"
+                placeholder="Nhập SĐT kèm mã quốc gia"
+                onChange={(event) => setReceiverValues((current) => ({ ...current, phone: event.target.value }))}
+                className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 font-normal focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </label>
+            <p id="recipient-phone-help" className={cn("mt-1 text-xs", phoneInvalid ? "text-red-600" : "text-slate-500")}>
+              {phoneInvalid
+                ? "Viettel Post yêu cầu SĐT gồm 7–15 chữ số. Vui lòng nhập số liên hệ giao hàng hợp lệ."
+                : "Số này được dùng cho vận đơn đang tạo; không thay đổi thông tin đơn gốc."}
+            </p>
           </section>
 
           {/* Environment (Only for YunExpress; Viettel Post uses dedicated Carrier Accounts) */}
@@ -668,6 +693,7 @@ export function ShipOrderModal({
             }
             disabled={
               controlsDisabled ||
+              phoneInvalid ||
               (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
               (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
             }
@@ -774,7 +800,7 @@ export function buildShipOptions(
     receiverCity: receiverValues.city,
     receiverState: receiverValues.state,
     receiverZip: receiverValues.zip,
-    receiverPhone: receiverValues.phone,
+    receiverPhone: receiverValues.phone.trim(),
     receiverEmail: receiverValues.email,
     weight: packageValues.weight,
     length: packageValues.length,
