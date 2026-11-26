@@ -1,3 +1,8 @@
+import {
+  normalizeFulfillmentSearch,
+  orderSearchClauses,
+  shipmentSearchClauses,
+} from "@/shared/fulfillment-search";
 import type { AuditActorType, OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import { createPendingAutoShipmentJobInTransaction } from "@/modules/auto-shipment/repository";
@@ -1157,8 +1162,22 @@ function buildOrderWhereInput(
   tenantId: string,
   query: OrderListQuery,
 ): Prisma.OrderWhereInput {
+  const search = normalizeFulfillmentSearch(query.search);
   return {
     tenantId,
+    ...(query.pendingVp ? {
+      AND: [{ status: { in: ["READY_TO_SHIP", "FULFILLED"] } }],
+      shipments: { none: {
+        tenantId,
+        status: { not: "CANCELLED" },
+        OR: [
+          { status: { notIn: ["DRAFT", "FAILED_CREATE"] } },
+          { carrierShipmentId: { notIn: [""] } },
+          { trackingNumber: { notIn: [""] } },
+          { labelUrl: { notIn: [""] } },
+        ],
+      } },
+    } : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(query.sourceChannel ? { sourceChannel: query.sourceChannel } : {}),
     ...(query.autoShipmentStatus
@@ -1178,28 +1197,9 @@ function buildOrderWhereInput(
           },
         }
       : {}),
-    ...(query.search
+    ...(search
       ? {
-          OR: [
-            {
-              externalOrderId: {
-                contains: query.search,
-                mode: "insensitive",
-              },
-            },
-            {
-              orderNumber: {
-                contains: query.search,
-                mode: "insensitive",
-              },
-            },
-            {
-              recipientName: {
-                contains: query.search,
-                mode: "insensitive",
-              },
-            },
-          ],
+          OR: [...orderSearchClauses(search), { shipments: { some: { tenantId, OR: shipmentSearchClauses(search) } } }],
         }
       : {}),
   };
@@ -1310,6 +1310,8 @@ export async function listOrdersForExport(
     status?: OrderStatus;
     sourceChannel?: OrderSourceChannel;
     search?: string;
+    pendingVp?: boolean;
+    sortOrder?: "asc" | "desc";
     from?: Date;
     to?: Date;
   },
@@ -1324,6 +1326,7 @@ export async function listOrdersForExport(
           status: query.status,
           sourceChannel: query.sourceChannel,
           search: query.search,
+          pendingVp: query.pendingVp,
           from: query.from,
           to: query.to,
           sortBy: "receivedAt",
@@ -1334,7 +1337,7 @@ export async function listOrdersForExport(
 
   const rows = await prisma.order.findMany({
     where,
-    orderBy: { receivedAt: "desc" },
+    orderBy: { receivedAt: query.sortOrder ?? "desc" },
     take: 2000,
     select: orderExpandedListSelect,
   });

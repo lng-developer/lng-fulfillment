@@ -99,6 +99,7 @@ export function validateOrderListQuery(
     autoShipmentStatus: parseAutoShipmentJobStatus(
       searchParams.get("autoShipmentStatus"),
     ),
+    pendingVp: parsePendingVpFilter(searchParams.get("pendingVp")),
     search: optionalString(searchParams.get("search")),
     from: parseOptionalDate(searchParams.get("from"), "from"),
     to: parseOptionalDate(searchParams.get("to"), "to", true),
@@ -745,4 +746,11 @@ function parseIncludeExpanded(value: string | null) {
   }
 
   return true;
+}
+
+export function parsePendingVpFilter(value: string | null): boolean | undefined {
+  if (value === null || value === "") return undefined;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new AppError("VALIDATION_ERROR", "pendingVp must be true or false.", 400);
 }

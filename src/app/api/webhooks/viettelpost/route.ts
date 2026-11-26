@@ -1,4 +1,4 @@
-import { normalizeViettelPostTrackingNumber } from "@/integrations/viettel-post/adapter";
+import { normalizeTrackingStatus, normalizeViettelPostTrackingNumber } from "@/integrations/viettel-post/adapter";
 import { ok, error as errorResponse } from "@/shared/api-response";
 import { AppError } from "@/shared/errors";
 import {
@@ -6,7 +6,7 @@ import {
   createViettelPostShipmentForOrder,
   findOrdersForViettelPostSync,
 } from "@/modules/shipment/repository";
-import { sendPortalTrackingUpdate } from "@/modules/portal-tracking";
+import { matchesViettelShipment } from "@/modules/shipment/viettel-shipment-match";
 
 export async function GET() {
   return Response.json({
@@ -63,16 +63,20 @@ export async function POST(request: Request) {
               : null;
 
         if (!trackingNumber && !carrierShipmentId) continue;
+        const carrierStatus = normalizeTrackingStatus(typeof item.status === "number" ? item.status : null);
+        if (carrierStatus === "UNKNOWN") continue;
+        const status = carrierStatus === "RETURNED" ? "EXCEPTION" : carrierStatus;
 
         if (order.shipments.length > 0) {
           for (const s of order.shipments) {
+            if (s.status === "CANCELLED" || s.carrierCode !== "VIETTEL_POST" || !matchesViettelShipment(s, item)) continue;
             await linkViettelPostTrackingToShipment({
               tenantId,
               shipmentId: s.id,
               carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
               trackingNumber: trackingNumber || s.trackingNumber || "",
               labelUrl,
-              actualShipAt: new Date(),
+              status,
               actorType: "SYSTEM",
               actorId: "viettel-post-webhook",
             });
@@ -84,7 +88,7 @@ export async function POST(request: Request) {
             carrierShipmentId: carrierShipmentId || "VTP",
             trackingNumber: trackingNumber || "",
             labelUrl,
-            actualShipAt: new Date(),
+            status,
             items: order.items.map((it) => ({
               orderItemId: it.id,
               quantity: it.quantity,
@@ -94,16 +98,7 @@ export async function POST(request: Request) {
           });
         }
 
-        if (trackingNumber) {
-          await sendPortalTrackingUpdate({
-            orderId: order.externalOrderId,
-            tracking: trackingNumber,
-            carrier: "USPS",
-            fulfillment: "VIETTEL_POST",
-            sourceChannel: order.sourceChannel,
-            actualShipAt: new Date(),
-          }).catch(() => null);
-        }
+        // A tracking number alone is not proof of carrier handoff.
       }
     }
 

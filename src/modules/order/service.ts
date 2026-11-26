@@ -579,6 +579,8 @@ export async function exportOrdersCsv(
     status?: OrderStatus;
     sourceChannel?: OrderSourceChannel;
     search?: string;
+    pendingVp?: boolean;
+    sortOrder?: "asc" | "desc";
     from?: Date;
     to?: Date;
   },

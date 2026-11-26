@@ -1,3 +1,8 @@
+import {
+  normalizeFulfillmentSearch,
+  orderSearchClauses,
+  shipmentSearchClauses,
+} from "@/shared/fulfillment-search";
 import type {
   AuditActorType,
   OrderSourceChannel,
@@ -1393,27 +1398,15 @@ function buildShipmentWhereInput(
   tenantId: string,
   query: ShipmentListQuery,
 ): Prisma.ShipmentWhereInput {
+  const search = normalizeFulfillmentSearch(query.search);
   return {
     tenantId,
     ...(query.status ? { status: query.status } : {}),
     ...(query.sourceChannel ? { order: { sourceChannel: query.sourceChannel } } : {}),
     ...(query.orderId ? { orderId: query.orderId } : {}),
-    ...(query.search
+    ...(search
       ? {
-          OR: [
-            {
-              trackingNumber: {
-                contains: query.search,
-                mode: "insensitive",
-              },
-            },
-            {
-              carrierShipmentId: {
-                contains: query.search,
-                mode: "insensitive",
-              },
-            },
-          ],
+          OR: [...shipmentSearchClauses(search), { order: { tenantId, OR: orderSearchClauses(search) } }],
         }
       : {}),
   };
@@ -1441,6 +1434,7 @@ export async function findOrdersForViettelPostSync(
           id: true,
           status: true,
           carrierCode: true,
+          carrierAccountId: true,
           trackingNumber: true,
           carrierShipmentId: true,
           labelUrl: true,
@@ -1464,7 +1458,7 @@ export async function linkViettelPostTrackingToShipment(input: {
   carrierShipmentId: string;
   trackingNumber: string;
   labelUrl?: string | null;
-  actualShipAt?: Date | null;
+  status: ShipmentStatus;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
   actorId?: string;
@@ -1480,14 +1474,13 @@ export async function linkViettelPostTrackingToShipment(input: {
       carrierShipmentId: input.carrierShipmentId,
       trackingNumber: normalizeViettelPostTrackingNumber(input.trackingNumber) ?? input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
-      actualShipAt: input.actualShipAt ?? new Date(),
-      status: "IN_TRANSIT",
+      status: input.status,
       updatedAt: new Date(),
       ...(input.metadata ? { metadata: input.metadata } : {}),
       statusHistory: {
         create: {
           tenantId: input.tenantId,
-          status: "IN_TRANSIT",
+          status: input.status,
           note: "Tracking synced from Viettel Post Global.",
           actorType: input.actorType,
           actorId: input.actorId,
@@ -1503,7 +1496,7 @@ export async function createViettelPostShipmentForOrder(input: {
   carrierShipmentId: string;
   trackingNumber: string;
   labelUrl?: string | null;
-  actualShipAt?: Date | null;
+  status: ShipmentStatus;
   items: Array<{ orderItemId: string; quantity: number }>;
   metadata?: Prisma.InputJsonValue;
   actorType: AuditActorType;
@@ -1517,8 +1510,7 @@ export async function createViettelPostShipmentForOrder(input: {
       carrierShipmentId: input.carrierShipmentId,
       trackingNumber: normalizeViettelPostTrackingNumber(input.trackingNumber) ?? input.trackingNumber,
       labelUrl: input.labelUrl ?? null,
-      actualShipAt: input.actualShipAt ?? new Date(),
-      status: "IN_TRANSIT",
+      status: input.status,
       ...(input.metadata ? { metadata: input.metadata } : {}),
       items: {
         create: input.items.map((it) => ({
@@ -1530,7 +1522,7 @@ export async function createViettelPostShipmentForOrder(input: {
       statusHistory: {
         create: {
           tenantId: input.tenantId,
-          status: "IN_TRANSIT",
+          status: input.status,
           note: "Shipment created via Viettel Post Global tracking sync.",
           actorType: input.actorType,
           actorId: input.actorId,

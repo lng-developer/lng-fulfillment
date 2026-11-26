@@ -182,6 +182,7 @@ export async function syncTracking(shipmentId: string) {
 }
 
 export type TrackingSyncBatchResult = {
+  reconciliation?: { reconciled: number; reviewRequired: number; failedAccounts: number };
   attempted: number;
   synced: number;
   noActualShipEvent: number;

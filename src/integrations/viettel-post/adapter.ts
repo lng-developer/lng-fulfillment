@@ -48,6 +48,7 @@ export function createViettelPostAdapter(
     }
 
     assertShipmentInput(input);
+    assertViettelPostDestination(input.recipient?.country);
   }
 
   return {
@@ -676,11 +677,19 @@ export const VIETTEL_POST_LINES_BY_ENV: Record<
   },
 };
 
+export function assertViettelPostDestination(country: string | undefined) {
+  // Only the current VN-US route is verified; add destination routing once VP supplies supported lines.
+  if (!country?.trim() || normalizeCountryCode(country) !== "US") {
+    throw carrierError("VALIDATION_FAILED", "Viettel Post: Chưa cấu hình tuyến phù hợp cho nước nhận. Không thể gửi qua tuyến VN-US.", false, 400);
+  }
+}
+
 export function mapShipment(
   input: CreateCarrierShipmentInput,
   config: ViettelPostConfig,
   merchandise?: ViettelPostMerchandise,
 ) {
+  assertViettelPostDestination(input.recipient?.country);
   const recipient = input.recipient!;
   const rawRecipientName = (recipient.name ?? "Customer").trim();
   const nameParts = rawRecipientName.split(/\s+/).filter(Boolean);
@@ -802,7 +811,6 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   const lineShipCode = stringValue(lineShip?.code);
   const lineShipName = stringValue(lineShip?.name);
   const shippingMethod = finalMileCarrier === "USPS" ? "USPS First Class" : (lineShipName || "Standard");
-  const actualShipAt = stringValue(shipment.dateCreate);
 
   const rawTracking =
     stringValue(shipment.trackingCode) ??
@@ -822,7 +830,6 @@ function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
         shippingMethod,
         ...(lineShipCode ? { shippingMethodCode: lineShipCode } : {}),
         ...(lineShipName ? { shippingMethodName: lineShipName } : {}),
-        ...(actualShipAt ? { actualShipAt } : {}),
       },
     },
   };
@@ -905,7 +912,7 @@ function normalizeSubAgencyTrackingItem(item: Record<string, unknown>, fallbackI
   };
 }
 
-function normalizeTrackingStatus(status: number | null) {
+export function normalizeTrackingStatus(status: number | null) {
   switch (status) {
     case 0:
     case 1:
@@ -954,4 +961,52 @@ function carrierError(reason: Parameters<typeof createCarrierError>[0]["reason"]
 
 function notSupported(message: string) {
   return carrierError("NOT_SUPPORTED", message, false, 501);
+}
+
+export type VpRemoteShipment = {
+  id: string; orderId: string; shipmentCode: string; status: number;
+  trackingNumber: string | null; labelUrl: string | null; dateCreate: string;
+};
+
+export async function lookupViettelPostOrderShipments(
+  context: CarrierAdapterContext,
+  externalOrderId: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VpRemoteShipment[]> {
+  const config = getConfig(context);
+  const boundedFetch: typeof fetch = (url, init) => fetchImpl(url, { ...init, signal: AbortSignal.timeout(15_000) });
+  const token = await requestAccessToken(config, boundedFetch, new Map());
+  const records: VpRemoteShipment[] = [];
+  for (let page = 0; page < 10; page++) {
+    const url = resolveViettelPostOrderUrl(config.orderUrl,
+      `/api/partner/order/shipment?filter=${encodeURIComponent(externalOrderId ?? "")}&skipCount=${page * 50}&maxResultCount=50`);
+    const response = await boundedFetch(url, { headers: { authorization: `Bearer ${token}` } });
+    const body = await readJson(response);
+    const data = isRecord(body) && isRecord(body.data) ? body.data : body;
+    if (!response.ok || !isRecord(data) || !Array.isArray(data.items)) {
+      throw carrierError("REMOTE_REJECTED", "Cannot verify complete VP shipment list.", false, 502);
+    }
+    for (const raw of data.items) {
+      if (!isRecord(raw)) throw carrierError("REMOTE_REJECTED", "Invalid VP shipment list.", false, 502);
+      if (externalOrderId && raw.orderId !== externalOrderId) continue;
+      const orderId = stringValue(raw.orderId);
+      if (!orderId) continue;
+      const id = stringValue(raw.id);
+      const code = stringValue(raw.vtpOrderNumber) ?? stringValue(raw.shipmentCode);
+      if (!id || !code || typeof raw.status !== "number") throw carrierError("REMOTE_REJECTED", "Incomplete VP shipment identity.", false, 502);
+      records.push({ id, orderId, shipmentCode: code, status: raw.status,
+        trackingNumber: normalizeViettelPostTrackingNumber(stringValue(raw.trackingCode) ?? stringValue(raw.trackingNumber)) ?? null,
+        labelUrl: stringValue(raw.labelUrl) ?? stringValue(raw.labelUrlVTP) ?? null,
+        dateCreate: stringValue(raw.dateCreate) ?? "" });
+    }
+    // Account-wide pages discover orders only; every replacement requires a complete exact-order lookup.
+    if (!externalOrderId && page === 3) return records;
+    if (typeof data.totalCount === "number" && (page * 50 + data.items.length) >= data.totalCount) return records;
+    if (typeof data.totalCount === "number" && (page * 50 + data.items.length) < data.totalCount) {
+      if (data.items.length !== 50) throw carrierError("REMOTE_REJECTED", "Incomplete VP pagination.", false, 502);
+      continue;
+    }
+    if (data.items.length < 50) return records;
+  }
+  throw carrierError("REMOTE_REJECTED", "VP lookup exceeds safe pagination limit.", false, 502);
 }

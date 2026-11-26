@@ -17,6 +17,7 @@ export interface OrderListParams {
   status?: string;
   sourceChannel?: string;
   autoShipmentStatus?: string;
+  pendingVp?: boolean;
   search?: string;
   from?: string;
   to?: string;

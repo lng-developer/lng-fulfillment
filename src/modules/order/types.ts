@@ -141,6 +141,7 @@ export type OrderListQuery = {
   status?: OrderStatus;
   sourceChannel?: OrderSourceChannel;
   autoShipmentStatus?: AutoShipmentJobStatus;
+  pendingVp?: boolean;
   search?: string;
   from?: Date;
   to?: Date;

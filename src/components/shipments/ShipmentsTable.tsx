@@ -1,5 +1,7 @@
 "use client";
 
+import { FULFILLMENT_SEARCH_PLACEHOLDER } from "@/shared/fulfillment-search";
+
 import { ExternalLink, RefreshCw, RotateCcw, Search, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -132,7 +134,7 @@ export function ShipmentsTable({
       const result = await syncTrackingBatch(carrierFilter ?? undefined);
       toastSuccess(
         carrierFilter === "VIETTEL_POST"
-          ? `Đồng bộ Viettel Post thành công: đã cập nhật ${result.synced} vận đơn.`
+          ? `VP: cập nhật ${result.synced} vận đơn; liên kết mới ${result.reconciliation?.reconciled ?? 0}; cần kiểm tra ${result.reconciliation?.reviewRequired ?? 0}; tài khoản lỗi ${result.reconciliation?.failedAccounts ?? 0}.`
           : `Đồng bộ hãng thành công: ${result.synced} / ${result.attempted} vận đơn đã cập nhật.`,
       );
       setReloadKey((k) => k + 1);
@@ -228,7 +230,7 @@ export function ShipmentsTable({
           <input
             className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-8 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm theo mã tracking, mã đơn, waybill..."
+            placeholder={FULFILLMENT_SEARCH_PLACEHOLDER}
             value={searchInput}
           />
         </div>
@@ -285,9 +287,14 @@ export function ShipmentsTable({
                   >
                     {/* Order & Shipment IDs */}
                     <td className="px-3.5 py-2.5">
-                      <span className="font-mono font-bold text-slate-900 block">
-                        #{shipment.orderNumber ?? shipment.externalOrderId ?? shipment.id}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-slate-900">
+                          #{shipment.orderNumber ?? shipment.externalOrderId ?? shipment.id}
+                        </span>
+                        {(shipment.orderNumber ?? shipment.externalOrderId) && (
+                          <CopyButton value={(shipment.orderNumber ?? shipment.externalOrderId)!} label="Sao chép mã đơn" />
+                        )}
+                      </div>
                       <span className="font-mono text-[11px] text-slate-400 block truncate max-w-[150px]">
                         {shipment.id}
                       </span>
@@ -328,7 +335,7 @@ export function ShipmentsTable({
                           <span className="font-mono font-bold text-indigo-700 text-[11px]">
                             {shipment.trackingNumber}
                           </span>
-                          <CopyButton value={shipment.trackingNumber} />
+                          <CopyButton value={shipment.trackingNumber} label="Sao chép tracking" />
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs">Chờ tạo tracking</span>

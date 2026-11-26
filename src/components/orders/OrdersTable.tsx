@@ -1,5 +1,7 @@
 "use client";
 
+import { FULFILLMENT_SEARCH_PLACEHOLDER } from "@/shared/fulfillment-search";
+
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PrintLabelModal } from "./PrintLabelModal";
@@ -103,6 +105,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [pendingVp, setPendingVp] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [sourceChannel, setSourceChannel] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -209,10 +213,11 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             pageSize: 20,
             include: "expanded",
             sortBy: "receivedAt",
-            sortOrder: "desc",
+            sortOrder,
             search,
             status,
             sourceChannel,
+            pendingVp: pendingVp || undefined,
             from: fromDate || undefined,
             to: toDate || undefined,
           },
@@ -257,7 +262,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     loadOrders();
 
     return () => controller.abort();
-  }, [fromDate, page, reloadKey, search, sourceChannel, status, toDate]);
+  }, [fromDate, page, reloadKey, search, sourceChannel, status, toDate, pendingVp, sortOrder]);
 
   const toggleRow = useCallback(
     (orderId: string) => {
@@ -352,7 +357,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       }
 
       // Auto-confirm package dimensions in background for cost calculation
-      if (input.options.weight && input.options.length) {
+      if (input.carrierCode !== "VIETTEL_POST" && input.options.weight && input.options.length) {
         void confirmOrderShipped(targetOrder.id, {
           weightKg: input.options.weight,
           lengthCm: input.options.length,
@@ -511,11 +516,12 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   async function handleExport(exportSelectedOnly = false) {
     setIsExporting(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ sortOrder });
       if (exportSelectedOnly && selectedIds.size > 0) {
         params.set("orderIds", Array.from(selectedIds).join(","));
       } else {
         if (status) params.set("status", status);
+        if (pendingVp) params.set("pendingVp", "true");
         if (sourceChannel) params.set("sourceChannel", sourceChannel);
         if (search) params.set("search", search);
         if (fromDate) params.set("from", fromDate);
@@ -596,6 +602,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                 key={tab.value}
                 onClick={() => {
                   setStatus(tab.value);
+                  setPendingVp(false);
+                  setSelectedIds(new Set());
                   setPage(1);
                 }}
                 type="button"
@@ -674,7 +682,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           <input
             className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-8 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Tìm theo mã đơn, tracking, người nhận..."
+            placeholder={FULFILLMENT_SEARCH_PLACEHOLDER}
             value={searchInput}
           />
           {searchInput && (
@@ -689,6 +697,33 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={pendingVp}
+              onChange={(event) => {
+                setPendingVp(event.target.checked);
+                setStatus("");
+                setPage(1);
+                setSelectedIds(new Set());
+              }}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Chờ gửi VP
+          </label>
+          <select
+            aria-label="Sắp xếp theo thời gian nhận đơn"
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            value={sortOrder}
+            onChange={(event) => {
+              setSortOrder(event.target.value as "asc" | "desc");
+              setPage(1);
+              setSelectedIds(new Set());
+            }}
+          >
+            <option value="desc">Mới nhất trước (DESC)</option>
+            <option value="asc">Cũ nhất trước (ASC)</option>
+          </select>
           {/* Modern Date Filter Popover */}
           <DateFilterPopover
             fromDate={fromDate}
@@ -880,6 +915,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                             <span className="font-mono font-bold text-slate-900">
                               #{order.orderNumber ?? order.externalOrderId}
                             </span>
+                            <CopyButton value={order.orderNumber ?? order.externalOrderId} label="Sao chép mã đơn" />
                             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 uppercase">
                               {order.sourceChannel || "Manual"}
                             </span>
@@ -924,6 +960,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         {/* Status */}
                         <td className="px-3.5 py-2.5 text-center">
                           <StatusBadge status={order.status} />
+                          {order.latestShipmentStatus === "EXCEPTION" && (
+                            <div className="mt-1 text-xs font-medium text-rose-700" role="status">Vận đơn có lỗi — cần kiểm tra hãng vận chuyển</div>
+                          )}
                         </td>
 
                         {/* Tracking */}
@@ -933,7 +972,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               <span className="font-mono font-semibold text-slate-800 text-[11px]">
                                 {tracking}
                               </span>
-                              <CopyButton value={tracking} />
+                              <CopyButton value={tracking} label="Sao chép tracking" />
                               {(order.latestCarrierAccountId === "cmwjc0l9q0001iq1sse3mzemj" ||
                                 labelUrl?.includes(".stg.") ||
                                 order.latestLabelUrl?.includes(".stg.")) ? (

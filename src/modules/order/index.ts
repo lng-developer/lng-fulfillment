@@ -7,7 +7,7 @@ export {
   markOrdersReadyToShip,
   receivePortalOrders,
 } from "./service";
-export { validateOrderListQuery, validatePortalOrdersInput } from "./validation";
+export { parsePendingVpFilter, validateOrderListQuery, validatePortalOrdersInput } from "./validation";
 export {
   DEFAULT_ORDER_PAGE,
   DEFAULT_ORDER_PAGE_SIZE,

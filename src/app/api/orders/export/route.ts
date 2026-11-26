@@ -1,5 +1,5 @@
 import type { OrderSourceChannel, OrderStatus, TenantRole } from "@prisma/client";
-import { exportOrdersCsv } from "@/modules/order";
+import { exportOrdersCsv, parsePendingVpFilter, validateOrderListQuery } from "@/modules/order";
 import { error as errorResponse } from "@/shared/api-response";
 import { getCurrentUserWithTenants } from "@/shared/auth/context";
 import { AppError } from "@/shared/errors";
@@ -61,6 +61,8 @@ export async function GET(request: Request) {
       status,
       sourceChannel,
       search,
+      pendingVp: parsePendingVpFilter(searchParams.get("pendingVp")),
+      sortOrder: validateOrderListQuery(searchParams).sortOrder,
       from,
       to,
     });

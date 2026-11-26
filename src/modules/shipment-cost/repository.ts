@@ -1,3 +1,8 @@
+import {
+  normalizeFulfillmentSearch,
+  orderSearchClauses,
+  shipmentSearchClauses,
+} from "@/shared/fulfillment-search";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
 import type {
@@ -238,45 +243,13 @@ function buildShipmentCostWhere(
   tenantId: string,
   query: ShipmentCostListQuery,
 ): Prisma.ShipmentCostWhereInput {
+  const search = normalizeFulfillmentSearch(query.search);
   return {
     tenantId,
     ...(query.status ? { actualFeeStatus: query.status } : {}),
-    ...(query.search
+    ...(search
       ? {
-          OR: [
-            {
-              order: {
-                orderNumber: {
-                  contains: query.search,
-                  mode: "insensitive",
-                },
-              },
-            },
-            {
-              order: {
-                externalOrderId: {
-                  contains: query.search,
-                  mode: "insensitive",
-                },
-              },
-            },
-            {
-              shipment: {
-                trackingNumber: {
-                  contains: query.search,
-                  mode: "insensitive",
-                },
-              },
-            },
-            {
-              shipment: {
-                carrierShipmentId: {
-                  contains: query.search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          ],
+          OR: [{ order: { tenantId, OR: orderSearchClauses(search) } }, { shipment: { tenantId, OR: shipmentSearchClauses(search) } }],
         }
       : {}),
   };

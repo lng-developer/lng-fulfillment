@@ -1,5 +1,8 @@
 "use client";
 
+import { FULFILLMENT_SEARCH_PLACEHOLDER } from "@/shared/fulfillment-search";
+
+import { CopyButton } from "@/components/ui/CopyButton";
 import { Info, Loader2, ReceiptText, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -213,7 +216,7 @@ export function ShippingCostsPage() {
                 setPage(1);
               }
             }}
-            placeholder="Tìm theo Order, tracking, waybill..."
+            placeholder={FULFILLMENT_SEARCH_PLACEHOLDER}
             value={searchInput}
           />
         </div>
@@ -306,11 +309,15 @@ export function ShippingCostsPage() {
                       />
                     </td>
                     <td className="px-3 py-2.5 align-middle">
-                      <div className="font-mono text-xs font-semibold text-indigo-600">
+                      <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-indigo-600">
                         {item.orderNumber ?? item.externalOrderId}
+                        <CopyButton value={item.orderNumber ?? item.externalOrderId} label="Sao chép mã đơn" />
                       </div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                         {item.externalOrderId}
+                        {item.orderNumber && item.orderNumber !== item.externalOrderId && (
+                          <CopyButton value={item.externalOrderId} label="Sao chép mã đơn sàn" />
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 align-middle">
@@ -322,8 +329,9 @@ export function ShippingCostsPage() {
                       <div className="font-mono text-xs text-slate-800">
                         {item.carrierShipmentId ?? "-"}
                       </div>
-                      <div className="font-mono text-[11px] text-slate-400">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
                         {item.trackingNumber ?? "-"}
+                        {item.trackingNumber && <CopyButton value={item.trackingNumber} label="Sao chép tracking" />}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 align-middle">

@@ -8,6 +8,8 @@ import { validateCarrierCredentialSaveInput } from "@/modules/carrier/service";
 import { CARRIER_CODES, type CreateCarrierShipmentInput } from "@/modules/carrier/types";
 import {
   createViettelPostAdapter,
+  assertViettelPostDestination,
+  normalizeTrackingStatus,
   normalizeStateCode,
   normalizeCountryCode,
   resolveViettelPostAuthUrl,
@@ -124,6 +126,7 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
       return Response.json({
         data: {
           shipmentId: "vp-shipment-1",
+          dateCreate: "2026-11-25T10:00:00Z",
           trackingNumber: "VP123",
           labelUrl: "https://label.example/VP123.pdf",
         },
@@ -385,4 +388,13 @@ test("reset lookup matches the exact shipment rather than an unrelated cancelled
     return Response.json({ id: "other", status: 5 });
   } });
   await assert.rejects(mismatch.getTracking(input, context));
+});
+
+ test("blocks unconfigured destinations and preserves VP error states", () => {
+  for (const country of ["AU", "Australia", "CA", ""]) assert.throws(() => assertViettelPostDestination(country), /VN-US/);
+  assert.doesNotThrow(() => assertViettelPostDestination("US"));
+  assert.equal(normalizeTrackingStatus(4), "EXCEPTION");
+  assert.equal(normalizeTrackingStatus(1), "TRACKING_PENDING");
+  assert.equal(normalizeTrackingStatus(2), "IN_TRANSIT");
+  assert.equal(normalizeTrackingStatus(null), "UNKNOWN");
 });

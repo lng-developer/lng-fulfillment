@@ -1,3 +1,4 @@
+import { reconcileVpReplacements } from "./viettel-reconciliation";
 import type { Prisma } from "@prisma/client";
 import { recordUserAuditLog } from "@/modules/audit";
 import {
@@ -53,6 +54,7 @@ import {
 import {
   normalizeViettelPostTrackingNumber,
   resolveViettelPostOrderUrl,
+  normalizeTrackingStatus,
 } from "@/integrations/viettel-post/adapter";
 import type {
   CreateDraftShipmentInput,
@@ -671,6 +673,11 @@ export async function confirmOrderShipped(
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
   }
 
+  if (shipment.carrierCode === "VIETTEL_POST" &&
+      (!shipment.actualShipAt || !shipment.actualShipEvidence || !["IN_TRANSIT", "DELIVERED"].includes(shipment.status))) {
+    throw new AppError("CONFLICT", "Viettel Post chưa xác nhận bàn giao hàng. Không thể xác nhận xuất kho.", 409);
+  }
+
   const carrierMeta = asRecord(asRecord(shipment.metadata)?.carrier);
   const effectiveLabelUrl =
     shipment.labelUrl ||
@@ -1045,7 +1052,8 @@ export async function executeShipment(
         : "TRACKING_PENDING"
       : "TRACKING_PENDING";
     const rawActualShipAt = result.metadata?.safe?.actualShipAt;
-    const actualShipAt = typeof rawActualShipAt === "string" ? new Date(rawActualShipAt) : new Date();
+    const actualShipAt = prepared.carrierCode === "VIETTEL_POST" ? undefined :
+      (typeof rawActualShipAt === "string" ? new Date(rawActualShipAt) : new Date());
     const updatedShipment = await updateShipmentExecutionSucceeded({
       tenantId,
       shipmentId,
@@ -1452,7 +1460,9 @@ export async function syncViettelPostTrackingBatch(
   tenantId: string,
   actor: ShipmentActor,
 ) {
-  const token = await resolveViettelPostSyncToken(tenantId);
+  const reconciliation = await reconcileVpReplacements(tenantId, actor);
+  const token = await resolveViettelPostSyncToken(tenantId).catch(() => null);
+  if (!token) return { ...(await syncViettelPostTrackingCandidates(tenantId, actor)), reconciliation };
   const creds = await resolveCarrierRuntimeCredentials(tenantId, "VIETTEL_POST").catch(() => null);
   const p = creds?.payload as Record<string, unknown> | undefined;
   const baseOrderUrl =
@@ -1472,7 +1482,7 @@ export async function syncViettelPostTrackingBatch(
   }).catch(() => null);
 
   if (!res || !res.ok) {
-    return syncViettelPostTrackingCandidates(tenantId, actor);
+    return { ...(await syncViettelPostTrackingCandidates(tenantId, actor)), reconciliation };
   }
 
   const data = await res.json();
@@ -1518,7 +1528,9 @@ export async function syncViettelPostTrackingBatch(
     if (!trackingNumber && !carrierShipmentId) continue;
 
     const carrier = vtp.shipBy ? vtp.shipBy.toUpperCase() : "USPS";
-    const actualShipAt = vtp.dateCreate ? new Date(vtp.dateCreate) : new Date();
+    const carrierStatus = normalizeTrackingStatus(typeof vtp.status === "number" ? vtp.status : null);
+    const status = carrierStatus === "RETURNED" ? "EXCEPTION" : carrierStatus;
+    if (status === "UNKNOWN") continue;
     const lineShip = asRecord((vtp as Record<string, unknown>).lineShip);
     const lineShipName = typeof lineShip?.name === "string" ? lineShip.name : undefined;
     const lineShipCode = typeof lineShip?.code === "string" ? lineShip.code : undefined;
@@ -1548,12 +1560,12 @@ export async function syncViettelPostTrackingBatch(
 
     if (order.shipments.length > 0) {
       for (const s of order.shipments) {
-        if (s.status === "CANCELLED" || s.carrierCode !== "VIETTEL_POST" || !matchesViettelShipment(s, vtp)) continue;
+        if (s.status === "CANCELLED" || s.carrierCode !== "VIETTEL_POST" || !creds?.carrierAccountId || s.carrierAccountId !== creds.carrierAccountId || !matchesViettelShipment(s, vtp)) continue;
         const needsUpdate =
           s.trackingNumber !== trackingNumber ||
           (carrierShipmentId && s.carrierShipmentId !== carrierShipmentId) ||
           (labelUrl && s.labelUrl !== labelUrl) ||
-          !s.actualShipAt ||
+          s.status !== status ||
           !getFinalMileCarrier(s.metadata) ||
           !getShippingMethod(s.metadata);
 
@@ -1564,20 +1576,24 @@ export async function syncViettelPostTrackingBatch(
             carrierShipmentId: carrierShipmentId || s.carrierShipmentId || "VTP",
             trackingNumber: trackingNumber || s.trackingNumber || "",
             labelUrl: labelUrl ?? undefined,
-            actualShipAt,
-            metadata,
+            status,
+            metadata: {
+              ...asRecord(s.metadata),
+              safe: { ...asRecord(asRecord(s.metadata)?.safe), ...metadata.safe },
+              carrier: { ...asRecord(asRecord(s.metadata)?.carrier), ...metadata.carrier },
+            },
             actorType: actor.actorType,
             actorId: actor.actorId,
           });
 
-          if (trackingNumber && trackingNumber !== s.trackingNumber) {
+          if (s.actualShipAt && ["IN_TRANSIT", "DELIVERED"].includes(status) && trackingNumber && trackingNumber !== s.trackingNumber) {
             await sendPortalTrackingUpdate({
               orderId: order.externalOrderId,
               tracking: trackingNumber,
               carrier,
               fulfillment: "Viettel Post",
               sourceChannel: order.sourceChannel,
-              actualShipAt,
+              actualShipAt: s.actualShipAt ?? undefined,
             });
           }
         }
@@ -1590,7 +1606,7 @@ export async function syncViettelPostTrackingBatch(
         carrierShipmentId: carrierShipmentId || "VTP",
         trackingNumber: trackingNumber || "",
         labelUrl: labelUrl ?? undefined,
-        actualShipAt,
+        status,
         items: order.items.map((it) => ({
           orderItemId: it.id,
           quantity: it.quantity,
@@ -1618,6 +1634,7 @@ export async function syncViettelPostTrackingBatch(
     }>,
     updated,
     created,
+    reconciliation,
   };
 }
 
