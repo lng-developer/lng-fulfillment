@@ -1182,7 +1182,7 @@ export async function syncShipmentTracking(
     return buildStoredTrackingSyncResult(shipment, "SYNCED");
   }
 
-  if (syncStep === "portal") {
+  if (syncStep === "portal" && !options.refreshCompleted) {
     const portalTrackingSyncState = await syncShipmentPortalTracking(
       tenantId,
       shipmentId,
