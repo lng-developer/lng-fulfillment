@@ -9,6 +9,11 @@ export function countProcessingJobsForOrder(tx: Prisma.TransactionClient, tenant
   return tx.autoShipmentJob.count({ where: { tenantId, orderId, status: "PROCESSING" } });
 }
 
+export function stopJobsForOrderCancellation(tx: Prisma.TransactionClient, tenantId: string, orderId: string) {
+  return tx.autoShipmentJob.updateMany({ where: { tenantId, orderId, status: { not: "SUCCEEDED" } },
+    data: { status: "SKIPPED_DISABLED", errorCode: "ORDER_CANCELLED", errorMessage: "Order cancelled in Fulfillment." } });
+}
+
 export function stopJobsForOrderReset(tx: Prisma.TransactionClient, tenantId: string, orderId: string) {
   return tx.autoShipmentJob.updateMany({ where: { tenantId, orderId }, data: {
     status: "SKIPPED_DISABLED", errorCode: null,

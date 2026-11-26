@@ -5,6 +5,7 @@ import {
 } from "@/shared/fulfillment-search";
 import type { AuditActorType, OrderSourceChannel, OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db";
+import { AppError } from "@/shared/errors";
 import { createPendingAutoShipmentJobInTransaction } from "@/modules/auto-shipment/repository";
 import { createLifecycleOutboxInTransaction } from "@/modules/callback/repository";
 import {
@@ -1265,15 +1266,19 @@ export async function updateOrdersToReadyToShip(input: {
 
     const eligibleIds = eligibleOrders.map((o) => o.id);
 
-    await tx.order.updateMany({
+    const updated = await tx.order.updateMany({
       where: {
         tenantId: input.tenantId,
         id: { in: eligibleIds },
+        status: { in: ["RECEIVED", "ON_HOLD"] },
       },
       data: {
         status: "READY_TO_SHIP",
       },
     });
+    if (updated.count !== eligibleIds.length) {
+      throw new AppError("CONFLICT", "Đơn đã thay đổi hoặc bị hủy. Vui lòng tải lại trước khi QC.", 409);
+    }
 
     await tx.orderItem.updateMany({
       where: {

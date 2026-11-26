@@ -48,6 +48,7 @@ import type {
 } from "@/types/orders";
 import { BatchShipModal, type BatchShipSubmitInput } from "./BatchShipModal";
 import { CancelYunModal } from "./CancelYunModal";
+import { CancelOrderModal } from "./CancelOrderModal";
 import { DateFilterPopover } from "./DateFilterPopover";
 import { OrderExpandPanel } from "./OrderExpandPanel";
 import { ResetOrderModal } from "./ResetOrderModal";
@@ -124,6 +125,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [shipTarget, setShipTarget] = useState<OrderListItem | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
+  const [cancelOrderTarget, setCancelOrderTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [printOrderId, setPrintOrderId] = useState<string | null>(null);
@@ -1034,7 +1036,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               ) : (
                                 <span className="text-xs font-medium text-amber-600">Chờ QC</span>
                               )
-                            ) : can.shipOrder(role) ? (
+                            ) : can.shipOrder(role) && ["READY_TO_SHIP", "FULFILLED"].includes(order.status) ? (
                               <Button
                                 disabled={Boolean(pendingAction)}
                                 leftIcon={<Truck className="h-3.5 w-3.5" />}
@@ -1111,6 +1113,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                           QC Pass (Sẵn sàng ship)
                                         </button>
                                       )}
+                                    {can.cancelOrder(role) && order.status !== "CANCELLED" && (
+                                      <button type="button" disabled={Boolean(pendingAction)}
+                                        className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                        onClick={() => { setActiveMenuOrderId(null); setCancelOrderTarget(order); }}>
+                                        Hủy đơn Fulfillment
+                                      </button>
+                                    )}
                                     {can.cancelYun(role) && isShipped && order.latestCarrierCode === "YUNEXPRESS_OMS" && (
                                       <button
                                         className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50"
@@ -1229,6 +1238,16 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       )}
 
       {/* Cancel Yun Modal */}
+      {cancelOrderTarget && (
+        <CancelOrderModal order={cancelOrderTarget} onClose={() => setCancelOrderTarget(null)}
+          onCancelled={() => {
+            const orderId = cancelOrderTarget.id;
+            setCancelOrderTarget(null);
+            setSelectedIds(current => { const next = new Set(current); next.delete(orderId); return next; });
+            setDetailCache(current => { const next = { ...current }; delete next[orderId]; return next; });
+            refreshOrders();
+          }} />
+      )}
       {cancelTarget && (
         <CancelYunModal
           detail={detailCache[cancelTarget.id] ?? null}

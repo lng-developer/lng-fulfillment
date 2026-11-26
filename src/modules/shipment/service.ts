@@ -21,6 +21,7 @@ import { calculateShipmentCostEstimate } from "@/modules/shipment-cost/estimate"
 import { upsertShipmentCostEstimate } from "@/modules/shipment-cost/repository";
 import { assertTenantYunIossReadyForDestination } from "@/modules/yun-ioss";
 import { AppError } from "@/shared/errors";
+import { claimOrderForShipping, releaseFailedShippingClaim } from "@/modules/order/shipping-claim";
 import { createSafeTimingLogger } from "@/shared/timing";
 import {
   countShipments,
@@ -267,6 +268,7 @@ export async function shipOrderWithYun(
     itemCount: carrierInput.items.length,
   });
 
+  await claimOrderForShipping(tenantId, order.id, order.status);
   let carrierResult;
   try {
     carrierResult = await adapter.createShipment(carrierInput, {
@@ -319,6 +321,7 @@ export async function shipOrderWithYun(
       });
     }
 
+    await releaseFailedShippingClaim(tenantId, order.id, order.status);
     throw appError;
   }
 
@@ -475,6 +478,7 @@ export async function shipOrderWithViettelPost(
     itemCount: carrierInput.items.length,
   });
 
+  await claimOrderForShipping(tenantId, order.id, order.status);
   let carrierResult;
   try {
     carrierResult = await adapter.createShipment(carrierInput, {
@@ -527,6 +531,7 @@ export async function shipOrderWithViettelPost(
       });
     }
 
+    await releaseFailedShippingClaim(tenantId, order.id, order.status);
     throw appError;
   }
 

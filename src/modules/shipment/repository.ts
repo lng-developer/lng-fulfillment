@@ -982,10 +982,19 @@ export async function updateShipmentExecutionStarted(input: {
   actorType: AuditActorType;
   actorId?: string;
 }): Promise<ShipmentDetail> {
-  const row = await prisma.shipment.update({
+  const row = await prisma.$transaction(async tx => {
+    const shipment = await tx.shipment.findFirst({ where: { id: input.shipmentId, tenantId: input.tenantId },
+      select: { orderId: true } });
+    if (!shipment) throw new AppError("NOT_FOUND", "Shipment not found.", 404);
+    // Serialize with cancellation before any carrier request is sent.
+    const order = await tx.order.updateMany({ where: { id: shipment.orderId, tenantId: input.tenantId,
+      status: { not: "CANCELLED" } }, data: { updatedAt: new Date() } });
+    if (order.count !== 1) throw new AppError("CONFLICT", "Đơn đã hủy. Không thể tạo vận đơn.", 409);
+    return tx.shipment.update({
     where: {
       id: input.shipmentId,
       tenantId: input.tenantId,
+      status: { in: ["DRAFT", "FAILED_CREATE"] },
     },
     data: {
       carrierCode: input.carrierCode,
@@ -1002,6 +1011,7 @@ export async function updateShipmentExecutionStarted(input: {
       },
     },
     select: shipmentDetailSelect,
+    });
   });
 
   return toShipmentDetail(row);
