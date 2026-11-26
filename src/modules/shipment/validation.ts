@@ -80,7 +80,13 @@ export function validateShipmentListQuery(
     );
   }
 
+  const grouped = searchParams.get("groupByOrder");
+  if (grouped !== null && grouped !== "true" && grouped !== "false") throw new AppError("VALIDATION_ERROR", "groupByOrder must be true or false.", 400);
+  const carrierCode = optionalString(searchParams.get("carrierCode"));
+  if (carrierCode && !["VIETTEL_POST", "YUNEXPRESS_OMS"].includes(carrierCode)) throw new AppError("VALIDATION_ERROR", "Invalid carrierCode.", 400);
   return {
+    groupByOrder: grouped === "true",
+    carrierCode,
     page: parsePositiveInteger(
       searchParams.get("page"),
       DEFAULT_SHIPMENT_PAGE,

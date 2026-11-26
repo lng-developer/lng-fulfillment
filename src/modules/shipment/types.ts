@@ -41,6 +41,8 @@ export type ShipmentActor = {
 };
 
 export type ShipmentListQuery = {
+  groupByOrder?: boolean;
+  carrierCode?: string;
   page: number;
   pageSize: number;
   status?: ShipmentStatus;
@@ -52,6 +54,7 @@ export type ShipmentListQuery = {
 };
 
 export type ShipmentListItem = {
+  history?: ShipmentListItem[];
   id: string;
   orderId: string;
   orderNumber: string | null;

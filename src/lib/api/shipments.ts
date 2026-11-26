@@ -14,6 +14,8 @@ export type ShipmentCarrierCode = "YUNEXPRESS_OMS" | "VIETTEL_POST";
 export { ApiError as ApiClientError };
 
 export type ShipmentListParams = {
+  groupByOrder?: boolean;
+  carrierCode?: string;
   page?: number;
   pageSize?: number;
   status?: string;
@@ -48,6 +50,8 @@ export async function getShipments(
     sortOrder: params.sortOrder ?? "desc",
   });
 
+  if (params.groupByOrder) query.set("groupByOrder", "true");
+  if (params.carrierCode) query.set("carrierCode", params.carrierCode);
   if (params.status) query.set("status", params.status);
   if (params.sourceChannel) query.set("sourceChannel", params.sourceChannel);
   if (params.orderId) query.set("orderId", params.orderId);

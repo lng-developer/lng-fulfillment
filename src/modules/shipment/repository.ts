@@ -719,13 +719,20 @@ export async function listShipments(
   tenantId: string,
   query: ShipmentListQuery,
 ): Promise<ShipmentListItem[]> {
-  const rows = await prisma.shipment.findMany({
+  const groups = query.groupByOrder ? await prisma.shipment.groupBy({
+    by: ["orderId"],
     where: buildShipmentWhereInput(tenantId, query),
-    orderBy: {
-      [query.sortBy]: query.sortOrder,
-    },
+    _max: { createdAt: true, updatedAt: true },
+    orderBy: [{ _max: { [query.sortBy]: query.sortOrder } }, { orderId: "asc" }],
     skip: (query.page - 1) * query.pageSize,
     take: query.pageSize,
+  }) : null;
+  if (groups?.length === 0) return [];
+  const rows = await prisma.shipment.findMany({
+    where: groups ? { tenantId, orderId: { in: groups.map(group => group.orderId) }, ...(query.carrierCode ? { carrierCode: query.carrierCode } : {}) } : buildShipmentWhereInput(tenantId, query),
+    orderBy: groups ? [{ createdAt: "desc" }, { id: "desc" }] : { [query.sortBy]: query.sortOrder },
+    skip: groups ? undefined : (query.page - 1) * query.pageSize,
+    take: groups ? undefined : query.pageSize,
     select: {
       id: true,
       orderId: true,
@@ -754,7 +761,7 @@ export async function listShipments(
     },
   });
 
-  return rows.map((row) => ({
+  const mapped = rows.map((row) => ({
     id: row.id,
     orderId: row.orderId,
     orderNumber: row.order.orderNumber,
@@ -774,6 +781,11 @@ export async function listShipments(
     updatedAt: row.updatedAt,
     itemCount: row._count.items,
   }));
+  if (!groups) return mapped;
+  return groups.flatMap(group => {
+    const [latest, ...history] = mapped.filter(row => row.orderId === group.orderId);
+    return latest ? [{ ...latest, history }] : [];
+  });
 }
 
 export async function savePortalTrackingSyncState(input: {
@@ -802,6 +814,7 @@ export async function countShipments(
   tenantId: string,
   query: ShipmentListQuery,
 ): Promise<number> {
+  if (query.groupByOrder) return prisma.order.count({where: {tenantId, shipments: {some: buildShipmentWhereInput(tenantId, query)}}});
   return prisma.shipment.count({
     where: buildShipmentWhereInput(tenantId, query),
   });
@@ -1401,6 +1414,7 @@ function buildShipmentWhereInput(
   const search = normalizeFulfillmentSearch(query.search);
   return {
     tenantId,
+    ...(query.carrierCode ? { carrierCode: query.carrierCode } : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(query.sourceChannel ? { order: { sourceChannel: query.sourceChannel } } : {}),
     ...(query.orderId ? { orderId: query.orderId } : {}),

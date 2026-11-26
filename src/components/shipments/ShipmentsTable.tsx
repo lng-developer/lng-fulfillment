@@ -3,13 +3,13 @@
 import { FULFILLMENT_SEARCH_PLACEHOLDER } from "@/shared/fulfillment-search";
 
 import { ExternalLink, RefreshCw, RotateCcw, Search, Truck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ShipmentHistory, ShipmentStatus } from "./ShipmentHistory";
 import { getErrorMessage } from "@/lib/api/base";
 import {
   getShipments,
@@ -26,7 +26,7 @@ const SHIPMENT_STATUSES = [
   { label: "Đang vận chuyển (In transit)", value: "IN_TRANSIT" },
   { label: "Đã giao (Delivered)", value: "DELIVERED" },
   { label: "Đã tạo nhãn (Created)", value: "CREATED" },
-  { label: "Chờ tracking", value: "TRACKING_PENDING" },
+  { label: "Chờ tracking / vận chuyển", value: "TRACKING_PENDING" },
   { label: "Bất thường (Exception)", value: "EXCEPTION" },
   { label: "Đã hủy", value: "CANCELLED" },
 ];
@@ -54,6 +54,7 @@ export function ShipmentsTable({
     totalPages: 0,
   });
   const [page, setPage] = useState(1);
+  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState("");
   const [carrierFilter, setCarrierFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -85,6 +86,8 @@ export function ShipmentsTable({
           {
             page,
             pageSize: 20,
+            groupByOrder: true,
+            carrierCode: carrierFilter || undefined,
             search,
             status,
             sortBy: "createdAt",
@@ -98,6 +101,7 @@ export function ShipmentsTable({
         }
 
         setShipments(response.data);
+        setExpandedHistory({});
         setPagination({
           page: response.pagination.page,
           pageSize: response.pagination.pageSize,
@@ -121,12 +125,9 @@ export function ShipmentsTable({
     loadShipments();
 
     return () => controller.abort();
-  }, [externalReloadKey, page, reloadKey, search, status]);
+  }, [externalReloadKey, page, reloadKey, search, status, carrierFilter]);
 
-  const filteredShipments = useMemo(() => {
-    if (!carrierFilter) return shipments;
-    return shipments.filter((s) => s.carrierCode === carrierFilter);
-  }, [carrierFilter, shipments]);
+  const filteredShipments = shipments;
 
   async function handleCarrierSync() {
     setIsBatchSyncing(true);
@@ -176,7 +177,7 @@ export function ShipmentsTable({
                     : "text-slate-500",
                 )}
                 key={tab.value}
-                onClick={() => setCarrierFilter(tab.value)}
+                onClick={() => { setCarrierFilter(tab.value); setPage(1); }}
                 type="button"
               >
                 {tab.label}
@@ -223,6 +224,7 @@ export function ShipmentsTable({
         </div>
       </div>
 
+      {(search || status) && <p className="text-xs text-slate-500">Tìm trong cả lịch sử; mỗi dòng hiển thị vận đơn mới nhất của đơn hàng.</p>}
       {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-md">
@@ -280,6 +282,7 @@ export function ShipmentsTable({
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                 {filteredShipments.map((shipment) => (
+                  <Fragment key={shipment.orderId}>
                   <tr
                     className="cursor-pointer transition-colors hover:bg-slate-50/80"
                     key={shipment.id}
@@ -296,7 +299,7 @@ export function ShipmentsTable({
                         )}
                       </div>
                       <span className="font-mono text-[11px] text-slate-400 block truncate max-w-[150px]">
-                        {shipment.id}
+                        {shipment.carrierShipmentId ?? shipment.id}
                       </span>
                     </td>
 
@@ -351,7 +354,7 @@ export function ShipmentsTable({
 
                     {/* Status */}
                     <td className="px-3.5 py-2.5 text-center">
-                      <StatusBadge status={shipment.status} />
+                      <ShipmentStatus shipment={shipment} />
                     </td>
 
                     {/* Portal Sync State */}
@@ -372,7 +375,7 @@ export function ShipmentsTable({
                     {/* Ship Date & Created Time */}
                     <td className="px-3.5 py-2.5">
                       <span className="font-mono font-bold text-slate-800 text-[11px] block">
-                        {formatAmazonDate(shipment.actualShipAt ?? shipment.createdAt)}
+                        {shipment.actualShipAt ? formatAmazonDate(shipment.actualShipAt) : "Chưa xác nhận gửi"}
                       </span>
                       <span className="text-[10px] text-slate-400 block">
                         Tạo: {formatDate(shipment.createdAt)}
@@ -382,7 +385,7 @@ export function ShipmentsTable({
                     {/* Actions */}
                     <td className="px-3.5 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {shipment.labelUrl && (
+                        {shipment.labelUrl && shipment.status !== "CANCELLED" && (
                           <a
                             className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900"
                             href={shipment.labelUrl}
@@ -392,6 +395,13 @@ export function ShipmentsTable({
                             <ExternalLink className="h-3 w-3" />
                             Nhãn in
                           </a>
+                        )}
+                        {!!shipment.history?.length && (
+                          <button type="button" aria-expanded={!!expandedHistory[shipment.orderId]} aria-controls={`history-${shipment.orderId}`}
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            onClick={() => setExpandedHistory(current => ({...current, [shipment.orderId]: !current[shipment.orderId]}))}>
+                            Lịch sử ({shipment.history.length})
+                          </button>
                         )}
                         <Button
                           onClick={() => onShipmentSelect(shipment.id)}
@@ -403,6 +413,12 @@ export function ShipmentsTable({
                       </div>
                     </td>
                   </tr>
+                  {expandedHistory[shipment.orderId] && !!shipment.history?.length && (
+                    <tr id={`history-${shipment.orderId}`}><td colSpan={8} className="bg-slate-50">
+                      <ShipmentHistory shipments={shipment.history} onSelect={onShipmentSelect} />
+                    </td></tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -423,7 +439,7 @@ export function ShipmentsTable({
               <span className="font-semibold text-slate-800">
                 {pagination.totalItems}
               </span>{" "}
-              vận đơn
+              đơn hàng
             </span>
             <div className="flex items-center gap-2">
               <Button

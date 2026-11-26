@@ -32,10 +32,12 @@ export function StatusBadge({
   status,
   className,
   showDot = true,
+  label,
 }: {
   status: string | null | undefined;
   className?: string;
   showDot?: boolean;
+  label?: string;
 }) {
   const safeStatus = status ?? "UNKNOWN";
   const style = STATUS_STYLES[safeStatus] ?? "bg-slate-100 text-slate-700 border-slate-200";
@@ -49,7 +51,7 @@ export function StatusBadge({
       )}
     >
       {showDot && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-80" />}
-      <span className="truncate">{formatStatus(safeStatus)}</span>
+      <span className="truncate">{label ?? formatStatus(safeStatus)}</span>
     </span>
   );
 }
@@ -61,6 +63,7 @@ export function formatStatus(status: string) {
     SHIPPED: "Đã xuất kho",
     DELIVERED: "Đã giao",
     IN_TRANSIT: "Đang vận chuyển",
+    TRACKING_PENDING: "Chờ tracking",
     CANCELLED: "Đã hủy",
     ON_HOLD: "Tạm giữ",
     RECEIVED: "Chờ sản xuất / QC",

@@ -37,6 +37,7 @@ export type ShipmentStatus =
   | "UNKNOWN";
 
 export type ShipmentListItem = {
+  history?: ShipmentListItem[];
   id: string;
   orderId: string;
   orderNumber: string | null;

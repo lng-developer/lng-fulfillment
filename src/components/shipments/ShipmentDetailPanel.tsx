@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ShipmentStatus } from "./ShipmentHistory";
 import { WarningBox } from "@/components/ui/WarningBox";
 import { getErrorMessage } from "@/lib/api/base";
 import {
@@ -261,7 +261,7 @@ export function ShipmentDetailPanel({
               {shipment ? `ID: ${shipment.id}` : ""}
             </p>
           </div>
-          {shipment ? <StatusBadge status={shipment.status} /> : null}
+          {shipment ? <ShipmentStatus shipment={shipment} /> : null}
         </header>
 
         {/* Content */}
@@ -305,7 +305,7 @@ export function ShipmentDetailPanel({
                   <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-200/70">
                     <span className="text-slate-500 font-medium">Ngày gửi (Amazon Ship Date)</span>
                     <span className="font-mono text-xs font-semibold text-slate-800">
-                      {(shipment.actualShipAt ?? shipment.createdAt)?.slice(0, 10)}
+                      {shipment.actualShipAt?.slice(0, 10) ?? "Chưa xác nhận gửi"}
                     </span>
                   </div>
 
