@@ -1,3 +1,4 @@
+import { stripPhoneExtension } from "@/shared/recipient-phone";
 import {
   createCarrierError,
   CarrierIntegrationError,
@@ -368,7 +369,7 @@ export function normalizeViettelPostPhone(phone: string | null | undefined, coun
     return country === "US" ? "2025550100" : "0988888888";
   }
   // Strip extensions like "ext. 29157" or "x123"
-  const stripped = phone.replace(/(?:ext\.?|x)\s*\d+.*$/i, "").trim();
+  const stripped = stripPhoneExtension(phone);
   const rawDigits = stripped.replace(/\D/g, "");
   if (!rawDigits || rawDigits.length < 7) {
     return country === "US" ? "2025550100" : "0988888888";

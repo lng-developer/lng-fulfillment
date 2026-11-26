@@ -10,6 +10,7 @@ import {
   createViettelPostAdapter,
   assertViettelPostDestination,
   normalizeTrackingStatus,
+  normalizeViettelPostPhone,
   normalizeStateCode,
   normalizeCountryCode,
   resolveViettelPostAuthUrl,
@@ -397,4 +398,10 @@ test("reset lookup matches the exact shipment rather than an unrelated cancelled
   assert.equal(normalizeTrackingStatus(1), "TRACKING_PENDING");
   assert.equal(normalizeTrackingStatus(2), "IN_TRANSIT");
   assert.equal(normalizeTrackingStatus(null), "UNKNOWN");
+});
+
+test("recipient extension is excluded from VP phone", () => {
+  for (const suffix of ["ext. 70533", "EXT 70533", "x70533", "extension 70533"]) {
+    assert.equal(normalizeViettelPostPhone("+1 210-728-4548 " + suffix, "US"), "2107284548");
+  }
 });

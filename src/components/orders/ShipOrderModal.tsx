@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getCarrierAccounts } from "@/lib/api/carrier-accounts";
 import { getTenantYunIossSetting } from "@/lib/api/shipment-automation";
+import { stripPhoneExtension } from "@/shared/recipient-phone";
 import { cn } from "@/lib/utils";
 import type {
   OrderDetail,
@@ -128,10 +129,11 @@ export function ShipOrderModal({
   const [iossNumber, setIossNumber] = useState(preview.iossNumber);
   const [parcels, setParcels] = useState(preview.parcels);
   const controlsDisabled = hasSubmitted;
+  const primaryPhone = stripPhoneExtension(receiverValues.phone);
   const phoneInvalid = carrierCode === "VIETTEL_POST" &&
-    (!/^\+?[\d\s().-]+$/.test(receiverValues.phone.trim()) ||
-      receiverValues.phone.replace(/\D/g, "").length < 7 ||
-      receiverValues.phone.replace(/\D/g, "").length > 15);
+    (!/^\+?[\d\s().-]+$/.test(primaryPhone) ||
+      primaryPhone.replace(/\D/g, "").length < 7 ||
+      primaryPhone.replace(/\D/g, "").length > 15);
   const iossMissing = carrierCode === "YUNEXPRESS_OMS" && useIoss && !iossNumber.trim();
 
   const viettelPostAccounts = useMemo(
@@ -662,7 +664,9 @@ export function ShipOrderModal({
             <p id="recipient-phone-help" className={cn("mt-1 text-xs", phoneInvalid ? "text-red-600" : "text-slate-500")}>
               {phoneInvalid
                 ? "Viettel Post yêu cầu SĐT gồm 7–15 chữ số. Vui lòng nhập số liên hệ giao hàng hợp lệ."
-                : "Số này được dùng cho vận đơn đang tạo; không thay đổi thông tin đơn gốc."}
+                : carrierCode === "VIETTEL_POST" && primaryPhone !== receiverValues.phone.trim()
+                  ? `VP chỉ nhận số chính: ${primaryPhone}. Phần máy lẻ (ext.) không được gửi sang VP; số gốc vẫn được giữ nguyên.`
+                  : "Số này được dùng cho vận đơn đang tạo; không thay đổi thông tin đơn gốc."}
             </p>
           </section>
 

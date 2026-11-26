@@ -18,9 +18,12 @@ import { chromium } from '@playwright/test';
     await page.setContent('<div id="root"></div>');await page.addScriptTag({content:bundle.outputFiles[0].text});
     const phone=page.locator('input[type="tel"]');const submit=page.getByRole('button',{name:'Tạo vận đơn Viettel Post',exact:true});
     await phone.waitFor();await page.waitForTimeout(150);
-    for(const invalid of ['', '1', 'abc1234567','1234567890123456']) {await phone.fill(invalid);assert.equal(await submit.isDisabled(),true);}
+    for(const invalid of ['', '1', 'abc1234567','1234567890123456', '1 ext. 123456789', '+1 210-728-4548 ext. abc']) {await phone.fill(invalid);assert.equal(await submit.isDisabled(),true);}
     await phone.fill(' +1 (479) 225-5186 ');assert.equal(await submit.isEnabled(),true);
-    await submit.click();const sent=await page.evaluate(()=>window.submitted);assert.equal(sent.options.receiverPhone,'+1 (479) 225-5186');assert.equal(sent.carrierAccountId,'acc2');
+    for (const suffix of ['EXT 70533', 'x70533', 'extension 70533']) {await phone.fill('+1 210-728-4548 ' + suffix);assert.equal(await submit.isEnabled(),true);}
+    await phone.fill('+1 210-728-4548 ext. 70533');assert.equal(await submit.isEnabled(),true);
+    await submit.click();assert.equal((await page.evaluate(()=>window.submitted)).options.receiverPhone,'+1 210-728-4548 ext. 70533');
+    assert.equal((await page.evaluate(()=>window.submitted)).carrierAccountId,'acc2');
     assert.deepEqual(errors,[]);console.log('PASS: missing/invalid phones blocked; edited phone sent with selected account.');
   } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
