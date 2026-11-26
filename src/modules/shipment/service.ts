@@ -325,7 +325,8 @@ export async function shipOrderWithYun(
     throw appError;
   }
 
-  const successStatus = carrierResult.trackingNumber
+  const successStatus = carrierResult.metadata?.safe?.creationVerified === false
+    ? "EXCEPTION" : carrierResult.trackingNumber
     ? carrierResult.labelUrl
       ? "LABEL_READY"
       : "TRACKING_PENDING"
@@ -535,7 +536,8 @@ export async function shipOrderWithViettelPost(
     throw appError;
   }
 
-  const successStatus = carrierResult.trackingNumber
+  const successStatus = carrierResult.metadata?.safe?.creationVerified === false
+    ? "EXCEPTION" : carrierResult.trackingNumber
     ? carrierResult.labelUrl
       ? "LABEL_READY"
       : "TRACKING_PENDING"
@@ -567,7 +569,7 @@ export async function shipOrderWithViettelPost(
 
   const portalTrackingSync = await sendPortalTrackingUpdate({
     orderId: order.externalOrderId,
-    tracking: shipment.trackingNumber,
+    tracking: successStatus === "EXCEPTION" ? null : shipment.trackingNumber,
     fulfillment: "Viettel Post",
     sourceChannel: order.sourceChannel,
   });
@@ -643,8 +645,9 @@ export async function shipOrdersBatchWithYun(
       );
       results.push({
         orderId,
-        success: true,
+        success: result.shipment.status !== "EXCEPTION",
         shipment: result.shipment,
+        ...(result.shipment.status === "EXCEPTION" ? { error: { code: "CARRIER_REVIEW_REQUIRED", message: "VP đã trả mã nhưng chưa xác minh được vận đơn. Cần đối soát trước khi gửi lại." } } : {}),
       });
     } catch (error) {
       const appError =
@@ -1051,7 +1054,8 @@ export async function executeShipment(
       trackingPresent: Boolean(result.trackingNumber),
       labelPresent: Boolean(result.labelUrl),
     });
-    const successStatus = result.trackingNumber
+    const successStatus = result.metadata?.safe?.creationVerified === false
+      ? "EXCEPTION" : result.trackingNumber
       ? result.labelUrl
         ? "LABEL_READY"
         : "TRACKING_PENDING"

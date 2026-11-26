@@ -54,6 +54,7 @@ export type ShipmentListQuery = {
 };
 
 export type ShipmentListItem = {
+  carrierIssue?: string | null;
   history?: ShipmentListItem[];
   id: string;
   orderId: string;
@@ -76,6 +77,7 @@ export type ShipmentListItem = {
 };
 
 export type ShipmentDetail = {
+  carrierIssue?: string | null;
   id: string;
   tenantId: string;
   orderId: string;

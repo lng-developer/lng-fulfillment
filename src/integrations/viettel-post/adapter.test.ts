@@ -127,6 +127,7 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
       return Response.json({
         data: {
           shipmentId: "vp-shipment-1",
+          status: 1,
           dateCreate: "2026-11-25T10:00:00Z",
           trackingNumber: "VP123",
           labelUrl: "https://label.example/VP123.pdf",
@@ -197,13 +198,15 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
     labelUrl: "https://label.example/VP123.pdf",
     metadata: {
       safe: {
+        creationVerified: true,
+        shipmentStatus: 1,
         carrierName: "USPS",
         finalMileCarrier: "USPS",
         shippingMethod: "USPS First Class",
       },
     },
   });
-  assert.equal(requests.length, 3);
+  assert.equal(requests.length, 4);
   assert.equal(requests[2]?.url, "https://order-staging.logistek.com.vn/api/partner/order/shipment");
   assert.equal(requests[2]?.init?.headers instanceof Headers ? requests[2].init.headers.get("authorization") : undefined, "Bearer test-access-token");
 
@@ -403,5 +406,25 @@ test("reset lookup matches the exact shipment rather than an unrelated cancelled
 test("recipient extension is excluded from VP phone", () => {
   for (const suffix of ["ext. 70533", "EXT 70533", "x70533", "extension 70533"]) {
     assert.equal(normalizeViettelPostPhone("+1 210-728-4548 " + suffix, "US"), "2107284548");
+  }
+});
+
+test("retains a VP code-only creation identity when verification is unavailable", async () => {
+  for (const key of ["shipmentCode", "vtpOrderNumber"]) {
+    const adapter = createViettelPostAdapter({fetchImpl: async (url, init) => {
+      if (String(url).includes("connect/token")) return Response.json({access_token:"test-token"});
+      if (init?.method === "POST") return Response.json({[key]:"EPK123"});
+      return Response.json({message:"not found"},{status:404});
+    }});
+    const result = await adapter.createShipment(viettelPostShipmentInput, {
+      tenantId:"tenant-1", credentials:{source:"tenantCredential",payload:{
+        clientId:"test-client",clientSecret:"test-secret",lineShipId:"test-line",liveEnabled:true,
+        authUrl:"https://auth-staging.logistek.com.vn",orderUrl:"https://order-staging.logistek.com.vn",
+        shipFromFirstName:"Test",shipFromLastName:"Sender",shipFromPhoneNumber:"0987654321",
+        shipFromAddress1:"Test warehouse",shipFromCountry:"VN",shipFromState:"Ha Noi",shipFromCity:"Ha Noi",shipFromZipCode:"100000",
+      }},
+    });
+    assert.equal(result.carrierShipmentId,"EPK123");
+    assert.equal(result.metadata?.safe?.creationVerified,false);
   }
 });

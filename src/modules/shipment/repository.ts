@@ -1,3 +1,4 @@
+import { getShipmentIssue } from "@/shared/shipment-issue";
 import {
   normalizeFulfillmentSearch,
   orderSearchClauses,
@@ -233,7 +234,7 @@ export async function createDirectShipmentSuccessRecords(input: {
   tenantId: string;
   orderId: string;
   items: Array<{ orderItemId: string; quantity: number }>;
-  status: Extract<ShipmentStatus, "CREATED" | "LABEL_READY" | "TRACKING_PENDING">;
+  status: Extract<ShipmentStatus, "CREATED" | "LABEL_READY" | "TRACKING_PENDING" | "EXCEPTION">;
   carrierCode: string;
   carrierAccountId: string | null;
   carrierShipmentId: string | null;
@@ -268,7 +269,7 @@ export async function createDirectShipmentSuccessRecords(input: {
           create: {
             tenantId: input.tenantId,
             status: input.status,
-            note: "YunExpress shipment created.",
+            note: input.status === "EXCEPTION" ? "Carrier returned an identity; creation requires reconciliation." : `${input.carrierCode} shipment created.`,
             actorType: input.actorType,
             actorId: input.actorId,
           },
@@ -288,7 +289,7 @@ export async function createDirectShipmentSuccessRecords(input: {
           create: {
             tenantId: input.tenantId,
             status: "IN_PROCESSING",
-            note: "YunExpress shipment created. Waiting for ship confirmation.",
+            note: input.status === "EXCEPTION" ? "Carrier shipment requires reconciliation." : `${input.carrierCode} shipment created. Waiting for ship confirmation.`,
             actorType: input.actorType,
             actorId: input.actorId,
           },
@@ -769,6 +770,7 @@ export async function listShipments(
     sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
+    carrierIssue: getShipmentIssue(row),
     carrierName: getFinalMileCarrier(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS" : row.carrierCode),
     shippingMethod: getShippingMethod(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard"),
     carrierAccountId: row.carrierAccountId,
@@ -1020,7 +1022,7 @@ export async function updateShipmentExecutionStarted(input: {
 export async function updateShipmentExecutionSucceeded(input: {
   tenantId: string;
   shipmentId: string;
-  status: Extract<ShipmentStatus, "CREATED" | "LABEL_READY" | "TRACKING_PENDING">;
+  status: Extract<ShipmentStatus, "CREATED" | "LABEL_READY" | "TRACKING_PENDING" | "EXCEPTION">;
   carrierShipmentId: string | null;
   trackingNumber: string | null;
   labelUrl: string | null;
@@ -1046,7 +1048,7 @@ export async function updateShipmentExecutionSucceeded(input: {
           create: {
             tenantId: input.tenantId,
             status: input.status,
-            note: "Shipment execution completed.",
+            note: input.status === "EXCEPTION" ? "Carrier returned an identity; creation requires reconciliation." : "Shipment execution completed.",
             actorType: input.actorType,
             actorId: input.actorId,
           },
@@ -1055,7 +1057,7 @@ export async function updateShipmentExecutionSucceeded(input: {
       select: shipmentDetailSelect,
     });
 
-    if (row.carrierCode === "VIETTEL_POST") {
+    if (row.carrierCode === "VIETTEL_POST" && input.status !== "EXCEPTION") {
       await createLifecycleOutboxInTransaction(tx, {
         eventType: input.status === "LABEL_READY" ? "shipment.label_ready" : "shipment.created",
         tenantId: input.tenantId,
@@ -1365,6 +1367,7 @@ function toShipmentDetail(row: {
     sourceChannel: row.order.sourceChannel,
     status: row.status,
     carrierCode: row.carrierCode,
+    carrierIssue: getShipmentIssue(row),
     carrierName: getFinalMileCarrier(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS" : row.carrierCode),
     shippingMethod: getShippingMethod(row.metadata) ?? (row.carrierCode === "VIETTEL_POST" ? "USPS First Class" : "Standard"),
     carrierAccountId: row.carrierAccountId,

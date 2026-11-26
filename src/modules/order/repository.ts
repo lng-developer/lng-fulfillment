@@ -1,3 +1,4 @@
+import { getShipmentIssue } from "@/shared/shipment-issue";
 import {
   normalizeFulfillmentSearch,
   orderSearchClauses,
@@ -369,9 +370,11 @@ export async function listOrders(
         },
         take: 1,
         select: {
+          id: true,
           status: true,
           trackingNumber: true,
           labelUrl: true,
+          metadata: true,
           carrierAccountId: true,
           carrierCode: true,
           cost: {
@@ -432,7 +435,9 @@ export async function listOrders(
     firstSku: row.items[0]?.sku ?? null,
     firstItemName: row.items[0]?.title ?? row.items[0]?.name ?? null,
     totalQuantity: quantityByOrderId.get(row.id) ?? 0,
+    latestShipmentId: row.shipments[0]?.id ?? null,
     latestShipmentStatus: row.shipments[0]?.status ?? null,
+    latestShipmentIssue: getShipmentIssue(row.shipments[0]),
     latestTrackingNumber: row.shipments[0]?.trackingNumber ?? null,
     latestLabelUrl: row.shipments[0]?.labelUrl ?? null,
     latestCarrierAccountId: row.shipments[0]?.carrierAccountId ?? null,

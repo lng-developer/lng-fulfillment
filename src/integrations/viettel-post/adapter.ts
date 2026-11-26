@@ -1,3 +1,4 @@
+import { verifyViettelPostCreation } from "./create-verification";
 import { stripPhoneExtension } from "@/shared/recipient-phone";
 import {
   createCarrierError,
@@ -104,7 +105,12 @@ export function createViettelPostAdapter(
         throw carrierError("REMOTE_REJECTED", remoteMessage, false, response.status);
       }
 
-      return normalizeCreateResponse(await readJson(response));
+      const body = await readJson(response);
+      const result = normalizeCreateResponse(body);
+      return verifyViettelPostCreation(result, body, () => fetchImpl(
+        resolveViettelPostOrderUrl(config.orderUrl, `/api/partner/order/shipment/${encodeURIComponent(result.carrierShipmentId)}`),
+        { headers: new Headers({ authorization: `Bearer ${token}`, accept: "application/json" }), signal: AbortSignal.timeout(15_000) },
+      ));
     },
     async getLabel(input, context) {
       const tracking = await this.getTracking({ ...input, requireExactShipment: true }, context);
@@ -796,9 +802,16 @@ export function mapShipment(
 function normalizeCreateResponse(body: unknown): CreateCarrierShipmentResult {
   const data = isRecord(body) && isRecord(body.data) ? body.data : body;
   const shipment = isRecord(data) ? data : {};
+  if (isRecord(body) && (body.success === false || body.status === false) &&
+      !stringValue(shipment.id) && !stringValue(shipment.shipmentId) &&
+      !stringValue(shipment.shipmentCode) && !stringValue(shipment.vtpOrderNumber)) {
+    throw carrierError("REMOTE_REJECTED", "Viettel Post rejected shipment creation.", false, 502);
+  }
   const carrierShipmentId =
     stringValue(shipment.shipmentId) ??
     stringValue(shipment.id) ??
+    stringValue(shipment.shipmentCode) ??
+    stringValue(shipment.vtpOrderNumber) ??
     stringValue(shipment.trackingNumber) ??
     stringValue(shipment.code);
   if (!carrierShipmentId) {

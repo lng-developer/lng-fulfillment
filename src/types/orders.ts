@@ -198,7 +198,9 @@ export type OrderListItem = {
   firstSku: string | null;
   firstItemName: string | null;
   totalQuantity: number;
+  latestShipmentId?: string | null;
   latestShipmentStatus: string | null;
+  latestShipmentIssue?: string | null;
   latestTrackingNumber: string | null;
   latestLabelUrl: string | null;
   latestCarrierAccountId?: string | null;

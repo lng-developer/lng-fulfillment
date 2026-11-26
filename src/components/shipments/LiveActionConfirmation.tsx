@@ -56,7 +56,10 @@ export function LiveActionConfirmation({
     setError(null);
 
     try {
-      await executeShipment(shipmentId, carrierCode, carrierAccountId, options);
+      const result = await executeShipment(shipmentId, carrierCode, carrierAccountId, options) as { shipment?: { status?: string } };
+      if (result.shipment?.status === "EXCEPTION") {
+        toastError("VP đã trả mã nhưng vận đơn cần đối soát trước khi gửi lại.");
+      }
       onSuccess();
     } catch (executionError) {
       const safeMessage = getErrorMessage(executionError);

@@ -4,6 +4,8 @@ import { FULFILLMENT_SEARCH_PLACEHOLDER } from "@/shared/fulfillment-search";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ShipmentDetailPanel } from "@/components/shipments/ShipmentDetailPanel";
+import { syncTracking as syncShipmentTracking } from "@/lib/api/shipments";
 import { PrintLabelModal } from "./PrintLabelModal";
 import {
   CheckCircle2,
@@ -16,6 +18,8 @@ import {
   Printer,
   QrCode,
   RotateCcw,
+  RefreshCw,
+  Eye,
   Search,
   Truck,
   X,
@@ -95,6 +99,7 @@ type PendingOrderAction = "ship" | "cancel" | "sync" | "reset" | "qc";
 export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const { membership } = useAuth();
   const role = roleProp ?? membership?.role ?? "VIEWER";
+  const [viewShipmentId, setViewShipmentId] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -315,7 +320,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           ...order,
           status: result.orderStatus,
           updatedAt: now,
+          latestShipmentId: shipmentPatch?.id ?? order.latestShipmentId,
+          latestCarrierCode: shipmentPatch?.carrierCode ?? order.latestCarrierCode,
           latestShipmentStatus: shipmentPatch?.status ?? order.latestShipmentStatus,
+          latestShipmentIssue: shipmentPatch ? (shipmentPatch.status === "EXCEPTION" ? "Vận đơn cần đối soát với hãng vận chuyển." : null) : order.latestShipmentIssue,
           latestTrackingNumber: shipmentPatch?.trackingNumber ?? order.latestTrackingNumber,
           latestLabelUrl: shipmentPatch?.labelUrl ?? (result.labelUrl ?? order.latestLabelUrl),
           trackingNumber: shipmentPatch?.trackingNumber ?? (order.trackingNumber ?? null),
@@ -331,6 +339,23 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   }
 
   // 1-Click fast fulfillment executor
+  async function handleSyncVp(orderId: string, shipmentId: string) {
+    setPendingOrderActions(current => ({ ...current, [orderId]: "sync" }));
+    try {
+      await syncShipmentTracking(shipmentId);
+      toastSuccess("Đã đồng bộ vận đơn Viettel Post.");
+      refreshOrders();
+    } catch (error) {
+      toastError(getErrorMessage(error));
+    } finally {
+      setPendingOrderActions(current => {
+        const next = { ...current };
+        delete next[orderId];
+        return next;
+      });
+    }
+  }
+
   async function handleExecuteShip(input: ShipOrderSubmitInput) {
     if (!shipTarget) return;
     const targetOrder = shipTarget;
@@ -349,8 +374,13 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         input.carrierCode,
         input.carrierAccountId,
       );
-      const tracking =
-        result.shipment?.trackingNumber || result.orderId;
+      if (result.shipment?.status === "EXCEPTION") {
+        applyOrderMutation(result);
+        toastError("VP đã trả mã nhưng vận đơn chưa được xác minh hoặc đang lỗi. Cần đối soát trước khi gửi lại.");
+        return;
+      }
+      const tracking = result.shipment?.trackingNumber;
+
       const labelUrl = result.shipment?.labelUrl;
 
       // Auto-open label PDF in new tab for thermal printing
@@ -371,10 +401,11 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       }
 
       const carrierName = input.carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress";
-      toastSuccess(`Tạo vận đơn ${carrierName} thành công! Mã tracking: ${tracking}`);
+      toastSuccess(`Tạo vận đơn ${carrierName} thành công! ${tracking ? `Mã tracking: ${tracking}` : "Đang chờ cấp tracking."}`);
       applyOrderMutation(result);
     } catch (err) {
       toastError(getErrorMessage(err));
+      refreshOrders();
     } finally {
       setPendingOrderActions((current) => {
         const next = { ...current };
@@ -887,6 +918,12 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     firstShipment?.labelUrl ??
                     (typeof metadataCarrier?.labelUrl === "string" ? metadataCarrier.labelUrl : null) ??
                     null;
+                  const latestShipmentId = order.latestShipmentId ??
+                    (typeof firstShipment?.id === "string" ? firstShipment.id : null);
+                  const hasVpShipment = Boolean(latestShipmentId) &&
+                    order.latestCarrierCode === "VIETTEL_POST" &&
+                    Boolean(order.latestShipmentStatus) &&
+                    !["DRAFT", "FAILED_CREATE", "CANCELLED"].includes(order.latestShipmentStatus ?? "");
                   const isShipped =
                     order.status === "SHIPPED" ||
                     (order.latestShipmentStatus !== "CANCELLED" && Boolean(labelUrl)) ||
@@ -962,8 +999,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         {/* Status */}
                         <td className="px-3.5 py-2.5 text-center">
                           <StatusBadge status={order.status} />
-                          {order.latestShipmentStatus === "EXCEPTION" && (
-                            <div className="mt-1 text-xs font-medium text-rose-700" role="status">Vận đơn có lỗi — cần kiểm tra hãng vận chuyển</div>
+                          {(order.latestShipmentIssue || order.latestShipmentStatus === "EXCEPTION") && (
+                            <div className="mt-1 text-xs font-medium text-rose-700" role="status">{order.latestShipmentIssue || "Vận đơn có lỗi — cần kiểm tra hãng vận chuyển"}</div>
                           )}
                         </td>
 
@@ -1006,6 +1043,25 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                 <Loader2 className="h-3 w-3 animate-spin" />
                                 Đang xử lý...
                               </span>
+                            ) : hasVpShipment ? (
+                              <>
+                                <Button size="sm" variant="secondary" leftIcon={<Eye className="h-3.5 w-3.5" />}
+                                  onClick={() => setViewShipmentId(latestShipmentId)}>
+                                  Xem vận đơn
+                                </Button>
+                                {can.syncTracking(role) && (
+                                  <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+                                    onClick={() => void handleSyncVp(order.id, latestShipmentId!)}>
+                                    Đồng bộ VP
+                                  </Button>
+                                )}
+                                {labelUrl && (
+                                  <Button size="sm" variant="secondary" leftIcon={<Printer className="h-3.5 w-3.5" />}
+                                    onClick={() => setPrintOrderId(order.id)}>
+                                    In nhãn
+                                  </Button>
+                                )}
+                              </>
                             ) : isShipped ? (
                               (labelUrl || (order.latestCarrierCode === "VIETTEL_POST" && order.latestShipmentStatus !== "CANCELLED")) ? (
                                 <button
@@ -1036,6 +1092,10 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               ) : (
                                 <span className="text-xs font-medium text-amber-600">Chờ QC</span>
                               )
+                            ) : order.status === "IN_PROCESSING" ? (
+                              <span className="inline-flex h-8 items-center rounded-md border border-amber-200 bg-amber-50 px-2.5 text-xs font-medium text-amber-800">
+                                {order.latestShipmentStatus === "EXCEPTION" ? "Cần đối soát" : order.latestCarrierCode === "VIETTEL_POST" ? "Chờ VP xác nhận" : "Đang xử lý vận đơn"}
+                              </span>
                             ) : can.shipOrder(role) && ["READY_TO_SHIP", "FULFILLED"].includes(order.status) ? (
                               <Button
                                 disabled={Boolean(pendingAction)}
@@ -1235,6 +1295,11 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
           onSubmit={handleBatchShip}
           orders={shipEligibleOrders}
         />
+      )}
+
+      {viewShipmentId && (
+        <ShipmentDetailPanel shipmentId={viewShipmentId} role={role}
+          onClose={() => setViewShipmentId(null)} onChanged={refreshOrders} />
       )}
 
       {/* Cancel Yun Modal */}

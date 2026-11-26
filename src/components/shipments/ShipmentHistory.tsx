@@ -4,7 +4,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { ShipmentListItem } from '@/types/shipments';
 
 export function ShipmentStatus({ shipment }: { shipment: ShipmentListItem }) {
-  return <StatusBadge status={shipment.status} label={shipment.carrierCode === 'VIETTEL_POST' && shipment.status === 'TRACKING_PENDING' && shipment.trackingNumber ? 'Chờ vận chuyển' : undefined} />;
+  return <span className="inline-flex max-w-xs flex-col items-center gap-1"><StatusBadge status={shipment.status} label={shipment.carrierCode === 'VIETTEL_POST' && shipment.status === 'TRACKING_PENDING' && shipment.trackingNumber ? 'Chờ vận chuyển' : undefined} />{shipment.carrierIssue && <span className="text-xs font-medium text-rose-700" role="status">{shipment.carrierIssue}</span>}</span>;
 }
 export function ShipmentHistory({ shipments, onSelect }: { shipments: ShipmentListItem[]; onSelect: (id: string) => void }) {
   return <div className="space-y-2 p-4">
