@@ -91,3 +91,10 @@ test("disables callback delivery when callback configuration is incomplete", asy
     else process.env.FULFILLMENT_LIFECYCLE_WEBHOOK_SECRET = previousSecret;
   }
 });
+
+
+test("does not treat a skipped Ecomatrix webhook as delivered", async () => {
+  const event = { eventId: "event-1", eventType: "fulfillment.accepted" as const, occurredAt: "2026-10-07T00:00:00Z", tenantReference: "tenant-1", externalOrderId: "order-1", fulfillmentOrderId: "fulfillment-1" };
+  const result = await deliverLifecycleEvent(event, { callbackUrl: "https://lng.example/webhook", secret: "test", fetchImpl: async () => Response.json({ success: true, data: { reason: "SUBMISSION_NOT_FOUND" } }, { status: 202 }) });
+  assert.equal(result.delivered, false);
+});
