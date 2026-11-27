@@ -43,7 +43,8 @@ export async function deliverLifecycleEvent(
     headers: delivery.headers,
     body: delivery.body,
   });
-  return { delivered: response.ok, statusCode: response.status };
+  // A 202 response may mean the receiver skipped processing; keep it pending for review.
+  return { delivered: response.ok && response.status !== 202, statusCode: response.status };
 }
 
 const MAX_DELIVERY_ATTEMPTS = 5;
