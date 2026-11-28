@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { KeyRound, Plus, ShieldOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -294,6 +295,7 @@ function CreateApiKeyModal({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       role="dialog"
     >

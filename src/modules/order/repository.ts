@@ -608,6 +608,7 @@ const orderDetailSelect = {
       trackingNumber: true,
       labelUrl: true,
       metadata: true,
+      carrierAccountId: true,
       cost: {
         select: shipmentCostSelect,
       },
@@ -706,6 +707,8 @@ function toOrderDetail(row: Prisma.OrderGetPayload<{ select: typeof orderDetailS
     statusHistory: row.statusHistory,
     shipments: row.shipments.map((shipment) => ({
       id: shipment.id,
+      carrierAccountId: shipment.carrierAccountId,
+      issue: getShipmentIssue(shipment),
       status: shipment.status,
       carrierCode: shipment.carrierCode,
       carrierShipmentId: shipment.carrierShipmentId,

@@ -262,6 +262,9 @@ export function getViettelPostShipmentMissingFields(input: CreateCarrierShipment
 }
 
 function assertShipmentInput(input: CreateCarrierShipmentInput) {
+  if (!/^\d{4,12}$/.test(String(input.metadata?.hsCode ?? "")) || input.items.some(i=>!i.name?.trim())) {
+    throw carrierError("VALIDATION_FAILED", "Thiếu tên khai báo hoặc mã merchandise VP. Không tự phân loại thành T-shirt.", false, 400);
+  }
   const missing = getViettelPostShipmentMissingFields(input);
   if (missing.length > 0) {
     throw carrierError("VALIDATION_FAILED", "Viettel Post shipment data is incomplete.", false, 400, { missing });
@@ -439,157 +442,37 @@ export type ViettelPostMerchandise = {
   merchandiseType: string;
 };
 
-export const FALLBACK_MERCHANDISE_MAP: Record<
-  "staging" | "production",
-  Record<string, ViettelPostMerchandise>
-> = {
-  production: {
-    "6109100004": {
-      id: "2156f0fc-ccd3-4b1c-81a5-14407046f468",
-      code: "6109100004",
-      names: [
-        {
-          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
-          languageCode: "en",
-        },
-        {
-          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
-          languageCode: "vi",
-        },
-      ],
-      merchandiseType: "HTS-61",
-    },
-    "4818300000": {
-      id: "a28df1c3-e2c7-4ebd-b666-fa615df2513b",
-      code: "4818300000",
-      names: [
-        {
-          name: "4818300000 Tablecloths and table napkins",
-          languageCode: "en",
-        },
-        {
-          name: "4818300000 Tablecloths and table napkins",
-          languageCode: "vi",
-        },
-      ],
-      merchandiseType: "HTS-48",
-    },
-    "4421913000": {
-      id: "6985ba4a-53ba-4d12-9279-0cc344793b30",
-      code: "4421913000",
-      names: [
-        {
-          name: "4421913000 Consisting of wooden frames in the center of which are fixed louver boards or slats, with or without their hardware",
-          languageCode: "en",
-        },
-        {
-          name: "4421913000 Consisting of wooden frames in the center of which are fixed louver boards or slats, with or without their hardware",
-          languageCode: "vi",
-        },
-      ],
-      merchandiseType: "HTS-44",
-    },
-  },
-  staging: {
-    "6109100004": {
-      id: "afdc8f8e-d474-4721-a1f4-4c939c251e34",
-      code: "6109100004",
-      names: [
-        {
-          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
-          languageCode: "en",
-        },
-        {
-          name: "6109100004 T-shirts, all white, short hemmed sleeves, hemmed bottom, crew or round neckline, or V-neck with a mitered seam at the center of the V, without pockets, trim or embroidery (352)",
-          languageCode: "vi",
-        },
-      ],
-      merchandiseType: "HTS-61",
-    },
-  },
-};
-
-const MERCHANDISE_CACHE = new Map<string, ViettelPostMerchandise>();
-
 export async function resolveViettelPostMerchandise(
   input: CreateCarrierShipmentInput,
   config: ViettelPostConfig,
   token: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ViettelPostMerchandise> {
-  const isProd =
-    !config.orderUrl.includes("logistek.com.vn") &&
-    !config.authUrl.includes("logistek.com.vn");
-  const envKey = isProd ? "production" : "staging";
-  const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
-
-  // Check in-memory cache for previously resolved merchandise
-  const cacheKey = `${envKey}:${hsCode}`;
-  const cached = MERCHANDISE_CACHE.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const fallback =
-    FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
-    FALLBACK_MERCHANDISE_MAP[envKey]?.["6109100004"] ||
-    FALLBACK_MERCHANDISE_MAP.production["6109100004"];
-
+  const hsCode = stringValue(input.metadata?.hsCode);
+  if (!hsCode || !/^\d{4,12}$/.test(hsCode)) throw carrierError("VALIDATION_FAILED", "Chưa khai báo mã merchandise VP cho hàng hóa.", false, 400);
+  // The supplied VP document spells Fillter; retain Filter for existing gateway compatibility.
+  const url = resolveViettelPostManagementUrl(config.orderUrl, `/api/partner/management/get-merchandise?Fillter=${encodeURIComponent(hsCode)}&Filter=${encodeURIComponent(hsCode)}&Take=100&Skip=0`);
+  let response: Response;
   try {
-    const searchUrl = resolveViettelPostManagementUrl(
-      config.orderUrl,
-      `/api/partner/management/get-merchandise?Filter=${encodeURIComponent(hsCode)}&Take=5&Skip=0`,
-    );
-    const res = await fetchImpl(searchUrl, {
-      headers: new Headers({
-        authorization: `Bearer ${token}`,
-        accept: "application/json",
-      }),
-      signal: AbortSignal.timeout(3000),
-    });
-    if (res.ok) {
-      const json = await readJson(res);
-      const data = isRecord(json) && isRecord(json.data) ? json.data : json;
-      const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
-      if (items.length > 0 && isRecord(items[0])) {
-        const item = items[0];
-        const id = stringValue(item.id);
-        const code = stringValue(item.code) || hsCode;
-        const parentCode = stringValue(item.parentCode) || "HTS-61";
-        const name = stringValue(item.name) || code;
-        const rawNames = Array.isArray(item.names) ? item.names : [];
-        const names = rawNames
-          .filter(isRecord)
-          .map((n) => ({
-            name: stringValue(n.name) || name,
-            languageCode: stringValue(n.languageCode) || "en",
-          }));
-
-        if (id) {
-          const resolved: ViettelPostMerchandise = {
-            id,
-            code,
-            merchandiseType: parentCode,
-            names:
-              names.length > 0
-                ? names
-                : [
-                    { name, languageCode: "en" },
-                    { name, languageCode: "vi" },
-                  ],
-          };
-          MERCHANDISE_CACHE.set(cacheKey, resolved);
-          return resolved;
-        }
-      }
-    }
+    response = await fetchImpl(url,{headers:new Headers({authorization:`Bearer ${token}`,accept:"application/json"}),signal:AbortSignal.timeout(10000)});
   } catch {
-    // Ignore error and fall through to fallback
+    throw carrierError("TEMPORARY_UNAVAILABLE", "Không tra được merchandise VP. Chưa gửi vận đơn; thử lại sau.", true, 502);
   }
-
-  // Cache fallback so subsequent requests skip redundant network calls
-  MERCHANDISE_CACHE.set(cacheKey, fallback);
-  return fallback;
+  if (!response.ok) throw carrierError("REMOTE_REJECTED", "VP từ chối tra merchandise. Chưa gửi vận đơn.", false, 502);
+  const json = await readJson(response);
+  const data = isRecord(json) && isRecord(json.data) ? json.data : json;
+  const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
+  const matches = items.filter(isRecord).filter(item => stringValue(item.code) === hsCode);
+  if (matches.length !== 1) throw carrierError("VALIDATION_FAILED", "Không tìm thấy duy nhất mã merchandise đã khai báo trong danh mục VP. Kiểm tra mapping SKU.", false, 400);
+  const item = matches[0];
+  if (item.isActive === false) throw carrierError("VALIDATION_FAILED", "Merchandise này đã bị VP ngừng sử dụng. Chọn lại danh mục trước khi gửi.", false, 400);
+  const id = stringValue(item.id), parentCode = stringValue(item.parentCode), name = stringValue(item.name);
+  const names = (Array.isArray(item.names) ? item.names : []).filter(isRecord).flatMap(n => {
+    const value = stringValue(n.name), languageCode = stringValue(n.languageCode);
+    return value && languageCode ? [{name:value,languageCode}] : [];
+  });
+  if (!id || !parentCode || (!name && !names.length)) throw carrierError("VALIDATION_FAILED", "Danh mục merchandise VP thiếu thông tin. Chưa gửi vận đơn.", false, 400);
+  return {id,code:hsCode,merchandiseType:parentCode,names:names.length ? names : [{name:name!,languageCode:"en"}]};
 }
 
 async function requestAccessToken(
@@ -706,7 +589,7 @@ export function mapShipment(
   const recipientCountry = normalizeCountryCode(recipient.country);
   const recipientState = normalizeStateCode(recipient.state, recipientCountry);
   const orderRef = stringValue(input.externalOrderId) ?? stringValue(input.orderId);
-  const hsCode = stringValue(input.metadata?.hsCode) || "6109100004";
+  const hsCode = stringValue(input.metadata?.hsCode);
 
   const isProd =
     !config.orderUrl.includes("logistek.com.vn") &&
@@ -728,11 +611,7 @@ export function mapShipment(
   const lineCode = mapped?.lineCode || (isUUID ? defaultLineCode : configuredLine) || defaultLineCode;
   const lineShipId = mapped?.lineShipId || (isUUID ? configuredLine : defaultLineShipId) || defaultLineShipId;
 
-  const resolvedMerchandise =
-    merchandise ||
-    FALLBACK_MERCHANDISE_MAP[envKey]?.[hsCode] ||
-    FALLBACK_MERCHANDISE_MAP[envKey]?.["6109100004"] ||
-    FALLBACK_MERCHANDISE_MAP.production["6109100004"];
+  if (!hsCode || !merchandise || merchandise.code !== hsCode) throw carrierError("VALIDATION_FAILED", "Merchandise chưa được xác minh đúng mã khai báo.", false, 400);
 
   return {
     lineCode,
@@ -740,7 +619,7 @@ export function mapShipment(
     orderId: orderRef,
     orderReferenceId: orderRef,
     hsCode,
-    ...(resolvedMerchandise ? { merchandise: resolvedMerchandise } : {}),
+    merchandise,
     parcel: {
       weight: Math.round(Number(input.metadata!.weight) * 1000),
       length: Number(input.metadata?.length) || 5,
@@ -758,7 +637,7 @@ export function mapShipment(
         price = Math.round((price / 100) * 100) / 100;
       }
       return {
-        name: item.name ?? item.sku ?? item.orderItemId,
+        name: item.name!,
         sku: item.sku ?? item.externalItemId ?? item.orderItemId,
         quantity: item.quantity,
         price,

@@ -176,6 +176,8 @@ export type OrderListItem = {
   firstItemName: string | null;
   totalQuantity: number;
   latestShipmentId?: string | null;
+  latestCarrierCode?: string | null;
+  latestCarrierAccountId?: string | null;
   latestShipmentStatus: string | null;
   latestShipmentIssue?: string | null;
   latestTrackingNumber: string | null;
@@ -254,6 +256,8 @@ export type PortalPersonSummary = {
 
 export type OrderDetailShipment = {
   id: string;
+  carrierAccountId?: string | null;
+  issue?: string | null;
   status: string;
   carrierCode: string | null;
   carrierShipmentId: string | null;

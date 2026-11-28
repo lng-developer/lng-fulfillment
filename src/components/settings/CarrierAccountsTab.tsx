@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { Plus, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -202,6 +203,7 @@ function EditCarrierAccountModal({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       role="dialog"
     >
@@ -323,6 +325,7 @@ function CreateCarrierAccountModal({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       role="dialog"
     >

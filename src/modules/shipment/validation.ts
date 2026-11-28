@@ -1,3 +1,4 @@
+import { vpDeclarationIssue, type VpDeclaration } from "@/shared/vp-declarations";
 import { OrderSourceChannel, ShipmentStatus } from "@prisma/client";
 import { AppError } from "@/shared/errors";
 import {
@@ -291,6 +292,7 @@ function parseShipOrderOptions(value: unknown): ShipOrderOptions | undefined {
     insuranceOption: parseNonNegativeInteger(body.insuranceOption, "insuranceOption"),
     iossNumber: optionalString(body.iossNumber),
     hsCode: optionalString(body.hsCode),
+    vpDeclarations: parseVpDeclarations(body.vpDeclarations),
     parcels: parseShipParcelOverrides(body.parcels),
   };
 
@@ -512,4 +514,13 @@ function parseSortOrder(value: string | null): SortOrder {
   }
 
   return sortOrder;
+}
+
+function parseVpDeclarations(value: unknown): VpDeclaration[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 50 || value.some(i => !i || typeof i !== "object" || typeof i.orderItemId !== "string" || i.orderItemId.length > 128 || typeof i.declarationName !== "string" || typeof i.merchandiseCode !== "string")) throw new AppError("VALIDATION_ERROR", "Khai báo VP không hợp lệ (tối đa 50 item).", 400);
+  const rows = value.map(i => ({orderItemId:i.orderItemId.trim(),declarationName:i.declarationName.trim(),merchandiseCode:i.merchandiseCode.trim()}));
+  const issue = vpDeclarationIssue(rows);
+  if (issue) throw new AppError("VALIDATION_ERROR",issue,400);
+  return rows;
 }

@@ -1,3 +1,4 @@
+import type { VpDeclaration } from "@/shared/vp-declarations";
 export type ApiSuccess<TData, TMeta = Record<string, unknown>> = {
   success: true;
   data: TData;
@@ -88,6 +89,7 @@ export type ShipParcelOverride = {
 };
 
 export type ShipOrderOptions = {
+  vpDeclarations?: VpDeclaration[];
   shippingMethodCode?: string;
   sourceCode?: string;
   receiverFirstName?: string;

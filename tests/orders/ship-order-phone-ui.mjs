@@ -5,7 +5,7 @@ import { chromium } from '@playwright/test';
   const bundle = await build({
     stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {ShipOrderModal} from './src/components/orders/ShipOrderModal';
       const order={id:'test',externalOrderId:'test',totalQuantity:1,recipientName:'Test',destinationCountry:'US'};
-      window.mount=(phone='')=>createRoot(document.getElementById('root')).render(<ShipOrderModal order={order} detail={{recipientPhone:phone,items:[]}} onClose={()=>{}} onSubmit={v=>window.submitted=v}/>); window.mount();`, resolveDir: process.cwd(), loader:'tsx' },
+      window.mount=(phone='')=>createRoot(document.getElementById('root')).render(<ShipOrderModal order={order} detail={{recipientPhone:phone,items:[{id:"item",sku:"SKU",name:"Wooden ornament",quantity:1}]}} onClose={()=>{}} onSubmit={v=>window.submitted=v}/>); window.mount();`, resolveDir: process.cwd(), loader:'tsx' },
     bundle: true, write: false, jsx:'automatic', plugins: [{name:'mock-api',setup(b){
       b.onResolve({filter:/^@\/lib\/api\/(carrier-accounts|shipment-automation)$/}, args=>({path:args.path,namespace:'mock'}));
       b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:`export const getCarrierAccounts=async()=>[{id:'acc2',name:'ACC 2',carrierCode:'VIETTEL_POST',status:'ACTIVE',isDefault:true}]; export const getTenantYunIossSetting=async()=>({status:'INACTIVE'});`}));
@@ -17,7 +17,7 @@ import { chromium } from '@playwright/test';
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.setContent('<div id="root"></div>');await page.addScriptTag({content:bundle.outputFiles[0].text});
     const phone=page.locator('input[type="tel"]');const submit=page.getByRole('button',{name:'Tạo vận đơn Viettel Post',exact:true});
-    await phone.waitFor();await page.waitForTimeout(150);
+    await phone.waitFor();await page.waitForTimeout(150);await page.getByText('Chỉnh riêng lần gửi này',{exact:true}).click();await page.getByLabel('Tên khai báo VP item',{exact:true}).fill('Wooden ornament');await page.getByLabel('Mã merchandise VP item',{exact:true}).fill('442199');
     for(const invalid of ['', '1', 'abc1234567','1234567890123456', '1 ext. 123456789', '+1 210-728-4548 ext. abc']) {await phone.fill(invalid);assert.equal(await submit.isDisabled(),true);}
     await phone.fill(' +1 (479) 225-5186 ');assert.equal(await submit.isEnabled(),true);
     for (const suffix of ['EXT 70533', 'x70533', 'extension 70533']) {await phone.fill('+1 210-728-4548 ' + suffix);assert.equal(await submit.isEnabled(),true);}

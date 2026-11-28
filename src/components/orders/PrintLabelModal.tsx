@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -48,7 +49,7 @@ export function PrintLabelModal({ orderId, onClose }: { orderId: string; onClose
     return () => { cancelled = true; controller.abort(); };
   }, [orderId, accountId]);
   const url = safeLabelUrl(mode === "single" ? labels?.labelUrl : labels?.mergeLabelUrl);
-  return createPortal(<dialog ref={dialog} aria-labelledby="print-label-title" onCancel={onClose}
+  return createPortal(<dialog onMouseDown={(event) => dismissOnBackdrop(event, onClose)} ref={dialog} aria-labelledby="print-label-title" onCancel={onClose}
     className="m-auto w-[min(95vw,540px)] rounded-lg border border-slate-200 bg-white p-5 shadow-xl backdrop:bg-black/40">
     <h2 id="print-label-title" className="text-base font-semibold">Chọn nhãn in</h2>
     {chooseAccount && <label className="mt-4 grid gap-2 text-sm">Tài khoản VP đã tạo vận đơn

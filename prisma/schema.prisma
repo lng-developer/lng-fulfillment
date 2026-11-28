@@ -184,6 +184,7 @@ model PlatformAdmin {
 }
 
 model Tenant {
+  vpMerchandiseMappings SkuViettelMerchandiseMapping[]
   id                 String              @id @default(cuid())
   name               String
   slug               String              @unique
@@ -514,6 +515,28 @@ model TenantYunIossSetting {
   updatedAt  DateTime            @updatedAt
 
   @@index([tenantId, status])
+}
+
+enum VpMappingType {
+  SKU
+  GROUP
+}
+
+model SkuViettelMerchandiseMapping {
+  id                     String @id @default(cuid())
+  tenantId               String
+  mappingType            VpMappingType @default(SKU)
+  skuCode                String
+  destinationCountryCode String
+  declarationName        String
+  merchandiseCode        String
+  createdBy              String?
+  updatedBy              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  tenant                 Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, mappingType, skuCode, destinationCountryCode], map: "vp_merchandise_tenant_type_key_country_key")
 }
 
 model SkuShippingMethodMapping {

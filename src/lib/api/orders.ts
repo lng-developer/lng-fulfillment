@@ -92,6 +92,7 @@ export async function shipOrder(
   options?: ShipOrderOptions,
   carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST",
   carrierAccountId?: string | null,
+  signal?: AbortSignal,
 ) {
   const response = await apiFetch<
     ApiSuccess<{
@@ -110,6 +111,7 @@ export async function shipOrder(
     `/api/orders/${orderId}/ship`,
     {
       method: "POST",
+      signal,
       body: JSON.stringify({
         environment,
         carrierCode,

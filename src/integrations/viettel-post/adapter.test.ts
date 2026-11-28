@@ -16,7 +16,38 @@ import {
   resolveViettelPostAuthUrl,
   resolveViettelPostOrderUrl,
   mapShipment,
+  resolveViettelPostMerchandise,
 } from "./adapter";
+
+test("merchandise lookup requires exact code and never falls back across categories or accounts", async () => {
+  const config = {orderUrl:"https://order-staging.logistek.com.vn",authUrl:"https://auth-staging.logistek.com.vn"} as Parameters<typeof resolveViettelPostMerchandise>[1];
+  const input = {...viettelPostShipmentInput,metadata:{hsCode:"442199"}};
+  let calls=0;
+  const exact = {id:"wood",code:"442199",parentCode:"HTS-44",name:"Wood articles"};
+  const fetcher = async () => {calls++;return Response.json({items:[{...exact,id:"wrong",code:"6109100004"},exact]});};
+  const result=await resolveViettelPostMerchandise(input,config,"mock-token",fetcher);
+  assert.equal(result.id,"wood");assert.equal(result.code,"442199");
+  await resolveViettelPostMerchandise({...input,tenantId:"other",carrierAccountId:"acc2"},config,"other-token",fetcher);
+  assert.equal(calls,2);
+  for (const items of [[],[{...exact,code:"6109100004"}],[exact,exact],[{...exact,parentCode:""}],[{...exact,isActive:false}]]) {
+    await assert.rejects(()=>resolveViettelPostMerchandise(input,config,"mock-token",async()=>Response.json({items})));
+  }
+  await assert.rejects(()=>resolveViettelPostMerchandise({...input,metadata:{}},config,"mock-token",async()=>{assert.fail("no lookup without declaration");}));
+  await assert.rejects(()=>resolveViettelPostMerchandise(input,config,"mock-token",async()=>{throw Error("timeout");}));
+  assert.throws(()=>mapShipment(input,config),/chưa được xác minh/);
+  let createPosts=0;
+  const blockedAdapter=createViettelPostAdapter({fetchImpl:async(url,init)=>{
+    if(String(url).includes("connect/token"))return Response.json({access_token:"test"});
+    if(String(url).includes("get-merchandise"))return Response.json({items:[{...exact,isActive:false}]});
+    if(init?.method==="POST")createPosts++;
+    return Response.error();
+  }});
+  await assert.rejects(()=>blockedAdapter.createShipment({...viettelPostShipmentInput,metadata:{...viettelPostShipmentInput.metadata,hsCode:"442199"}}, {
+    tenantId:"tenant-1",credentials:{source:"tenantCredential",payload:{...config,clientId:"test",clientSecret:"test",lineShipId:"line",liveEnabled:true,
+      shipFromFirstName:"Test",shipFromLastName:"Sender",shipFromPhoneNumber:"0987654321",shipFromAddress1:"Warehouse",shipFromCountry:"VN",shipFromState:"Ha Noi",shipFromCity:"Ha Noi",shipFromZipCode:"100000"}}
+  }),/ngừng sử dụng/);
+  assert.equal(createPosts,0);
+});
 
 const viettelPostShipmentInput = {
   tenantId: "tenant-1",
@@ -25,7 +56,7 @@ const viettelPostShipmentInput = {
   externalOrderId: "order-reference-1",
   carrierCode: "VIETTEL_POST",
   recipient: { name: "Recipient Name", phone: "0123456789", line1: "123 Main Street", country: "US" },
-  items: [{ shipmentItemId: "shipment-item-1", orderItemId: "order-item-1", quantity: 1, weight: 0.25, declaredValue: 20 }],
+  items: [{ shipmentItemId: "shipment-item-1", orderItemId: "order-item-1", name: "Declared product", quantity: 1, weight: 0.25, declaredValue: 20 }],
   metadata: { weight: 0.25, length: 20, width: 15, height: 5, hsCode: "6109100004" },
 } satisfies CreateCarrierShipmentInput;
 
@@ -120,6 +151,7 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
   const adapter = createViettelPostAdapter({
     fetchImpl: async (input, init) => {
       requests.push({ url: String(input), init });
+      if (String(input).includes("get-merchandise")) return Response.json({items:[{id:"merch-1",code:"6109100004",parentCode:"HTS-61",name:"Confirmed category"}]});
       if (String(input) === "https://auth-staging.logistek.com.vn/connect/token") {
         return Response.json({ access_token: "test-access-token" });
       }
@@ -218,7 +250,7 @@ test("creates a Viettel Post shipment with a tenant OAuth credential", async () 
       externalOrderId: "order-reference-2",
       carrierCode: "VIETTEL_POST",
       recipient: { name: "Recipient Name", phone: "0123456789", line1: "123 Main Street", country: "US" },
-      items: [{ shipmentItemId: "shipment-item-2", orderItemId: "order-item-2", quantity: 1, weight: 0.25, declaredValue: 20 }],
+      items: [{ shipmentItemId: "shipment-item-2", orderItemId: "order-item-2", name: "Declared product", quantity: 1, weight: 0.25, declaredValue: 20 }],
       metadata: { weight: 0.25, length: 20, width: 15, height: 5, hsCode: "6109100004" },
     },
     {
@@ -327,6 +359,7 @@ test("maps payload adhering to Viettel Post API specifications", () => {
         },
       ],
       metadata: {
+        hsCode: "6109100004",
         weight: 0.6,
         length: 25,
         width: 18,
@@ -349,6 +382,7 @@ test("maps payload adhering to Viettel Post API specifications", () => {
       shipFromZipCode: "100000",
       liveEnabled: true,
     },
+    {id:"merch-1",code:"6109100004",merchandiseType:"HTS-61",names:[{name:"Confirmed category",languageCode:"en"}]},
   );
 
   assert.equal(payload.lineShipId, "3a18a0cc-bb94-4181-7219-0eefe788762b");
@@ -412,7 +446,8 @@ test("recipient extension is excluded from VP phone", () => {
 test("retains a VP code-only creation identity when verification is unavailable", async () => {
   for (const key of ["shipmentCode", "vtpOrderNumber"]) {
     const adapter = createViettelPostAdapter({fetchImpl: async (url, init) => {
-      if (String(url).includes("connect/token")) return Response.json({access_token:"test-token"});
+      if (String(url).includes("get-merchandise")) return Response.json({items:[{id:"merch-1",code:"6109100004",parentCode:"HTS-61",name:"Confirmed category"}]});
+    if (String(url).includes("connect/token")) return Response.json({access_token:"test-token"});
       if (init?.method === "POST") return Response.json({[key]:"EPK123"});
       return Response.json({message:"not found"},{status:404});
     }});

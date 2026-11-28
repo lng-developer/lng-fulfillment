@@ -1,3 +1,4 @@
+import type { VpDeclaration } from "@/shared/vp-declarations";
 import type {
   AuditActorType,
   OrderSourceChannel,
@@ -188,6 +189,7 @@ export type ShipParcelOverride = {
 };
 
 export type ShipOrderOptions = {
+  vpDeclarations?: VpDeclaration[];
   shippingMethodCode?: string;
   sourceCode?: string;
   receiverFirstName?: string;

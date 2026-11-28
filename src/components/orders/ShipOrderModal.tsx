@@ -1,4 +1,5 @@
 "use client";
+import { VpDeclarationEditor, type VpDeclarationState } from "./VpDeclarationEditor";
 
 import { Boxes, Package, ShieldCheck, Truck, UserRound, X } from "lucide-react";
 import type React from "react";
@@ -94,6 +95,8 @@ export type ShipmentPreview = {
 export type ShipmentReceiverValues = ShipmentPreview["receiver"];
 
 export type ShipOrderSubmitInput = {
+  autoPrint?: boolean;
+  labelMode?: "single" | "double";
   environment: ShipEnvironment;
   carrierCode?: "YUNEXPRESS_OMS" | "VIETTEL_POST";
   carrierAccountId?: string | null;
@@ -117,6 +120,8 @@ export function ShipOrderModal({
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [environment, setEnvironment] = useState<ShipEnvironment>("live");
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(true);
+  const [labelMode, setLabelMode] = useState<"single" | "double">("single");
   const [tenantIossNumber, setTenantIossNumber] = useState(DEFAULT_YUN_IOSS_NUMBER);
   const preview = useMemo(
     () => buildShipmentPreview(order, detail, tenantIossNumber),
@@ -128,6 +133,8 @@ export function ShipOrderModal({
   const [useIoss, setUseIoss] = useState(preview.useIoss);
   const [iossNumber, setIossNumber] = useState(preview.iossNumber);
   const [parcels, setParcels] = useState(preview.parcels);
+  const [vpDeclaration, setVpDeclaration] = useState<VpDeclarationState | null>(null);
+  const vpDeclarationInvalid = carrierCode === "VIETTEL_POST" && (!vpDeclaration || vpDeclaration.country !== receiverValues.countryCode.trim().toUpperCase() || Boolean(vpDeclaration.issue));
   const controlsDisabled = hasSubmitted;
   const primaryPhone = stripPhoneExtension(receiverValues.phone);
   const phoneInvalid = carrierCode === "VIETTEL_POST" &&
@@ -209,6 +216,7 @@ export function ShipOrderModal({
     if (
       hasSubmitted ||
       phoneInvalid ||
+      vpDeclarationInvalid ||
       (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
       (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
     ) {
@@ -225,8 +233,10 @@ export function ShipOrderModal({
       parcels,
     );
 
+    if (carrierCode === "VIETTEL_POST" && vpDeclaration) options.vpDeclarations = vpDeclaration.items;
     setHasSubmitted(true);
     onSubmit({
+      autoPrint, labelMode,
       environment,
       carrierCode,
       carrierAccountId: carrierCode === "VIETTEL_POST" ? selectedAccountId : null,
@@ -486,6 +496,7 @@ export function ShipOrderModal({
               </span>
             </div>
             <div className="space-y-3">
+              {carrierCode === "VIETTEL_POST" && <VpDeclarationEditor key={receiverValues.countryCode} items={detail?.items ?? []} country={receiverValues.countryCode} disabled={controlsDisabled} onChange={setVpDeclaration} />}
               {parcels.map((parcel, index) => (
                 <div
                   className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
@@ -504,7 +515,7 @@ export function ShipOrderModal({
                       </div>
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-semibold text-slate-600">
+                      {carrierCode === "YUNEXPRESS_OMS" && <><label className="mb-1 block text-[11px] font-semibold text-slate-600">
                         Tên sản phẩm khai báo (EName)
                       </label>
                       <select
@@ -528,7 +539,7 @@ export function ShipOrderModal({
                             {option.eName}
                           </option>
                         ))}
-                      </select>
+                      </select></>}
                     </div>
                     {carrierCode === "YUNEXPRESS_OMS" && (
                       <div>
@@ -670,6 +681,7 @@ export function ShipOrderModal({
             </p>
           </section>
 
+            {carrierCode === "VIETTEL_POST" && <div className="my-3 flex flex-wrap gap-4 text-sm"><label><input type="checkbox" checked={autoPrint} onChange={e => setAutoPrint(e.target.checked)} /> Mở PDF in khi nhãn sẵn sàng</label><label>Loại nhãn <select value={labelMode} onChange={e => setLabelMode(e.target.value as "single"|"double")}><option value="single">A6 – Nhãn đơn</option><option value="double">A6 – Nhãn đôi</option></select></label></div>}
           {/* Environment (Only for YunExpress; Viettel Post uses dedicated Carrier Accounts) */}
           {carrierCode === "YUNEXPRESS_OMS" && (
             <EnvironmentSelector
@@ -698,6 +710,7 @@ export function ShipOrderModal({
             disabled={
               controlsDisabled ||
               phoneInvalid ||
+      vpDeclarationInvalid ||
               (carrierCode === "YUNEXPRESS_OMS" && iossMissing) ||
               (carrierCode === "VIETTEL_POST" && !selectedAccountId && viettelPostAccounts.length > 0)
             }

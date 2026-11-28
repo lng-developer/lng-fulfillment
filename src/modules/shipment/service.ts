@@ -1,3 +1,4 @@
+import { applyVpDeclarations } from "@/modules/vp-merchandise";
 import { reconcileVpReplacements } from "./viettel-reconciliation";
 import type { Prisma } from "@prisma/client";
 import { recordUserAuditLog } from "@/modules/audit";
@@ -468,13 +469,13 @@ export async function shipOrderWithViettelPost(
     credentialSource: runtimeCredentials.source,
   });
 
-  const carrierInput = buildCreateCarrierShipmentInputFromDirectOrder(
+  const carrierInput = await applyVpDeclarations(buildCreateCarrierShipmentInputFromDirectOrder(
     tenantId,
     order,
     "VIETTEL_POST",
     runtimeCredentials.carrierAccountId ?? null,
     input.options,
-  );
+  ), input.options?.vpDeclarations);
   timing("carrierInputBuilt", {
     itemCount: carrierInput.items.length,
   });
@@ -925,13 +926,13 @@ export async function preflightShipmentExecution(
     });
   }
 
-  const carrierInput = buildCreateCarrierShipmentInputFromPreparation(
+  const carrierInput = await applyVpDeclarations(buildCreateCarrierShipmentInputFromPreparation(
     tenantId,
     shipment,
     normalizedCarrierCode,
     input.carrierAccountId ?? shipment.carrierAccountId,
     input.options,
-  );
+  ), input.options?.vpDeclarations);
   const carrierPreflight = await preflightCarrierShipmentCreation(carrierInput, {
     tenantId,
   });
@@ -1016,7 +1017,7 @@ export async function executeShipment(
   if (!carrierPreparation) {
     throw new AppError("NOT_FOUND", "Shipment not found.", 404);
   }
-  const carrierInput = {
+  const carrierInput = await applyVpDeclarations({
     ...buildCreateCarrierShipmentInputFromPreparation(
       tenantId,
       carrierPreparation,
@@ -1025,7 +1026,7 @@ export async function executeShipment(
       input.options,
     ),
     carrierAccountId: resolvedCarrierAccountId,
-  };
+  }, input.options?.vpDeclarations);
   const carrierContext = {
     tenantId,
     credentials: runtimeCredentials,

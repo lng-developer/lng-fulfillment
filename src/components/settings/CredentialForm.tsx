@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
@@ -208,6 +209,7 @@ export function CredentialForm({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
       role="dialog"
     >

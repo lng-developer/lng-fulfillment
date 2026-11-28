@@ -7,6 +7,7 @@
 - Frontend không expose secrets, API keys, carrier credentials hoặc internal tokens.
 - Mọi màn hình business data phải hoạt động trong tenant context rõ ràng.
 - Loading, empty và error states phải được thiết kế ngay từ đầu.
+- Modal đóng khi bấm nền bên ngoài; bấm nội dung hoặc padding bên trong không đóng. Các thao tác đang lưu/gửi vẫn chặn đóng theo trạng thái pending. Modal mới dùng `dismissOnBackdrop` trong `src/lib/modal-backdrop.ts`, hỗ trợ cả overlay và native dialog.
 
 ## Login Page
 

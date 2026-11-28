@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { useState } from "react";
 import { WarningBox } from "@/components/ui/WarningBox";
@@ -59,6 +60,7 @@ export function EditMemberModal({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
       role="dialog"
     >

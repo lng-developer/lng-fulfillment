@@ -176,10 +176,10 @@ export async function executeShipment(
   return response.data;
 }
 
-export async function syncTracking(shipmentId: string) {
+export async function syncTracking(shipmentId: string, signal?: AbortSignal) {
   const response = await apiFetch<ApiSuccess<TrackingSyncApiResult>>(
     `/api/shipments/${shipmentId}/tracking`,
-    { method: "POST" },
+    { method: "POST", signal },
   );
 
   return response.data;

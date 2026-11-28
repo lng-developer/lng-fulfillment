@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { apiFetch, getErrorMessage } from "@/lib/api/base";
@@ -31,7 +32,7 @@ export function CancelOrderModal({ order, onClose, onCancelled }: {
     }
   }
   return (
-    <dialog ref={dialog} aria-labelledby={titleId}
+    <dialog onMouseDown={(event) => dismissOnBackdrop(event, onClose, pending)} ref={dialog} aria-labelledby={titleId}
       className="w-[calc(100%_-_2rem)] max-w-md rounded-lg border border-slate-200 bg-white p-0 shadow-xl backdrop:bg-black/40"
       onCancel={event => { event.preventDefault(); if (!pending) onClose(); }}>
       <form onSubmit={event => { event.preventDefault(); void submit(); }}>

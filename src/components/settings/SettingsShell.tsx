@@ -11,6 +11,7 @@ import { CarrierAccountsTab } from "./CarrierAccountsTab";
 import { MembersTab } from "./MembersTab";
 import { ShipmentAutomationTab } from "./ShipmentAutomationTab";
 import { TenantProfileTab } from "./TenantProfileTab";
+import { VpMerchandiseTab } from "./VpMerchandiseTab";
 
 type SettingsTab = {
   id: string;
@@ -77,8 +78,14 @@ export function SettingsShell({
         visible: can.viewAuditLogs(role),
         render: () => <AuditLogsTab />,
       },
+      {
+        id: "vp-merchandise",
+        label: "Khai báo hàng VP",
+        visible: can.shipOrder(role),
+        render: () => <VpMerchandiseTab initialSearch={searchParams.get("sku") ?? ""} />,
+      },
     ],
-    [resolvedCurrentUserId, resolvedTenantId, role],
+    [resolvedCurrentUserId, resolvedTenantId, role, searchParams],
   );
 
   const visibleTabs = tabs.filter((tab) => tab.visible);

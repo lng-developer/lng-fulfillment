@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { useRef, useState } from "react";
@@ -57,6 +58,7 @@ export function ConfirmationModal({
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onCancel, isPending)}
       className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
     >

@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { useEffect, useMemo, useState } from "react";
 import { getMe } from "@/lib/api/auth";
@@ -510,6 +511,7 @@ export function ShipmentExecutionPreparation({
       {isDraftModalOpen ? (
         <div
           aria-labelledby="create-draft-title"
+          onMouseDown={(event) => dismissOnBackdrop(event, () => setIsDraftModalOpen(false), isCreatingDraft)}
           aria-modal="true"
           className={styles.modalBackdrop}
           role="dialog"
@@ -659,7 +661,7 @@ export function ShipmentExecutionPreparation({
       </div>
 
       {isShipmentDetailOpen && selectedShipmentId ? (
-        <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-detail-title">
+        <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-detail-title" onMouseDown={(event) => dismissOnBackdrop(event, () => setIsShipmentDetailOpen(false))}>
           <div className={styles.modal}>
           <div className={styles.blockHeader}>
             <div>
@@ -704,7 +706,7 @@ export function ShipmentExecutionPreparation({
           </span>
           <span className={styles.carrierBadge}>{carrierCode}</span>
         </button>
-        {isPreflightOpen ? <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-preflight-title"><div className={styles.modal}>
+        {isPreflightOpen ? <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby="shipment-preflight-title" onMouseDown={(event) => dismissOnBackdrop(event, () => setIsPreflightOpen(false), isExecuting)}><div className={styles.modal}>
         <div className={styles.modalHeader}>
           <div><p className={styles.kicker}>Shipments</p><h4 id="shipment-preflight-title">Prepare shipment</h4></div>
           <button className={styles.closeButton} onClick={() => setIsPreflightOpen(false)} type="button" aria-label="Close shipment preparation">×</button>

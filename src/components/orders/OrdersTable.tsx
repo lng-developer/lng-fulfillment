@@ -6,19 +6,19 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ShipmentDetailPanel } from "@/components/shipments/ShipmentDetailPanel";
 import { syncTracking as syncShipmentTracking } from "@/lib/api/shipments";
+import { useVpShipping, VpShippingProgress } from "./VpShippingProgress";
+import { VpBatchShipModal } from "./VpBatchShipModal";
 import { PrintLabelModal } from "./PrintLabelModal";
 import {
   CheckCircle2,
   ChevronDown,
   Download,
-  Layers,
   Loader2,
   MoreHorizontal,
   Package,
   Printer,
   QrCode,
   RotateCcw,
-  RefreshCw,
   Eye,
   Search,
   Truck,
@@ -129,6 +129,8 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [shipTarget, setShipTarget] = useState<OrderListItem | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showVpBatchModal, setShowVpBatchModal] = useState(false);
+  const vpFlow = useVpShipping(() => refreshOrders());
   const [cancelTarget, setCancelTarget] = useState<OrderListItem | null>(null);
   const [cancelOrderTarget, setCancelOrderTarget] = useState<OrderListItem | null>(null);
   const [resetTarget, setResetTarget] = useState<OrderListItem | null>(null);
@@ -288,19 +290,17 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       const next = new Set(current);
       if (next.has(orderId)) {
         next.delete(orderId);
-      } else {
+      } else if (next.size < 10) {
         next.add(orderId);
       }
       return next;
     });
   }, []);
 
-  const selectAll = useCallback(() => {
-    const eligibleOrders = orders.filter((order) =>
-      ["READY_TO_SHIP", "RECEIVED", "FULFILLED"].includes(order.status),
-    );
-    setSelectedIds(new Set(eligibleOrders.map((order) => order.id)));
-  }, [orders]);
+  const batchSelectionOrders = orders.slice(0, 10);
+  function selectAll() {
+    setSelectedIds(new Set(batchSelectionOrders.map((order) => order.id)));
+  }
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -359,6 +359,12 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
   async function handleExecuteShip(input: ShipOrderSubmitInput) {
     if (!shipTarget) return;
     const targetOrder = shipTarget;
+    if (input.carrierCode === "VIETTEL_POST") {
+      if (vpFlow.running) return;
+      setShipTarget(null);
+      void vpFlow.start([{ orderId: targetOrder.id, orderNumber: targetOrder.orderNumber || targetOrder.externalOrderId, options: input.options, environment: input.environment, carrierAccountId: input.carrierAccountId ?? null }], input.autoPrint ?? true, input.labelMode ?? "single");
+      return;
+    }
     setShipTarget(null);
 
     setPendingOrderActions((current) => ({
@@ -389,7 +395,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
       }
 
       // Auto-confirm package dimensions in background for cost calculation
-      if (input.carrierCode !== "VIETTEL_POST" && input.options.weight && input.options.length) {
+      if (input.options.weight && input.options.length) {
         void confirmOrderShipped(targetOrder.id, {
           weightKg: input.options.weight,
           lengthCm: input.options.length,
@@ -400,7 +406,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         }).catch(() => {});
       }
 
-      const carrierName = input.carrierCode === "VIETTEL_POST" ? "Viettel Post" : "YunExpress";
+      const carrierName = "YunExpress";
       toastSuccess(`Tạo vận đơn ${carrierName} thành công! ${tracking ? `Mã tracking: ${tracking}` : "Đang chờ cấp tracking."}`);
       applyOrderMutation(result);
     } catch (err) {
@@ -609,6 +615,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
     }
   }
 
+  const recoveredPending = useRef(false);
+  useEffect(() => {
+    if (recoveredPending.current || vpFlow.running || vpFlow.jobs.length || !can.syncTracking(role)) return;
+    const pending = orders.filter(o => o.latestCarrierCode === "VIETTEL_POST" && o.latestCarrierAccountId && o.latestShipmentId && !o.latestLabelUrl && ["CREATED","TRACKING_PENDING","LABEL_READY"].includes(o.latestShipmentStatus ?? "")).slice(0,10);
+    if (!pending.length) return;
+    recoveredPending.current = true;
+    void vpFlow.resume(pending.map(o => ({orderId:o.id,orderNumber:o.orderNumber || o.externalOrderId,shipmentId:o.latestShipmentId!,state:"waiting"})), "single");
+  }, [orders,role,vpFlow]);
   const selectedOrders = orders.filter((o) => selectedIds.has(o.id));
   const qcEligibleOrders = selectedOrders.filter(
     (o) => o.status === "RECEIVED" || o.status === "ON_HOLD",
@@ -619,6 +633,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
 
   return (
     <div className="space-y-4">
+      <VpShippingProgress flow={vpFlow} />
       {/* Quick Status Tabs */}
       <div className="flex items-center justify-between border-b border-slate-200">
         <div className="flex gap-6">
@@ -783,25 +798,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
             ))}
           </select>
 
-          {can.shipOrder(role) && (
-            <Button
-              disabled={shipEligibleOrders.length === 0}
-              leftIcon={<Layers className="h-3.5 w-3.5" />}
-              onClick={() => setShowBatchModal(true)}
-              size="sm"
-              variant="secondary"
-            >
-              Đóng hàng loạt ({shipEligibleOrders.length})
-            </Button>
-          )}
         </div>
       </div>
 
       {/* Batch Floating / Active selection banner */}
       {selectedIds.size > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-900 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Đã chọn {selectedIds.size} đơn hàng</span>
+        <div role="region" aria-label="Thao tác đơn đã chọn" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-900 shadow-sm animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">Đã chọn {selectedIds.size}/10 đơn · Tối đa 10 đơn/lượt</span>
             {qcEligibleOrders.length > 0 && (
               <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
                 {qcEligibleOrders.length} chờ QC
@@ -813,7 +817,14 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {can.shipOrder(role) && <>
+              <Button size="sm" variant="primary" leftIcon={<Truck className="h-3.5 w-3.5" />} disabled={vpFlow.running || !shipEligibleOrders.length} onClick={() => setShowVpBatchModal(true)}>
+                Gửi VP ({shipEligibleOrders.length})
+              </Button>
+              <Button size="sm" variant="secondary" leftIcon={<Printer className="h-3.5 w-3.5" />} disabled={vpFlow.running || selectedOrders.length > 10 || !selectedOrders.some(o => o.latestCarrierCode === "VIETTEL_POST" && o.latestShipmentId && !["CANCELLED","FAILED_CREATE"].includes(o.latestShipmentStatus ?? ""))}
+                onClick={() => void vpFlow.resume(selectedOrders.filter(o => o.latestCarrierCode === "VIETTEL_POST" && o.latestShipmentId && !["CANCELLED","FAILED_CREATE"].includes(o.latestShipmentStatus ?? "")).map(o => ({orderId:o.id,orderNumber:o.orderNumber || o.externalOrderId,shipmentId:o.latestShipmentId!,state:"waiting"})), "single", true)}>Lấy / In nhãn</Button>
+            </>}
             {can.qcOrder(role) && qcEligibleOrders.length > 0 && (
               <Button
                 className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
@@ -829,9 +840,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                 leftIcon={<Truck className="h-3.5 w-3.5" />}
                 onClick={() => setShowBatchModal(true)}
                 size="sm"
-                variant="primary"
+                variant="secondary"
               >
-                Đóng gói ({shipEligibleOrders.length})
+                Gửi Yun ({shipEligibleOrders.length})
               </Button>
             )}
             <Button
@@ -871,9 +882,11 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                   <th className="w-10 px-3.5 py-2.5">
                     <input
                       checked={
-                        orders.length > 0 &&
-                        orders.every((o) => selectedIds.has(o.id))
+                        batchSelectionOrders.length > 0 &&
+                        batchSelectionOrders.every((o) => selectedIds.has(o.id))
                       }
+                      aria-label="Chọn tối đa 10 đơn trên trang"
+                      title="Chọn tối đa 10 đơn trên trang này"
                       className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                       onChange={(e) => {
                         if (e.target.checked) selectAll();
@@ -928,7 +941,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                     order.status === "SHIPPED" ||
                     (order.latestShipmentStatus !== "CANCELLED" && Boolean(labelUrl)) ||
                     (order.status === "IN_PROCESSING" && Boolean(tracking));
-                  const pendingAction = pendingOrderActions[order.id] ?? null;
+                  const pendingAction = pendingOrderActions[order.id] ?? (vpFlow.running && vpFlow.jobs.some(j => j.orderId === order.id && ["queued","sending"].includes(j.state)) ? "ship" : null);
                   const isMenuOpen = activeMenuOrderId === order.id;
 
                   return (
@@ -942,6 +955,9 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                         <td className="w-10 px-3.5 py-2.5">
                           <input
                             checked={isSelected}
+                            disabled={!isSelected && selectedIds.size >= 10}
+                            aria-label={`Chọn đơn ${order.orderNumber ?? order.externalOrderId}`}
+                            title={!isSelected && selectedIds.size >= 10 ? "Đã chọn đủ 10 đơn. Bỏ chọn một đơn để chọn đơn khác." : undefined}
                             className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                             onChange={() => toggleSelect(order.id)}
                             type="checkbox"
@@ -1049,12 +1065,6 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                   onClick={() => setViewShipmentId(latestShipmentId)}>
                                   Xem vận đơn
                                 </Button>
-                                {can.syncTracking(role) && (
-                                  <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
-                                    onClick={() => void handleSyncVp(order.id, latestShipmentId!)}>
-                                    Đồng bộ VP
-                                  </Button>
-                                )}
                                 {labelUrl && (
                                   <Button size="sm" variant="secondary" leftIcon={<Printer className="h-3.5 w-3.5" />}
                                     onClick={() => setPrintOrderId(order.id)}>
@@ -1098,7 +1108,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                               </span>
                             ) : can.shipOrder(role) && ["READY_TO_SHIP", "FULFILLED"].includes(order.status) ? (
                               <Button
-                                disabled={Boolean(pendingAction)}
+                                disabled={Boolean(pendingAction) || vpFlow.running}
                                 leftIcon={<Truck className="h-3.5 w-3.5" />}
                                 onClick={() => {
                                   if (!detailCacheRef.current[order.id]) {
@@ -1173,6 +1183,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
                                           QC Pass (Sẵn sàng ship)
                                         </button>
                                       )}
+                                    {hasVpShipment && can.syncTracking(role) && <button type="button" disabled={Boolean(pendingAction) || vpFlow.running} className="w-full rounded px-2.5 py-1.5 text-left text-slate-700 hover:bg-slate-50" onClick={() => {setActiveMenuOrderId(null);void handleSyncVp(order.id,latestShipmentId!);}}>Đồng bộ lại VP</button>}
                                     {can.cancelOrder(role) && order.status !== "CANCELLED" && (
                                       <button type="button" disabled={Boolean(pendingAction)}
                                         className="w-full rounded px-2.5 py-1.5 text-left text-rose-600 hover:bg-rose-50 disabled:opacity-50"
@@ -1287,6 +1298,7 @@ export function OrdersTable({ role: roleProp }: { role?: Role }) {
         />
       )}
 
+      {showVpBatchModal && <VpBatchShipModal initialDetails={detailCache} orders={shipEligibleOrders} onClose={() => setShowVpBatchModal(false)} onSubmit={(inputs,autoPrint,mode) => {setShowVpBatchModal(false);void vpFlow.start(inputs,autoPrint,mode);}} />}
       {/* Batch Ship Modal */}
       {showBatchModal && (
         <BatchShipModal

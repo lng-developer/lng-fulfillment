@@ -1,4 +1,5 @@
 "use client";
+import { dismissOnBackdrop } from "@/lib/modal-backdrop";
 
 import { Eye, EyeOff } from "lucide-react";
 import { FormEvent, useId, useState } from "react";
@@ -68,6 +69,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   return (
     <div
       aria-modal="true"
+      onMouseDown={(event) => dismissOnBackdrop(event, onClose, isPending)}
       className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
     >

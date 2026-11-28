@@ -69,6 +69,8 @@ export function useFocusTrap<T extends HTMLElement>(
 function getFocusable(root: HTMLElement) {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (element) =>
+      element.getClientRects().length > 0 &&
+      !element.matches(":disabled") &&
       !element.hasAttribute("disabled") &&
       element.getAttribute("aria-hidden") !== "true",
   );
