@@ -397,7 +397,7 @@ export function VpBatchShipModal({
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
                 <tr>
-                  {["Đơn hàng", "Khối lượng", "Kiện hàng", "Kiểm tra"].map(
+                  {["Đơn hàng", "Khối lượng (g)", "Dài × Rộng × Cao (cm)", "Kiểm tra"].map(
                     (h) => (
                       <th
                         key={h}
@@ -431,16 +431,33 @@ export function VpBatchShipModal({
                           {order.orderNumber || order.externalOrderId}
                         </button>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 tabular-nums">
-                        {p
-                          ? `${Math.round(p.package.weight * 1000 * 100) / 100} g`
-                          : "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 tabular-nums">
-                        {p
-                          ? `${p.package.length}×${p.package.width}×${p.package.height} cm`
-                          : "—"}
-                      </td>
+                      {([ ["weight"], ["length", "width", "height"] ] as const).map((keys) => (
+                        <td key={keys[0]} className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1">
+                            {keys.map((key, index) => (
+                              <label key={key} className="flex items-center gap-1">
+                                {index > 0 && <span aria-hidden="true" className="text-slate-400">×</span>}
+                                <input
+                                  aria-label={`Sửa nhanh ${packageLabels[key]} ${order.externalOrderId}`}
+                                  type="number"
+                                  min="0.01"
+                                  step="any"
+                                  disabled={!p || submitted}
+                                  className={`${key === "weight" ? "w-24" : "w-20"} rounded border p-2 text-sm tabular-nums disabled:bg-slate-100`}
+                                  value={p ? (Math.round(p.package[key] * (key === "weight" ? 1000 : 1) * 100) / 100 || "") : ""}
+                                  onChange={(e) => patch(order.id, (current) => ({
+                                    ...current,
+                                    package: {
+                                      ...current.package,
+                                      [key]: Number(e.target.value) / (key === "weight" ? 1000 : 1),
+                                    },
+                                  }))}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                      ))}
                       <td className="px-4 py-3">
                         <span
                           className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${problem ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}

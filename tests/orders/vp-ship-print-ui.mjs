@@ -90,6 +90,11 @@ try {
   await batch.dispatchEvent("mousedown");
   assert.equal(await batch.count(), 0);
   await page.getByRole("button", { name: "Batch", exact: true }).click();
+  await batch.getByLabel("Sửa nhanh Khối lượng (g) a", { exact: true }).fill("170");
+  await batch.getByLabel("Sửa nhanh Dài (cm) a", { exact: true }).fill("8");
+  await batch.getByLabel("Sửa nhanh Rộng (cm) a", { exact: true }).fill("6");
+  await batch.getByLabel("Sửa nhanh Cao (cm) a", { exact: true }).fill("3");
+  assert.equal(await batch.getByRole("complementary", { name: "Chi tiết đơn gửi VP" }).isVisible(), false);
   await batch.getByRole("button", { name: "Chỉnh đơn a", exact: true }).click();
   await batch.getByLabel("weight a", { exact: true }).fill("170");
   await batch.getByLabel("weight a", { exact: true }).press("Tab");
@@ -135,6 +140,9 @@ try {
   }));
   assert.equal(data.sent.length, 2);
   assert.equal(data.sent[0].options.weight, 0.17);
+  assert.equal(data.sent[0].options.length, 8);
+  assert.equal(data.sent[0].options.width, 6);
+  assert.equal(data.sent[0].options.height, 3);
   assert.deepEqual(data.sent[0].options.vpDeclarations, [
     {
       orderItemId: "ia",
